@@ -1,0 +1,11 @@
+# secrets - never commit
+.env
+.env.local
+*.pem
+
+# node
+node_modules/
+
+# next
+.next/
+out/
