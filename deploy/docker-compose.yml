@@ -1,0 +1,15 @@
+services:
+  sqld:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    container_name: pantry-sqld
+    restart: unless-stopped
+    volumes:
+      - /opt/pantry-db:/var/lib/sqld
+    ports:
+      - "127.0.0.1:8080:8080"
+    command:
+      - sqld
+      - --http-listen-addr
+      - 0.0.0.0:8080
+      - --auth-jwt-key-file
+      - /var/lib/sqld/jwt-public.pem
