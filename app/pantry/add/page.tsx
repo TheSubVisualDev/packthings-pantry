@@ -22,6 +22,7 @@ export default async function AddItemPage({
     quantity?: string;
     unit?: string;
     category?: string;
+    location?: string;
     barcode?: string;
   }>;
 }) {

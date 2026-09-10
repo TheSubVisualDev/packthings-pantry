@@ -9,7 +9,7 @@ import {
   restockBarcode,
   type ScanMatch,
 } from "@/app/pantry/scan/actions";
-import { formatQuantity } from "@/lib/units";
+import { dimensionOf, formatQuantity } from "@/lib/units";
 import type { Item } from "@/lib/types";
 
 const FIELD =
@@ -41,8 +41,12 @@ export function ScanPanel({ items }: { items: Item[] }) {
         setError(result.error ?? "Lookup failed.");
         return;
       }
+
       setMatch(result.match);
-      setChosenItem("");
+      // A confident match starts selected so linking is one tap. A weaker one
+      // is listed but left unchosen - the whole point is that a person decides.
+      const top = result.match.suggestions[0];
+      setChosenItem(top?.confident ? String(top.id) : "");
     });
   }
 
@@ -80,7 +84,7 @@ export function ScanPanel({ items }: { items: Item[] }) {
         match.barcode,
         itemId,
         { name: match.name, brand: match.brand, pack: match.pack },
-        addPack,
+        addPack && packFits,
       );
       if (!result.ok) {
         setError(result.error ?? "Couldn't link that.");
@@ -89,7 +93,7 @@ export function ScanPanel({ items }: { items: Item[] }) {
 
       const item = items.find((candidate) => candidate.id === itemId);
       setNote(
-        addPack && item
+        addPack && packFits && item
           ? `Linked to ${item.name}, now ${withUnit(result.quantity ?? 0, item.canonical_unit)}.`
           : `Linked to ${item?.name ?? "that item"}.`,
       );
@@ -143,6 +147,16 @@ export function ScanPanel({ items }: { items: Item[] }) {
   const packLabel = match.pack
     ? withUnit(match.pack.quantity, match.pack.unit)
     : null;
+  const topSuggestion = match.suggestions[0];
+
+  // Whether a pack can actually be added depends on the item chosen: 400g of
+  // something can't go onto a row counted in whole loaves. Offering the tick
+  // box anyway would just produce a link that half-worked.
+  const chosen = items.find((item) => String(item.id) === chosenItem);
+  const packDimension = match.pack ? dimensionOf(match.pack.unit) : null;
+  const packFits = Boolean(
+    packLabel && chosen && packDimension && packDimension === chosen.dimension,
+  );
 
   return (
     <div className="space-y-5">
@@ -195,15 +209,59 @@ export function ScanPanel({ items }: { items: Item[] }) {
       ) : (
         <>
           <section className={CARD}>
-            <h3 className="text-sm font-extrabold">Link it to something you have</h3>
+            <h3 className="text-sm font-extrabold">
+              {topSuggestion?.confident
+                ? `Looks like your ${topSuggestion.name}`
+                : "Link it to something you have"}
+            </h3>
             <p className="mt-1 mb-4 text-sm font-semibold text-muted-foreground">
-              Own-brand linguine might belong on your generic pasta row, or
-              deserve its own. Nothing in the barcode says which, so it&apos;s
-              your call.
+              {topSuggestion?.confident
+                ? "Picked out below. Own-brand linguine sometimes deserves its own row, so change it if that's the case."
+                : "Own-brand linguine might belong on your generic pasta row, or deserve its own. Nothing in the barcode says which."}
             </p>
 
+            {match.suggestions.length > 0 && (
+              <ul className="mb-4 space-y-2">
+                {match.suggestions.map((suggestion) => {
+                  const selected = chosenItem === String(suggestion.id);
+                  return (
+                    <li key={suggestion.id}>
+                      <button
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setChosenItem(String(suggestion.id))}
+                        className={`flex w-full items-center justify-between gap-3 rounded-[14px] border px-4 py-3 text-left transition-colors ${
+                          selected
+                            ? "border-primary bg-[oklch(0.96_0.02_35)]"
+                            : "border-border bg-background"
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block font-bold break-words">
+                            {suggestion.name}
+                          </span>
+                          <span className="block text-sm font-semibold text-quantity">
+                            {withUnit(suggestion.quantity, suggestion.unit)} in stock
+                          </span>
+                        </span>
+                        <span
+                          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap ${
+                            suggestion.confident
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-chip text-muted-foreground"
+                          }`}
+                        >
+                          {suggestion.confident ? "Close match" : "Maybe"}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
             <label htmlFor="link-item" className={LABEL}>
-              Item
+              {match.suggestions.length > 0 ? "Or something else" : "Item"}
             </label>
             <select
               id="link-item"
@@ -219,7 +277,7 @@ export function ScanPanel({ items }: { items: Item[] }) {
               ))}
             </select>
 
-            {packLabel && (
+            {packFits && (
               <label className="mt-3 flex items-center gap-2.5 text-sm font-semibold">
                 <input
                   type="checkbox"
@@ -229,6 +287,13 @@ export function ScanPanel({ items }: { items: Item[] }) {
                 />
                 Put one {packLabel} pack in now
               </label>
+            )}
+            {packLabel && chosen && !packFits && (
+              <p className="mt-3 text-sm font-semibold text-muted-foreground">
+                The pack is {packLabel} but {chosen.name} is measured in{" "}
+                {chosen.canonical_unit === "count" ? "whole things" : chosen.canonical_unit}
+                , so linking won&apos;t change the count.
+              </p>
             )}
 
             <button
@@ -246,10 +311,11 @@ export function ScanPanel({ items }: { items: Item[] }) {
               pathname: "/pantry/add",
               query: {
                 barcode: match.barcode,
-                name: match.name ?? "",
-                quantity: match.pack ? String(match.pack.quantity) : "",
-                unit: match.pack?.unit ?? "",
-                category: match.category ?? "",
+                name: match.prefill.name,
+                quantity: match.prefill.quantity,
+                unit: match.prefill.unit,
+                category: match.prefill.category,
+                location: match.prefill.location,
               },
             }}
             className="block w-full rounded-[14px] bg-ink px-4 py-3.5 text-center text-[15px] font-extrabold text-background"

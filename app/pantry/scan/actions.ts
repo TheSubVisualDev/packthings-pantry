@@ -2,9 +2,30 @@
 
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
+import { cleanProductName, rankItems, STRONG_MATCH } from "@/lib/match";
 import { isBarcode, lookupOpenFoodFacts, type PackSize } from "@/lib/off";
+import { getItems } from "@/lib/queries";
 import { toCanonical } from "@/lib/units";
 import type { Item } from "@/lib/types";
+
+export interface Suggestion {
+  id: number;
+  name: string;
+  quantity: number;
+  unit: string;
+  score: number;
+  /** At or above the strong threshold, so worth preselecting. */
+  confident: boolean;
+}
+
+/** Everything the add form should already know by the time you reach it. */
+export interface ScanPrefill {
+  name: string;
+  quantity: string;
+  unit: string;
+  category: string;
+  location: string;
+}
 
 export interface ScanMatch {
   barcode: string;
@@ -16,6 +37,9 @@ export interface ScanMatch {
   linked: { id: number; name: string; quantity: number; unit: string } | null;
   /** Whether anything is known about it at all. */
   known: boolean;
+  /** Existing rows this product probably belongs on, best first. */
+  suggestions: Suggestion[];
+  prefill: ScanPrefill;
 }
 
 export interface ScanResult {
@@ -82,22 +106,56 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
           unit: row.canonical_unit ?? "",
         },
         known: true,
+        // A linked barcode has already had its question answered.
+        suggestions: [],
+        prefill: { name: "", quantity: "", unit: "", category: "", location: "" },
       },
     };
   }
 
-  const product = await lookupOpenFoodFacts(code);
+  const [product, items] = await Promise.all([
+    lookupOpenFoodFacts(code),
+    getItems(),
+  ]);
+
+  const name = product?.name ?? row?.name ?? null;
+  const brand = product?.brand ?? row?.brand ?? null;
+  const pack = product?.pack ?? null;
+
+  const ranked = rankItems(name, brand, pack?.unit ?? null, items);
+  const best = ranked[0]?.item;
 
   return {
     ok: true,
     match: {
       barcode: code,
-      name: product?.name ?? row?.name ?? null,
-      brand: product?.brand ?? row?.brand ?? null,
+      name,
+      brand,
       category: product?.category ?? null,
-      pack: product?.pack ?? null,
+      pack,
       linked: null,
       known: Boolean(product) || Boolean(row),
+      suggestions: ranked.slice(0, 4).map(({ item, score }) => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.canonical_unit,
+        score,
+        confident: score >= STRONG_MATCH,
+      })),
+      prefill: {
+        name: cleanProductName(name, brand),
+        quantity: pack ? String(pack.quantity) : "",
+        // No pack size on record, so fall back to how the nearest existing
+        // item is measured rather than defaulting everything to grams.
+        unit: pack?.unit ?? best?.canonical_unit ?? "",
+        // The pantry's own word for this beats the catalogue's, which runs to
+        // things like "Confectionary based spreads".
+        category: best?.category ?? product?.category ?? "",
+        // Nothing in a barcode says where it lives; the closest neighbour is
+        // the only signal there is.
+        location: best?.location ?? "",
+      },
     },
   };
 }

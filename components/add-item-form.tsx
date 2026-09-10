@@ -36,6 +36,7 @@ export interface AddItemPrefill {
   quantity?: string;
   unit?: string;
   category?: string;
+  location?: string;
   /** Set when the scanner sent us here; linked to the new item on submit. */
   barcode?: string;
 }
@@ -140,7 +141,12 @@ export function AddItemForm({
           <label htmlFor="location" className={LABEL}>
             Location
           </label>
-          <select id="location" name="location" defaultValue="" className={FIELD}>
+          <select
+            id="location"
+            name="location"
+            defaultValue={prefill.location ?? ""}
+            className={FIELD}
+          >
             <option value="">Unplaced</option>
             {LOCATIONS.map((location) => (
               <option key={location} value={location}>
