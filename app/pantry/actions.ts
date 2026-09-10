@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db";
 import { isLocation } from "@/lib/locations";
+import { isBarcode } from "@/lib/off";
 import { CANONICAL_FOR, dimensionOf, toCanonical } from "@/lib/units";
 
 export interface AddItemState {
@@ -28,6 +29,7 @@ export async function addItem(
   const category = String(formData.get("category") ?? "").trim();
   const location = String(formData.get("location") ?? "").trim();
   const expiry = String(formData.get("expiry_date") ?? "").trim();
+  const barcode = String(formData.get("barcode") ?? "").trim();
 
   if (!name) return { error: "Give it a name." };
   if (name.length > 80) return { error: "That name is too long." };
@@ -46,10 +48,12 @@ export async function addItem(
   // An empty date input posts "", which would otherwise be stored as a date.
   const expiryDate = /^\d{4}-\d{2}-\d{2}$/.test(expiry) ? expiry : null;
 
+  let itemId: number;
+
   try {
-    await getDb().execute({
+    const inserted = await getDb().execute({
       sql: `INSERT INTO items (name, quantity, canonical_unit, dimension, category, location, expiry_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       args: [
         name,
         converted.quantity,
@@ -60,6 +64,7 @@ export async function addItem(
         expiryDate,
       ],
     });
+    itemId = (inserted.rows[0] as unknown as { id: number }).id;
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     // items.name is UNIQUE - adding more of something you have is an adjust.
@@ -67,6 +72,21 @@ export async function addItem(
       return { error: `"${name}" is already in stock. Use Quick adjust instead.` };
     }
     return { error: message || "Couldn't add that item." };
+  }
+
+  // Arrived from a scan: remember which item that barcode turned out to mean,
+  // so the next scan of it recognises the product instead of asking again.
+  if (isBarcode(barcode)) {
+    await getDb().execute({
+      sql: `INSERT INTO products (barcode, item_id, name, pack_size, pack_unit, seen_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(barcode) DO UPDATE SET
+              item_id = excluded.item_id,
+              pack_size = excluded.pack_size,
+              pack_unit = excluded.pack_unit,
+              seen_at = CURRENT_TIMESTAMP`,
+      args: [barcode, itemId, name, converted.quantity, CANONICAL_FOR[dimension]],
+    });
   }
 
   revalidatePath("/pantry");

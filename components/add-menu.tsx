@@ -21,15 +21,15 @@ function BarcodeIcon() {
 
 /** `href` is what makes an action live; the rest are still visual only. */
 const actions = [
-  { key: "scan", label: "Scan barcode", icon: <BarcodeIcon />, href: null },
+  { key: "scan", label: "Scan barcode", icon: <BarcodeIcon />, href: "/pantry/scan" },
   { key: "add", label: "Add item", icon: "+", href: "/pantry/add" },
   { key: "recipe", label: "New recipe", icon: "✎", href: null },
   { key: "adjust", label: "Quick adjust", icon: "↕", href: "/pantry/adjust" },
 ] as const;
 
 /**
- * Floating add menu from artboards 2a/2b. Add item and Quick adjust now go
- * somewhere; scanning and new-recipe still just close the menu.
+ * Floating add menu from artboards 2a/2b. Only New recipe is still inert,
+ * and it looks it.
  */
 export function AddMenu() {
   const [open, setOpen] = useState(false);

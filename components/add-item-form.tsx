@@ -36,6 +36,8 @@ export interface AddItemPrefill {
   quantity?: string;
   unit?: string;
   category?: string;
+  /** Set when the scanner sent us here; linked to the new item on submit. */
+  barcode?: string;
 }
 
 export function AddItemForm({
@@ -57,6 +59,9 @@ export function AddItemForm({
 
   return (
     <form action={formAction} className="space-y-4">
+      {prefill.barcode && (
+        <input type="hidden" name="barcode" value={prefill.barcode} />
+      )}
       <div>
         <label htmlFor="name" className={LABEL}>
           Name

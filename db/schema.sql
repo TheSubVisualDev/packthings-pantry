@@ -48,3 +48,20 @@ CREATE TABLE IF NOT EXISTS cook_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_cook_events_recipe ON cook_events(recipe_id, cooked_at DESC);
+
+-- Scanned barcodes, and what they turned out to be. `item_id` is the human's
+-- decision, not a guess: a scan of own-brand linguine might belong to a
+-- generic "Pasta" row or deserve its own, and nothing in the barcode says
+-- which. Null until someone says. Pack size is stored canonically so a
+-- restock can add one pack without re-reading the label.
+CREATE TABLE IF NOT EXISTS products (
+  barcode   TEXT PRIMARY KEY,
+  item_id   INTEGER REFERENCES items(id) ON DELETE SET NULL,
+  name      TEXT,
+  brand     TEXT,
+  pack_size REAL,
+  pack_unit TEXT,
+  seen_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_products_item ON products(item_id);
