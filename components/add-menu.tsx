@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 /** Barcode glyph from the artboards - five bars of varying width. */
@@ -30,6 +31,7 @@ const actions = [
  */
 export function AddMenu() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!open) return;
@@ -39,6 +41,10 @@ export function AddMenu() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
+
+  // The layout renders this on every route, including the signed-out login
+  // screen, where an add button has nothing to add to.
+  if (pathname === "/login") return null;
 
   return (
     <>

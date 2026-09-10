@@ -1,66 +1,58 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
+import { SESSION_COOKIE, basicAuthValid, configuredPassword, sessionValid } from "@/lib/auth";
 
 /**
- * HTTP Basic auth over the whole app.
+ * Gate on every request: a signed session cookie, or HTTP Basic credentials.
  *
- * The Vercel URL is public and the pantry is not, so every request has to
- * carry credentials before it reaches a route. Basic auth is what the browser
- * already knows how to prompt for and remember, including iOS Safari, so there
- * is no login page or session store to maintain.
- *
- * Requires PANTRY_PASSWORD (and optionally PANTRY_USER) in the environment.
+ * People get the cookie by way of the /login form, which password managers can
+ * actually fill - the native Basic dialog can't be autofilled on iOS Safari.
+ * Basic stays accepted so curl and the recipe importer have a non-interactive
+ * way in without a session.
  *
  * Named `proxy` rather than `middleware`: Next 16 renamed the convention and
  * warns on the old filename. Proxy always runs on the Node.js runtime, which
- * is why node:crypto is available here.
+ * is why lib/auth's node:crypto imports are safe here.
  */
-
-const REALM = 'Basic realm="Pantry", charset="UTF-8"';
-
-/**
- * Compares through SHA-256 digests so the comparison is constant time and
- * unequal lengths don't throw, which a raw timingSafeEqual on the inputs would.
- */
-function matches(candidate: string, expected: string): boolean {
-  return timingSafeEqual(
-    createHash("sha256").update(candidate).digest(),
-    createHash("sha256").update(expected).digest(),
-  );
-}
 
 export default function proxy(request: NextRequest) {
-  const expectedUser = process.env.PANTRY_USER ?? "pantry";
-  const expectedPassword = process.env.PANTRY_PASSWORD;
-
   // Fail closed. A missing password must never mean "open to the world".
-  if (!expectedPassword) {
+  if (!configuredPassword()) {
     return new NextResponse("PANTRY_PASSWORD is not set.", {
       status: 503,
       headers: { "cache-control": "no-store" },
     });
   }
 
-  const [scheme, encoded] = (request.headers.get("authorization") ?? "").split(" ");
+  const authenticated =
+    sessionValid(request.cookies.get(SESSION_COOKIE)?.value) ||
+    basicAuthValid(request.headers.get("authorization"));
 
-  if (scheme?.toLowerCase() === "basic" && encoded) {
-    const decoded = Buffer.from(encoded, "base64").toString("utf8");
-    const separator = decoded.indexOf(":");
+  const isLoginPage = request.nextUrl.pathname === "/login";
 
-    if (separator !== -1) {
-      // Both comparisons run unconditionally: with `&&` inline, a wrong
-      // username would skip the password check and return measurably faster.
-      const userOk = matches(decoded.slice(0, separator), expectedUser);
-      const passwordOk = matches(decoded.slice(separator + 1), expectedPassword);
-
-      if (userOk && passwordOk) return NextResponse.next();
-    }
+  if (isLoginPage) {
+    if (!authenticated) return NextResponse.next();
+    // Already signed in - no reason to show the form again.
+    return NextResponse.redirect(new URL("/pantry", request.url));
   }
 
-  return new NextResponse("Unauthorized", {
-    status: 401,
-    headers: { "www-authenticate": REALM, "cache-control": "no-store" },
-  });
+  if (authenticated) return NextResponse.next();
+
+  // Browsers get the form; anything else gets a 401 it can retry with Basic.
+  // Advertising WWW-Authenticate to a browser would pop the native dialog,
+  // which is the thing the login page exists to replace.
+  if (!request.headers.get("accept")?.includes("text/html")) {
+    return new NextResponse("Unauthorized", {
+      status: 401,
+      headers: {
+        "www-authenticate": 'Basic realm="Pantry", charset="UTF-8"',
+        "cache-control": "no-store",
+      },
+    });
+  }
+
+  const login = new URL("/login", request.url);
+  login.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
+  return NextResponse.redirect(login);
 }
 
 export const config = {

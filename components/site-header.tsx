@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { logout } from "@/app/login/actions";
 
 const tabs = [
   { href: "/pantry", key: "stock", label: "Stock" },
@@ -47,11 +48,21 @@ export function SiteHeader({
             })}
           </nav>
         </div>
-        {meta && (
-          <div className="hidden text-sm font-semibold text-muted-foreground sm:block">
-            {meta}
-          </div>
-        )}
+        <div className="flex items-center gap-4">
+          {meta && (
+            <div className="hidden text-sm font-semibold text-muted-foreground sm:block">
+              {meta}
+            </div>
+          )}
+          <form action={logout}>
+            <button
+              type="submit"
+              className="text-[13px] font-semibold text-muted-foreground hover:text-foreground sm:text-sm"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
       </div>
     </header>
   );
