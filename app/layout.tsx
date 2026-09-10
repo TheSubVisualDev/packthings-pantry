@@ -1,16 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Manrope, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { AddMenu } from "@/components/add-menu";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const plexSans = IBM_Plex_Sans({
+  variable: "--font-plex-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -21,12 +29,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#f7f3ec",
 };
-
-const navLinks = [
-  { href: "/pantry", label: "Pantry" },
-  { href: "/recipes", label: "Recipes" },
-];
 
 export default function RootLayout({
   children,
@@ -36,26 +40,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${manrope.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
-        <header className="border-b sticky top-0 z-10 bg-background/95 backdrop-blur">
-          <nav className="mx-auto flex w-full max-w-3xl items-center gap-1 px-4 py-3">
-            <Link href="/pantry" className="mr-auto text-base font-semibold">
-              Pantry
-            </Link>
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-        </header>
-        <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">{children}</main>
+      <body className="min-h-full bg-background text-foreground font-[family-name:var(--font-manrope)]">
+        {children}
+        <AddMenu />
       </body>
     </html>
   );

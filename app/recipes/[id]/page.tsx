@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SiteHeader } from "@/components/site-header";
+import { Stars } from "@/components/recipe-suggestion";
 import { getRecipe, getItems } from "@/lib/queries";
 import { formatQuantity, toCanonical } from "@/lib/units";
 import type { Item } from "@/lib/types";
@@ -47,30 +49,29 @@ function resolveLine(
 }
 
 function StatusBadge({ status }: { status: LineStatus }) {
-  const base = "shrink-0 rounded-full px-2 py-0.5 text-xs whitespace-nowrap";
+  const base =
+    "shrink-0 rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap";
   switch (status.kind) {
     case "in-stock":
       return (
-        <span className={`${base} bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300`}>
-          In stock
-        </span>
+        <span className={`${base} bg-chip text-muted-foreground`}>In stock</span>
       );
     case "short":
       return (
-        <span className={`${base} bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300`}>
+        <span className={`${base} bg-[oklch(0.94_0.06_75)] text-[oklch(0.42_0.1_60)]`}>
           Low
         </span>
       );
     case "not-in-pantry":
       return (
-        <span className={`${base} bg-muted text-muted-foreground`}>
+        <span className={`${base} bg-[oklch(0.94_0.05_35)] text-destructive`}>
           Not in pantry
         </span>
       );
     case "needs-manual":
       return (
         <span
-          className={`${base} bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300`}
+          className={`${base} bg-[oklch(0.94_0.05_35)] text-destructive`}
           title={status.reason}
         >
           Manual
@@ -106,77 +107,78 @@ export default async function RecipePage({
   );
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
+    <>
+      <SiteHeader active="recipes" />
+
+      <div className="mx-auto w-full max-w-[760px] px-5 pt-6 pb-32 sm:px-9 sm:py-8">
         <Link
           href="/recipes"
-          className="text-sm text-muted-foreground hover:text-foreground"
+          className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
         >
           &larr; Recipes
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight break-words">
+
+        <h1 className="mt-3 text-[28px] font-extrabold tracking-[-0.02em] break-words sm:text-[32px]">
           {recipe.name}
         </h1>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-          <span>Serves {recipe.base_servings}</span>
-          <span>
-            {recipe.rating === null ? "Unrated" : `Rated ${recipe.rating}/5`}
-          </span>
-          <span>Cooked {recipe.times_cooked}&times;</span>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-muted-foreground">
+          <Stars rating={recipe.rating} className="text-primary" />
+          <span>serves {recipe.base_servings}</span>
+          <span>cooked {recipe.times_cooked}&times;</span>
         </div>
-      </div>
 
-      <section className="space-y-2">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Ingredients &mdash; at base {recipe.base_servings} servings
-        </h2>
-        <ul className="divide-y rounded-lg border">
-          {lines.map((line) => (
-            <li
-              key={line.id}
-              className="flex items-center justify-between gap-3 px-4 py-3"
-            >
-              <div className="min-w-0">
-                <div className="break-words font-medium">{line.item_name}</div>
-                <div className="text-sm text-muted-foreground">
-                  {formatQuantity(line.quantity)}
-                  {line.unit === "count" ? "" : ` ${line.unit}`}
-                </div>
-              </div>
-              <StatusBadge status={line.status} />
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {unresolved.length > 0 && (
-        <section className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
-          <h2 className="text-sm font-medium text-amber-900 dark:text-amber-200">
-            Needs manual handling
+        <section className="mt-7">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-label">
+            Ingredients &mdash; at base {recipe.base_servings} servings
           </h2>
-          <ul className="mt-2 space-y-1 text-sm text-amber-800 dark:text-amber-300">
-            {unresolved.map((line) => (
-              <li key={line.id}>
-                {line.item_name}
-                {line.status.kind === "needs-manual" &&
-                  ` - ${line.status.reason}`}
-                {line.status.kind === "not-in-pantry" && " - not in pantry"}
+          <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+            {lines.map((line) => (
+              <li
+                key={line.id}
+                className="flex items-center justify-between gap-3 border-b border-border px-4 py-3.5 last:border-b-0 sm:px-5"
+              >
+                <div className="min-w-0">
+                  <div className="font-bold break-words">{line.item_name}</div>
+                  <div className="text-sm font-semibold text-quantity">
+                    {formatQuantity(line.quantity)}
+                    {line.unit === "count" ? "" : ` ${line.unit}`}
+                  </div>
+                </div>
+                <StatusBadge status={line.status} />
               </li>
             ))}
           </ul>
         </section>
-      )}
 
-      {recipe.notes && (
-        <section className="space-y-2">
-          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Notes
-          </h2>
-          <p className="rounded-lg border p-4 text-sm leading-relaxed">
-            {recipe.notes}
-          </p>
-        </section>
-      )}
-    </div>
+        {unresolved.length > 0 && (
+          <section className="mt-5 rounded-[20px] bg-[oklch(0.96_0.03_40)] p-5">
+            <h2 className="text-sm font-extrabold text-destructive">
+              Needs manual handling
+            </h2>
+            <ul className="mt-2 space-y-1 text-sm font-semibold text-[oklch(0.44_0.09_38)]">
+              {unresolved.map((line) => (
+                <li key={line.id}>
+                  {line.item_name}
+                  {line.status.kind === "needs-manual" &&
+                    ` — ${line.status.reason}`}
+                  {line.status.kind === "not-in-pantry" && " — not in pantry"}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {recipe.notes && (
+          <section className="mt-5">
+            <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-label">
+              Notes
+            </h2>
+            <p className="rounded-[20px] bg-card p-5 text-sm leading-relaxed font-medium shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              {recipe.notes}
+            </p>
+          </section>
+        )}
+      </div>
+    </>
   );
 }
