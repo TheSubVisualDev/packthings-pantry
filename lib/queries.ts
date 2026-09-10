@@ -1,5 +1,12 @@
 import { getDb } from "./db";
-import type { Item, Recipe, RecipeIngredient, RecipeWithIngredients } from "./types";
+import type {
+  Item,
+  Recipe,
+  RecipeIngredient,
+  RecipeStep,
+  RecipeStepWithIngredients,
+  RecipeWithIngredients,
+} from "./types";
 
 export async function getItems(): Promise<Item[]> {
   const result = await getDb().execute(
@@ -17,10 +24,24 @@ export async function getRecipes(): Promise<Recipe[]> {
 }
 
 export async function getRecipe(id: number): Promise<RecipeWithIngredients | null> {
-  const [recipeResult, ingredientResult] = await Promise.all([
+  // Four reads rather than one join: the join would multiply every ingredient
+  // by every step that mentions it, and stitching the rows back apart in JS is
+  // more code than fetching them separately.
+  const [recipeResult, ingredientResult, stepResult, linkResult] = await Promise.all([
     getDb().execute({ sql: "SELECT * FROM recipes WHERE id = ?", args: [id] }),
     getDb().execute({
-      sql: "SELECT * FROM recipe_ingredients WHERE recipe_id = ? ORDER BY id",
+      sql: "SELECT * FROM recipe_ingredients WHERE recipe_id = ? ORDER BY position, id",
+      args: [id],
+    }),
+    getDb().execute({
+      sql: "SELECT * FROM recipe_steps WHERE recipe_id = ? ORDER BY position, id",
+      args: [id],
+    }),
+    getDb().execute({
+      sql: `SELECT si.step_id, si.ingredient_id
+            FROM recipe_step_ingredients si
+            JOIN recipe_steps s ON s.id = si.step_id
+            WHERE s.recipe_id = ?`,
       args: [id],
     }),
   ]);
@@ -28,10 +49,30 @@ export async function getRecipe(id: number): Promise<RecipeWithIngredients | nul
   const recipe = recipeResult.rows[0] as unknown as Recipe | undefined;
   if (!recipe) return null;
 
-  return {
-    ...recipe,
-    ingredients: ingredientResult.rows as unknown as RecipeIngredient[],
-  };
+  const ingredients = ingredientResult.rows as unknown as RecipeIngredient[];
+  const byId = new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
+
+  const usesByStep = new Map<number, RecipeIngredient[]>();
+  for (const row of linkResult.rows as unknown as {
+    step_id: number;
+    ingredient_id: number;
+  }[]) {
+    const ingredient = byId.get(row.ingredient_id);
+    if (!ingredient) continue;
+
+    const bucket = usesByStep.get(row.step_id);
+    if (bucket) bucket.push(ingredient);
+    else usesByStep.set(row.step_id, [ingredient]);
+  }
+
+  const steps: RecipeStepWithIngredients[] = (
+    stepResult.rows as unknown as RecipeStep[]
+  ).map((step) => ({
+    ...step,
+    uses: (usesByStep.get(step.id) ?? []).sort((a, b) => a.position - b.position),
+  }));
+
+  return { ...recipe, ingredients, steps };
 }
 
 /** Item names currently in stock, lowercased, for recipe match indicators. */

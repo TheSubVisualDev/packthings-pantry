@@ -14,24 +14,66 @@ CREATE TABLE IF NOT EXISTS items (
   updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- A recipe is a document, not a list: a blurb, timings, where it came from,
+-- ordered ingredients and ordered steps. Timings are what it takes at base
+-- servings; scaling a cook doesn't scale the simmer.
 CREATE TABLE IF NOT EXISTS recipes (
   id            INTEGER PRIMARY KEY,
   name          TEXT NOT NULL,
+  description   TEXT,             -- a line or two, shown above the ingredients
   base_servings INTEGER NOT NULL,
+  prep_minutes  INTEGER,
+  cook_minutes  INTEGER,
+  source        TEXT,             -- a URL, a book, a person, or "Claude"
   rating        INTEGER,          -- shared across the household, null until rated
   times_cooked  INTEGER DEFAULT 0,
-  notes         TEXT
+  notes         TEXT,             -- what happened last time you made it
+  updated_at    TIMESTAMP         -- set explicitly on write; no default, because
+                                  -- ALTER TABLE ADD COLUMN can't take one
 );
 
+-- item_id is the link to stock; item_name stays alongside it rather than being
+-- replaced by it. A recipe calling for "firm tofu" that decrements a pantry row
+-- called "Tofu" should still read "firm tofu" on the page - the recipe's own
+-- wording is part of the recipe. Null item_id means the line was never matched,
+-- which is exactly the "not in pantry" case the cook flow already handles.
 CREATE TABLE IF NOT EXISTS recipe_ingredients (
   id        INTEGER PRIMARY KEY,
   recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
-  item_name TEXT NOT NULL,        -- matched against items.name
+  item_id   INTEGER REFERENCES items(id) ON DELETE SET NULL,
+  item_name TEXT NOT NULL,        -- as the recipe says it
   quantity  REAL NOT NULL,
-  unit      TEXT NOT NULL         -- as written in the recipe; converted at cook-time
+  unit      TEXT NOT NULL,        -- as written in the recipe; converted at cook-time
+  note      TEXT,                 -- "finely chopped", "at room temperature"
+  optional  INTEGER NOT NULL DEFAULT 0,
+  section   TEXT,                 -- "For the sauce"
+  position  INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_recipe ON recipe_ingredients(recipe_id);
+CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_recipe ON recipe_ingredients(recipe_id, position);
+CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_item ON recipe_ingredients(item_id);
+
+-- Method, in order. `minutes` is for the step that says "simmer for 20", so a
+-- cooking view can offer a timer rather than making you read it off the text.
+CREATE TABLE IF NOT EXISTS recipe_steps (
+  id        INTEGER PRIMARY KEY,
+  recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+  position  INTEGER NOT NULL DEFAULT 0,
+  section   TEXT,                 -- "Prep", "The stew"
+  body      TEXT NOT NULL,
+  minutes   INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_recipe_steps_recipe ON recipe_steps(recipe_id, position);
+
+-- Which ingredients a step actually uses, so the method can show "400g tofu,
+-- 2 tbsp gochujang" beside the instruction instead of sending you back up the
+-- page mid-cook. Optional per step: a recipe with none of these still works.
+CREATE TABLE IF NOT EXISTS recipe_step_ingredients (
+  step_id       INTEGER NOT NULL REFERENCES recipe_steps(id) ON DELETE CASCADE,
+  ingredient_id INTEGER NOT NULL REFERENCES recipe_ingredients(id) ON DELETE CASCADE,
+  PRIMARY KEY (step_id, ingredient_id)
+);
 
 -- One row per cook, so a cook can be reversed and the household has a history.
 -- `changes` holds deltas, not the quantities that were there before: Claude

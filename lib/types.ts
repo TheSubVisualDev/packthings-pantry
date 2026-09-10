@@ -16,22 +16,48 @@ export interface Item {
 export interface Recipe {
   id: number;
   name: string;
+  description: string | null;
   base_servings: number;
+  prep_minutes: number | null;
+  cook_minutes: number | null;
+  source: string | null;
   rating: number | null;
   times_cooked: number;
   notes: string | null;
+  updated_at: string | null;
 }
 
 export interface RecipeIngredient {
   id: number;
   recipe_id: number;
+  /** Null when the recipe asks for something the pantry has never held. */
+  item_id: number | null;
   item_name: string;
   quantity: number;
   unit: string;
+  note: string | null;
+  optional: number;
+  section: string | null;
+  position: number;
+}
+
+export interface RecipeStep {
+  id: number;
+  recipe_id: number;
+  position: number;
+  section: string | null;
+  body: string;
+  minutes: number | null;
+}
+
+/** A step with the ingredient lines it draws on, for the cooking view. */
+export interface RecipeStepWithIngredients extends RecipeStep {
+  uses: RecipeIngredient[];
 }
 
 export interface RecipeWithIngredients extends Recipe {
   ingredients: RecipeIngredient[];
+  steps: RecipeStepWithIngredients[];
 }
 
 /**

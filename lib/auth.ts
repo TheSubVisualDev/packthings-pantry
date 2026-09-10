@@ -75,6 +75,21 @@ export function sessionValid(cookie: string | undefined): boolean {
   return matches(cookie.slice(separator + 1), expected);
 }
 
+/**
+ * A bearer token for machines: a Claude session querying the pantry shouldn't
+ * need a human's password, and a token can be rotated without signing anyone
+ * out. Unset means bearer auth is simply not available, never that it passes.
+ */
+export function apiTokenValid(header: string | null): boolean {
+  const expected = process.env.PANTRY_API_TOKEN;
+  if (!expected) return false;
+
+  const [scheme, token] = (header ?? "").split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) return false;
+
+  return matches(token, expected);
+}
+
 /** Parses an `Authorization: Basic` header. Kept for non-interactive callers. */
 export function basicAuthValid(header: string | null): boolean {
   const [scheme, encoded] = (header ?? "").split(" ");

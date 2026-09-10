@@ -1,13 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, basicAuthValid, configuredPassword, sessionValid } from "@/lib/auth";
+import {
+  SESSION_COOKIE,
+  apiTokenValid,
+  basicAuthValid,
+  configuredPassword,
+  sessionValid,
+} from "@/lib/auth";
 
 /**
- * Gate on every request: a signed session cookie, or HTTP Basic credentials.
+ * Gate on every request: a signed session cookie, HTTP Basic credentials, or a
+ * bearer API token.
  *
  * People get the cookie by way of the /login form, which password managers can
  * actually fill - the native Basic dialog can't be autofilled on iOS Safari.
- * Basic stays accepted so curl and the recipe importer have a non-interactive
- * way in without a session.
+ * Basic stays accepted so curl has a non-interactive way in, and the bearer
+ * token exists so a Claude session can read the pantry without being handed a
+ * password that also unlocks the browser.
  *
  * Named `proxy` rather than `middleware`: Next 16 renamed the convention and
  * warns on the old filename. Proxy always runs on the Node.js runtime, which
@@ -23,9 +31,12 @@ export default function proxy(request: NextRequest) {
     });
   }
 
+  const authorization = request.headers.get("authorization");
+
   const authenticated =
     sessionValid(request.cookies.get(SESSION_COOKIE)?.value) ||
-    basicAuthValid(request.headers.get("authorization"));
+    basicAuthValid(authorization) ||
+    apiTokenValid(authorization);
 
   const isLoginPage = request.nextUrl.pathname === "/login";
 

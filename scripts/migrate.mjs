@@ -22,6 +22,21 @@ await client.executeMultiple(sql);
  */
 const ADDED_COLUMNS = [
   { table: "items", column: "location", definition: "TEXT" },
+
+  // Recipes became documents rather than lists: a blurb, timings, a source.
+  { table: "recipes", column: "description", definition: "TEXT" },
+  { table: "recipes", column: "prep_minutes", definition: "INTEGER" },
+  { table: "recipes", column: "cook_minutes", definition: "INTEGER" },
+  { table: "recipes", column: "source", definition: "TEXT" },
+  // No DEFAULT CURRENT_TIMESTAMP: SQLite refuses a non-constant default on
+  // ALTER TABLE ADD COLUMN, so writers set this explicitly instead.
+  { table: "recipes", column: "updated_at", definition: "TIMESTAMP" },
+
+  { table: "recipe_ingredients", column: "item_id", definition: "INTEGER REFERENCES items(id) ON DELETE SET NULL" },
+  { table: "recipe_ingredients", column: "note", definition: "TEXT" },
+  { table: "recipe_ingredients", column: "optional", definition: "INTEGER NOT NULL DEFAULT 0" },
+  { table: "recipe_ingredients", column: "section", definition: "TEXT" },
+  { table: "recipe_ingredients", column: "position", definition: "INTEGER NOT NULL DEFAULT 0" },
 ];
 
 for (const { table, column, definition } of ADDED_COLUMNS) {
@@ -34,6 +49,29 @@ for (const { table, column, definition } of ADDED_COLUMNS) {
   await client.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   console.log(`added: ${table}.${column}`);
 }
+
+/**
+ * Links recipe lines to stock by name, for rows written before item_id existed.
+ * Only ever fills in nulls, so re-running can't undo a link made by hand, and
+ * a name the pantry doesn't have is left null - that's the "not in pantry"
+ * case the cook flow already handles.
+ */
+const linked = await client.execute(`
+  UPDATE recipe_ingredients
+  SET item_id = (
+    SELECT i.id FROM items i WHERE LOWER(i.name) = LOWER(recipe_ingredients.item_name)
+  )
+  WHERE item_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM items i WHERE LOWER(i.name) = LOWER(recipe_ingredients.item_name)
+    )
+`);
+console.log(`linked: ${linked.rowsAffected} recipe lines matched to stock`);
+
+const unlinked = await client.execute(
+  "SELECT COUNT(*) AS n FROM recipe_ingredients WHERE item_id IS NULL",
+);
+console.log(`unlinked: ${unlinked.rows[0].n} lines the pantry has never held`);
 
 const tables = await client.execute(
   "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
