@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { CookPanel, type CookLine } from "@/components/cook-panel";
+import type { CookStep } from "@/components/recipe-method";
 import { getRecipe, getItems } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -25,12 +26,20 @@ export default async function RecipePage({
   // Pass raw stock alongside each line so the panel can re-resolve status as
   // the serving count changes, using the same pure helpers as the server.
   const lines: CookLine[] = recipe.ingredients.map((line) => {
-    const item = itemsByName.get(line.item_name.toLowerCase());
+    // item_id is the link when it exists; the name is still matched as a
+    // fallback for lines written before the ingredient was ever in stock.
+    const item = line.item_id
+      ? items.find((candidate) => candidate.id === line.item_id)
+      : itemsByName.get(line.item_name.toLowerCase());
+
     return {
       id: line.id,
       item_name: line.item_name,
       quantity: line.quantity,
       unit: line.unit,
+      note: line.note,
+      optional: line.optional === 1,
+      section: line.section,
       item: item
         ? {
             quantity: item.quantity,
@@ -40,6 +49,19 @@ export default async function RecipePage({
         : null,
     };
   });
+
+  const steps: CookStep[] = recipe.steps.map((step) => ({
+    id: step.id,
+    section: step.section,
+    body: step.body,
+    minutes: step.minutes,
+    uses: step.uses.map((line) => line.id),
+  }));
+
+  const timings = [
+    recipe.prep_minutes ? `${recipe.prep_minutes} min prep` : null,
+    recipe.cook_minutes ? `${recipe.cook_minutes} min cooking` : null,
+  ].filter(Boolean);
 
   return (
     <>
@@ -53,12 +75,31 @@ export default async function RecipePage({
           &larr; Recipes
         </Link>
 
-        <h1 className="mt-3 text-[28px] font-extrabold tracking-[-0.02em] break-words sm:text-[32px]">
-          {recipe.name}
-        </h1>
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+          <h1 className="text-[28px] font-extrabold tracking-[-0.02em] break-words sm:text-[32px]">
+            {recipe.name}
+          </h1>
+          <Link
+            href={`/recipes/${recipe.id}/edit`}
+            className="mt-1.5 shrink-0 rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
+          >
+            Edit
+          </Link>
+        </div>
+
+        {recipe.description && (
+          <p className="mt-2 text-[15px] leading-relaxed font-medium text-muted-foreground">
+            {recipe.description}
+          </p>
+        )}
+
         <div className="mt-2 mb-7 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-muted-foreground">
           <span>base {recipe.base_servings} servings</span>
+          {timings.map((timing) => (
+            <span key={timing}>{timing}</span>
+          ))}
           <span>cooked {recipe.times_cooked}&times;</span>
+          {recipe.source && <span>from {recipe.source}</span>}
         </div>
 
         <CookPanel
@@ -66,6 +107,7 @@ export default async function RecipePage({
           baseServings={recipe.base_servings}
           rating={recipe.rating}
           lines={lines}
+          steps={steps}
         />
 
         {recipe.notes && (

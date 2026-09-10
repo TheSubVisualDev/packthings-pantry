@@ -16,12 +16,15 @@ export function SoftSelect({
   options,
   defaultValue = "",
   className,
+  onValueChange,
 }: {
   id: string;
   name: string;
   options: string[];
   defaultValue?: string;
   className?: string;
+  /** For callers holding the value themselves; the field still posts its own. */
+  onValueChange?: (value: string) => void;
 }) {
   const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
@@ -46,8 +49,13 @@ export function SoftSelect({
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open]);
 
+  function update(next: string) {
+    setValue(next);
+    onValueChange?.(next);
+  }
+
   function choose(option: string) {
-    setValue(option);
+    update(option);
     setOpen(false);
     setActiveIndex(-1);
     input.current?.focus();
@@ -102,7 +110,7 @@ export function SoftSelect({
         }
         autoComplete="off"
         onChange={(event) => {
-          setValue(event.target.value);
+          update(event.target.value);
           setOpen(true);
           setActiveIndex(-1);
         }}

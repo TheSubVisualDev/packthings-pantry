@@ -8,6 +8,7 @@ import {
   type CookResult,
   type UndoResult,
 } from "@/app/recipes/[id]/actions";
+import { RecipeMethod, type CookStep } from "@/components/recipe-method";
 import { formatQuantity, scaleQuantity, toCanonical } from "@/lib/units";
 import type { Dimension } from "@/lib/types";
 
@@ -16,6 +17,9 @@ export interface CookLine {
   item_name: string;
   quantity: number;
   unit: string;
+  note: string | null;
+  optional: boolean;
+  section: string | null;
   item: {
     quantity: number;
     dimension: Dimension;
@@ -113,11 +117,13 @@ export function CookPanel({
   baseServings,
   rating,
   lines,
+  steps,
 }: {
   recipeId: number;
   baseServings: number;
   rating: number | null;
   lines: CookLine[];
+  steps: CookStep[];
 }) {
   const [servings, setServings] = useState(baseServings);
   const [result, setResult] = useState<CookResult | null>(null);
@@ -149,6 +155,23 @@ export function CookPanel({
   }));
 
   const blockers = resolved.filter((r) => r.status.kind !== "in-stock");
+
+  // Kept in the order the recipe gave them, so a section header appears where
+  // its lines start rather than being sorted somewhere else.
+  const sections: { name: string | null; entries: typeof resolved }[] = [];
+  for (const entry of resolved) {
+    const name = entry.line.section;
+    const last = sections.at(-1);
+    if (last && last.name === name) last.entries.push(entry);
+    else sections.push({ name, entries: [entry] });
+  }
+
+  // What each step should say it needs, at the serving count chosen now.
+  const labels: Record<number, string> = {};
+  for (const { line, display } of resolved) {
+    labels[line.id] =
+      `${formatQuantity(display)}${line.unit === "count" ? "" : line.unit} ${line.item_name}`;
+  }
 
   function onCook() {
     setResult(null);
@@ -225,23 +248,45 @@ export function CookPanel({
         <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-label">
           Ingredients
         </h2>
-        <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-          {resolved.map(({ line, display, status }) => (
-            <li
-              key={line.id}
-              className="flex items-center justify-between gap-3 border-b border-border px-4 py-3.5 last:border-b-0 sm:px-5"
-            >
-              <div className="min-w-0">
-                <div className="font-bold break-words">{line.item_name}</div>
-                <div className="text-sm font-semibold text-quantity">
-                  {formatQuantity(display)}
-                  {line.unit === "count" ? "" : ` ${line.unit}`}
-                </div>
-              </div>
-              <StatusBadge status={status} />
-            </li>
-          ))}
-        </ul>
+        {sections.map((section) => (
+          <div key={section.name ?? ""} className="mb-3 last:mb-0">
+            {section.name && (
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                {section.name}
+              </h3>
+            )}
+            <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              {section.entries.map(({ line, display, status }) => (
+                <li
+                  key={line.id}
+                  className="flex items-center justify-between gap-3 border-b border-border px-4 py-3.5 last:border-b-0 sm:px-5"
+                >
+                  <div className="min-w-0">
+                    <div className="font-bold break-words">
+                      {line.item_name}
+                      {line.optional && (
+                        <span className="ml-1.5 text-xs font-semibold text-muted-foreground">
+                          optional
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm font-semibold text-quantity">
+                      {formatQuantity(display)}
+                      {line.unit === "count" ? "" : ` ${line.unit}`}
+                      {line.note && (
+                        <span className="font-medium text-muted-foreground">
+                          {" "}
+                          &middot; {line.note}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <StatusBadge status={status} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </section>
 
       <button
@@ -252,6 +297,8 @@ export function CookPanel({
       >
         {pending ? "Cooking…" : `Cook for ${servings}`}
       </button>
+
+      <RecipeMethod steps={steps} labels={labels} />
 
       {blockers.length > 0 && !result && (
         <p className="text-center text-xs font-semibold text-muted-foreground">

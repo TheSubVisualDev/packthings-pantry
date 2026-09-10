@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
 import {
   SuggestionCard,
@@ -20,11 +21,29 @@ export default async function RecipesPage() {
 
       <div className="mx-auto w-full max-w-[1280px] px-5 pt-6 pb-32 sm:px-9 sm:py-7">
         {recipes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No recipes yet.</p>
+          <div className="rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+            <p className="text-sm font-semibold text-muted-foreground">
+              No recipes yet.
+            </p>
+            <Link
+              href="/recipes/new"
+              className="mt-4 inline-block rounded-[14px] bg-primary px-5 py-3 text-sm font-extrabold text-primary-foreground"
+            >
+              Write one
+            </Link>
+          </div>
         ) : (
           <>
-            <div className="mb-3 text-xs font-bold uppercase tracking-[0.1em] text-label">
-              Cook with what you have
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="text-xs font-bold uppercase tracking-[0.1em] text-label">
+                Cook with what you have
+              </span>
+              <Link
+                href="/recipes/new"
+                className="rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
+              >
+                New recipe
+              </Link>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <TopMatchCard recipe={topMatch} />
