@@ -47,7 +47,16 @@ export function toCanonical(
   if (entry.dimension !== targetDimension) {
     return { ok: false, reason: "dimension-mismatch" };
   }
-  return { ok: true, quantity: quantity * entry.toCanonical };
+
+  const converted = quantity * entry.toCanonical;
+
+  // Counts are whole things. Scaling a 1-onion recipe down to 0.4 of a serving
+  // still costs you a whole onion, so round up rather than leaving fractional
+  // counts in stock. Mass and volume scale continuously and are left alone.
+  return {
+    ok: true,
+    quantity: targetDimension === "count" ? Math.ceil(converted) : converted,
+  };
 }
 
 /**

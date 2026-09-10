@@ -31,29 +31,44 @@ type Status =
  * Resolves a line at the chosen serving count. Recomputed on every servings
  * change - whether a line is short depends on how many you're cooking for.
  */
-function resolve(line: CookLine, base: number, servings: number): Status {
-  if (!line.item) return { kind: "not-in-pantry" };
-
+function resolve(
+  line: CookLine,
+  base: number,
+  servings: number,
+): { status: Status; display: number } {
   const scaled = scaleQuantity(line.quantity, base, servings);
+  if (!line.item) return { status: { kind: "not-in-pantry" }, display: scaled };
+
   const converted = toCanonical(scaled, line.unit, line.item.dimension);
 
   if (!converted.ok) {
     return {
-      kind: "needs-manual",
-      detail:
-        converted.reason === "dimension-mismatch"
-          ? `${line.unit} can't convert to ${line.item.canonical_unit}`
-          : `unknown unit "${line.unit}"`,
+      status: {
+        kind: "needs-manual",
+        detail:
+          converted.reason === "dimension-mismatch"
+            ? `${line.unit} can't convert to ${line.item.canonical_unit}`
+            : `unknown unit "${line.unit}"`,
+      },
+      display: scaled,
     };
   }
 
+  // Counts are rounded up during conversion, so show the whole number that
+  // will actually leave stock rather than the raw fraction.
+  const display =
+    line.item.dimension === "count" ? converted.quantity : scaled;
+
   if (converted.quantity > line.item.quantity) {
     return {
-      kind: "short",
-      detail: `need ${formatQuantity(converted.quantity)}${line.item.canonical_unit}, have ${formatQuantity(line.item.quantity)}${line.item.canonical_unit}`,
+      status: {
+        kind: "short",
+        detail: `need ${formatQuantity(converted.quantity)}${line.item.canonical_unit}, have ${formatQuantity(line.item.quantity)}${line.item.canonical_unit}`,
+      },
+      display,
     };
   }
-  return { kind: "in-stock" };
+  return { status: { kind: "in-stock" }, display };
 }
 
 function StatusBadge({ status }: { status: Status }) {
@@ -106,8 +121,7 @@ export function CookPanel({
 
   const resolved = lines.map((line) => ({
     line,
-    scaled: scaleQuantity(line.quantity, baseServings, servings),
-    status: resolve(line, baseServings, servings),
+    ...resolve(line, baseServings, servings),
   }));
 
   const blockers = resolved.filter((r) => r.status.kind !== "in-stock");
@@ -172,7 +186,7 @@ export function CookPanel({
           Ingredients
         </h2>
         <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-          {resolved.map(({ line, scaled, status }) => (
+          {resolved.map(({ line, display, status }) => (
             <li
               key={line.id}
               className="flex items-center justify-between gap-3 border-b border-border px-4 py-3.5 last:border-b-0 sm:px-5"
@@ -180,7 +194,7 @@ export function CookPanel({
               <div className="min-w-0">
                 <div className="font-bold break-words">{line.item_name}</div>
                 <div className="text-sm font-semibold text-quantity">
-                  {formatQuantity(scaled)}
+                  {formatQuantity(display)}
                   {line.unit === "count" ? "" : ` ${line.unit}`}
                 </div>
               </div>
