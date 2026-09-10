@@ -13,7 +13,30 @@ const client = createClient({
 });
 
 const sql = readFileSync(new URL("../db/schema.sql", import.meta.url), "utf8");
-await client.executeMultiple(sql);
+
+/**
+ * Split into statements, with indexes held back.
+ *
+ * Order matters on a database that already exists. CREATE TABLE IF NOT EXISTS
+ * is a no-op on an existing table, so a column added to the schema arrives via
+ * ALTER TABLE below - which means an index over that column can't be created
+ * until after that has run. Applying the file top to bottom fails on exactly
+ * the indexes this migration adds.
+ *
+ * Comments are stripped before splitting because several of them contain a
+ * semicolon, and a naive split would cut a statement in half.
+ */
+const statements = sql
+  .replace(/--.*$/gm, "")
+  .split(";")
+  .map((statement) => statement.trim())
+  .filter(Boolean);
+
+const isIndex = (statement) => /^CREATE\s+(UNIQUE\s+)?INDEX/i.test(statement);
+
+for (const statement of statements.filter((s) => !isIndex(s))) {
+  await client.execute(statement);
+}
 
 /**
  * Columns added after the initial schema. CREATE TABLE IF NOT EXISTS is a
@@ -49,6 +72,12 @@ for (const { table, column, definition } of ADDED_COLUMNS) {
   await client.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   console.log(`added: ${table}.${column}`);
 }
+
+// Safe now that every column the schema declares is present.
+for (const statement of statements.filter(isIndex)) {
+  await client.execute(statement);
+}
+console.log(`indexes: ${statements.filter(isIndex).length} ensured`);
 
 /**
  * Links recipe lines to stock by name, for rows written before item_id existed.
