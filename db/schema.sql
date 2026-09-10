@@ -32,3 +32,19 @@ CREATE TABLE IF NOT EXISTS recipe_ingredients (
 );
 
 CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_recipe ON recipe_ingredients(recipe_id);
+
+-- One row per cook, so a cook can be reversed and the household has a history.
+-- `changes` holds deltas, not the quantities that were there before: Claude
+-- Code writes to this database too, so stock may have moved since. Adding a
+-- delta back preserves an edit made in between; restoring an absolute would
+-- silently discard it. A clamped-short line records what was actually taken.
+CREATE TABLE IF NOT EXISTS cook_events (
+  id         INTEGER PRIMARY KEY,
+  recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+  servings   INTEGER NOT NULL,
+  cooked_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  undone_at  TIMESTAMP,             -- null until undone; guards double-undo
+  changes    TEXT NOT NULL          -- JSON: [{ item_id, delta, unit }]
+);
+
+CREATE INDEX IF NOT EXISTS idx_cook_events_recipe ON cook_events(recipe_id, cooked_at DESC);

@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
 import { scaleQuantity, toCanonical } from "@/lib/units";
-import type { Dimension, Item, Recipe, RecipeIngredient } from "@/lib/types";
+import type {
+  CookChange,
+  CookEvent,
+  Dimension,
+  Item,
+  Recipe,
+  RecipeIngredient,
+} from "@/lib/types";
 
 export interface CookLineResult {
   item_name: string;
@@ -21,6 +28,8 @@ export interface CookResult {
   error?: string;
   applied: CookLineResult[];
   flagged: CookLineResult[];
+  /** Row in cook_events, and the handle undo needs. Absent if nothing moved. */
+  eventId?: number;
 }
 
 /**
@@ -76,6 +85,7 @@ export async function cookRecipe(
 
     const applied: CookLineResult[] = [];
     const flagged: CookLineResult[] = [];
+    const changes: CookChange[] = [];
 
     for (const line of lines) {
       const item = itemsByName.get(line.item_name.toLowerCase());
@@ -119,6 +129,11 @@ export async function cookRecipe(
         args: [remaining, item.id],
       });
 
+      // Zero-take lines have nothing to give back, so they stay out of the log.
+      if (take > 0) {
+        changes.push({ item_id: item.id, delta: take, unit: item.canonical_unit });
+      }
+
       const result: CookLineResult = {
         item_name: line.item_name,
         decremented: take,
@@ -142,13 +157,25 @@ export async function cookRecipe(
       args: [recipeId],
     });
 
+    // Written inside the same transaction as the decrements: a log that can be
+    // committed separately from the change it describes is worse than none.
+    const event = await tx.execute({
+      sql: "INSERT INTO cook_events (recipe_id, servings, changes) VALUES (?, ?, ?)",
+      args: [recipeId, servings, JSON.stringify(changes)],
+    });
+
     await tx.commit();
 
     revalidatePath("/pantry");
     revalidatePath("/recipes");
     revalidatePath(`/recipes/${recipeId}`);
 
-    return { ok: true, applied, flagged };
+    return {
+      ok: true,
+      applied,
+      flagged,
+      eventId: event.lastInsertRowid ? Number(event.lastInsertRowid) : undefined,
+    };
   } catch (error) {
     await tx.rollback();
     return {
@@ -177,4 +204,109 @@ export async function rateRecipe(
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${recipeId}`);
   return { ok: true };
+}
+
+export interface UndoLineResult {
+  item_name: string;
+  /** Amount put back, in the item's canonical unit. */
+  restored: number;
+  unit: string;
+  quantity: number;
+}
+
+export interface UndoResult {
+  ok: boolean;
+  error?: string;
+  restored: UndoLineResult[];
+}
+
+/**
+ * Reverses a cook by adding its recorded deltas back to stock.
+ *
+ * Deltas rather than remembered absolutes: Claude Code writes to this database
+ * too, so stock may have moved since the cook. Adding back what was taken
+ * preserves an edit made in between, where restoring a snapshot would discard
+ * it. A cook that was clamped short recorded what actually left stock, so this
+ * gives back exactly that and no more.
+ *
+ * The guard update runs before the quantity changes and is conditional on
+ * undone_at still being null, so a double-tap can't apply the deltas twice.
+ */
+export async function undoCook(eventId: number): Promise<UndoResult> {
+  if (!Number.isInteger(eventId) || eventId <= 0) {
+    return { ok: false, error: "Invalid cook", restored: [] };
+  }
+
+  const tx = await getDb().transaction("write");
+
+  try {
+    const eventResult = await tx.execute({
+      sql: "SELECT * FROM cook_events WHERE id = ?",
+      args: [eventId],
+    });
+    const event = eventResult.rows[0] as unknown as CookEvent | undefined;
+
+    if (!event) {
+      await tx.rollback();
+      return { ok: false, error: "That cook is no longer on record", restored: [] };
+    }
+
+    const claimed = await tx.execute({
+      sql: "UPDATE cook_events SET undone_at = CURRENT_TIMESTAMP WHERE id = ? AND undone_at IS NULL",
+      args: [eventId],
+    });
+
+    if (claimed.rowsAffected === 0) {
+      await tx.rollback();
+      return { ok: false, error: "Already undone", restored: [] };
+    }
+
+    const changes = JSON.parse(event.changes) as CookChange[];
+    const restored: UndoLineResult[] = [];
+
+    for (const change of changes) {
+      // MAX(0, ...) is belt and braces - deltas are always positive going back
+      // in - but it keeps a hand-edited log from writing a negative quantity.
+      const updated = await tx.execute({
+        sql: `UPDATE items SET quantity = MAX(0, quantity + ?), updated_at = CURRENT_TIMESTAMP
+              WHERE id = ? RETURNING name, quantity, canonical_unit`,
+        args: [change.delta, change.item_id],
+      });
+
+      const row = updated.rows[0] as unknown as
+        | { name: string; quantity: number; canonical_unit: string }
+        | undefined;
+
+      // The item may have been deleted since the cook. Nothing to restore it
+      // to, and re-creating it would guess at fields the log doesn't hold.
+      if (!row) continue;
+
+      restored.push({
+        item_name: row.name,
+        restored: change.delta,
+        unit: row.canonical_unit,
+        quantity: row.quantity,
+      });
+    }
+
+    await tx.execute({
+      sql: "UPDATE recipes SET times_cooked = MAX(0, times_cooked - 1) WHERE id = ?",
+      args: [event.recipe_id],
+    });
+
+    await tx.commit();
+
+    revalidatePath("/pantry");
+    revalidatePath("/recipes");
+    revalidatePath(`/recipes/${event.recipe_id}`);
+
+    return { ok: true, restored };
+  } catch (error) {
+    await tx.rollback();
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Undo failed",
+      restored: [],
+    };
+  }
 }

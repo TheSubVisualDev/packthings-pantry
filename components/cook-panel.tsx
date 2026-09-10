@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   cookRecipe,
   rateRecipe,
+  undoCook,
   type CookResult,
+  type UndoResult,
 } from "@/app/recipes/[id]/actions";
 import { formatQuantity, scaleQuantity, toCanonical } from "@/lib/units";
 import type { Dimension } from "@/lib/types";
@@ -20,6 +22,9 @@ export interface CookLine {
     canonical_unit: string;
   } | null;
 }
+
+/** How long the undo stays the loud button. It never stops being possible. */
+const UNDO_WINDOW_SECONDS = 10;
 
 type Status =
   | { kind: "in-stock" }
@@ -116,8 +121,27 @@ export function CookPanel({
 }) {
   const [servings, setServings] = useState(baseServings);
   const [result, setResult] = useState<CookResult | null>(null);
+  const [undone, setUndone] = useState<UndoResult | null>(null);
+  const [deadline, setDeadline] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(0);
   const [pending, startTransition] = useTransition();
+  const [undoPending, startUndo] = useTransition();
   const [ratingPending, startRating] = useTransition();
+
+  // Reads off a fixed deadline rather than decrementing a counter, so a tab
+  // that was backgrounded comes back showing the right number, not a stale one.
+  // The deadline itself is set in the cook handler; this only ticks.
+  useEffect(() => {
+    if (!deadline) return;
+
+    const timer = setInterval(() => {
+      const left = Math.ceil((deadline - Date.now()) / 1000);
+      setSecondsLeft(left > 0 ? left : 0);
+      if (left <= 0) clearInterval(timer);
+    }, 250);
+
+    return () => clearInterval(timer);
+  }, [deadline]);
 
   const resolved = lines.map((line) => ({
     line,
@@ -128,8 +152,24 @@ export function CookPanel({
 
   function onCook() {
     setResult(null);
+    setUndone(null);
+    setDeadline(0);
+    setSecondsLeft(0);
+
     startTransition(async () => {
-      setResult(await cookRecipe(recipeId, servings));
+      const cooked = await cookRecipe(recipeId, servings);
+      setResult(cooked);
+
+      if (cooked.eventId !== undefined) {
+        setSecondsLeft(UNDO_WINDOW_SECONDS);
+        setDeadline(Date.now() + UNDO_WINDOW_SECONDS * 1000);
+      }
+    });
+  }
+
+  function onUndo(eventId: number) {
+    startUndo(async () => {
+      setUndone(await undoCook(eventId));
     });
   }
 
@@ -228,6 +268,23 @@ export function CookPanel({
             <p className="text-sm font-bold text-destructive">
               {result.error ?? "Cook failed"}
             </p>
+          ) : undone?.ok ? (
+            <>
+              <h3 className="text-sm font-extrabold">
+                Undone &mdash; stock put back
+              </h3>
+              {undone.restored.length > 0 && (
+                <ul className="mt-2 space-y-1 text-sm font-semibold text-muted-foreground">
+                  {undone.restored.map((line) => (
+                    <li key={line.item_name}>
+                      {line.item_name} +{formatQuantity(line.restored)}
+                      {line.unit === "count" ? "" : line.unit} (
+                      {formatQuantity(line.quantity)} now)
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           ) : (
             <>
               <h3 className="text-sm font-extrabold">
@@ -262,6 +319,37 @@ export function CookPanel({
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {result.eventId !== undefined && (
+                <div className="mt-4">
+                  {secondsLeft > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => onUndo(result.eventId!)}
+                      disabled={undoPending}
+                      className="w-full rounded-[14px] bg-ink px-4 py-3 text-sm font-extrabold text-background transition-opacity disabled:opacity-60"
+                    >
+                      {undoPending
+                        ? "Undoing…"
+                        : `Undo · ${secondsLeft}s`}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onUndo(result.eventId!)}
+                      disabled={undoPending}
+                      className="text-sm font-semibold text-muted-foreground underline underline-offset-2 hover:text-foreground disabled:opacity-60"
+                    >
+                      {undoPending ? "Undoing…" : "Undo this cook"}
+                    </button>
+                  )}
+                  {undone && !undone.ok && (
+                    <p role="alert" className="mt-2 text-sm font-bold text-destructive">
+                      {undone.error ?? "Undo failed"}
+                    </p>
+                  )}
                 </div>
               )}
             </>

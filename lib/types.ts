@@ -33,3 +33,24 @@ export interface RecipeIngredient {
 export interface RecipeWithIngredients extends Recipe {
   ingredients: RecipeIngredient[];
 }
+
+/**
+ * One ingredient line's effect on stock, in the item's canonical unit.
+ * `delta` is what actually left stock, which is not always what the recipe
+ * asked for - a line short on stock takes what's there.
+ */
+export interface CookChange {
+  item_id: number;
+  delta: number;
+  unit: string;
+}
+
+export interface CookEvent {
+  id: number;
+  recipe_id: number;
+  servings: number;
+  cooked_at: string;
+  undone_at: string | null;
+  /** JSON-encoded CookChange[]. */
+  changes: string;
+}
