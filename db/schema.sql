@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS items (
   canonical_unit TEXT NOT NULL,   -- 'g' | 'ml' | 'count'
   dimension      TEXT NOT NULL,   -- 'mass' | 'volume' | 'count'
   category       TEXT,
+  location       TEXT,            -- where in the kitchen: Fridge | Freezer | ...
   expiry_date    DATE,
   updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -8,6 +8,7 @@ export interface Item {
   canonical_unit: CanonicalUnit;
   dimension: Dimension;
   category: string | null;
+  location: string | null;
   expiry_date: string | null;
   updated_at: string | null;
 }

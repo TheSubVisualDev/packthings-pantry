@@ -13,26 +13,27 @@ const client = createClient({
 });
 
 const items = [
-  ["Doenjang", 500, "g", "mass", "Condiments"],
-  ["Firm tofu", 800, "g", "mass", "Chilled"],
-  ["Onion", 6, "count", "count", "Veg"],
-  ["Red chilli", 8, "count", "count", "Veg"],
-  ["Garlic clove", 20, "count", "count", "Veg"],
-  ["Spring onion", 5, "count", "count", "Veg"],
-  ["Courgette", 2, "count", "count", "Veg"],
-  ["Sesame oil", 250, "ml", "volume", "Oils"],
-  ["Soy sauce", 500, "ml", "volume", "Condiments"],
-  ["Mirin", 300, "ml", "volume", "Condiments"],
-  ["Rice vinegar", 250, "ml", "volume", "Condiments"],
-  ["Gochugaru", 200, "g", "mass", "Spices"],
-  ["Short grain rice", 2000, "g", "mass", "Dry goods"],
-  ["Dried anchovy", 150, "g", "mass", "Dry goods"],
-  ["Egg", 12, "count", "count", "Chilled"],
-  ["Plain flour", 1500, "g", "mass", "Dry goods"],
-  ["Olive oil", 750, "ml", "volume", "Oils"],
-  ["Tinned tomatoes", 4, "count", "count", "Tins"],
-  ["Spaghetti", 1000, "g", "mass", "Dry goods"],
-  ["Parmesan", 200, "g", "mass", "Chilled"],
+  // name, quantity, canonical unit, dimension, category, location
+  ["Doenjang", 500, "g", "mass", "Condiments", "Fridge"],
+  ["Firm tofu", 800, "g", "mass", "Chilled", "Fridge"],
+  ["Onion", 6, "count", "count", "Veg", "Cupboard"],
+  ["Red chilli", 8, "count", "count", "Veg", "Fridge"],
+  ["Garlic clove", 20, "count", "count", "Veg", "Cupboard"],
+  ["Spring onion", 5, "count", "count", "Veg", "Fridge"],
+  ["Courgette", 2, "count", "count", "Veg", "Fridge"],
+  ["Sesame oil", 250, "ml", "volume", "Oils", "Cupboard"],
+  ["Soy sauce", 500, "ml", "volume", "Condiments", "Cupboard"],
+  ["Mirin", 300, "ml", "volume", "Condiments", "Cupboard"],
+  ["Rice vinegar", 250, "ml", "volume", "Condiments", "Cupboard"],
+  ["Gochugaru", 200, "g", "mass", "Spices", "Spice rack"],
+  ["Short grain rice", 2000, "g", "mass", "Dry goods", "Cupboard"],
+  ["Dried anchovy", 150, "g", "mass", "Dry goods", "Cupboard"],
+  ["Egg", 12, "count", "count", "Chilled", "Fridge"],
+  ["Plain flour", 1500, "g", "mass", "Dry goods", "Cupboard"],
+  ["Olive oil", 750, "ml", "volume", "Oils", "Counter"],
+  ["Tinned tomatoes", 4, "count", "count", "Tins", "Cupboard"],
+  ["Spaghetti", 1000, "g", "mass", "Dry goods", "Cupboard"],
+  ["Parmesan", 200, "g", "mass", "Chilled", "Fridge"],
 ];
 
 const recipes = [
@@ -88,12 +89,14 @@ const recipes = [
   },
 ];
 
-for (const [name, quantity, unit, dimension, category] of items) {
+for (const [name, quantity, unit, dimension, category, location] of items) {
   await client.execute({
-    sql: `INSERT INTO items (name, quantity, canonical_unit, dimension, category)
-          VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(name) DO UPDATE SET quantity = excluded.quantity`,
-    args: [name, quantity, unit, dimension, category],
+    sql: `INSERT INTO items (name, quantity, canonical_unit, dimension, category, location)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(name) DO UPDATE SET
+            quantity = excluded.quantity,
+            location = excluded.location`,
+    args: [name, quantity, unit, dimension, category, location],
   });
 }
 
