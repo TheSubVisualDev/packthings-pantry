@@ -1,8 +1,8 @@
-import { db } from "./db";
+import { getDb } from "./db";
 import type { Item, Recipe, RecipeIngredient, RecipeWithIngredients } from "./types";
 
 export async function getItems(): Promise<Item[]> {
-  const result = await db.execute(
+  const result = await getDb().execute(
     "SELECT * FROM items ORDER BY category NULLS LAST, name",
   );
   return result.rows as unknown as Item[];
@@ -10,7 +10,7 @@ export async function getItems(): Promise<Item[]> {
 
 export async function getRecipes(): Promise<Recipe[]> {
   // Shared household rating drives the ranking; unrated recipes sort last.
-  const result = await db.execute(
+  const result = await getDb().execute(
     "SELECT * FROM recipes ORDER BY rating DESC NULLS LAST, times_cooked DESC, name",
   );
   return result.rows as unknown as Recipe[];
@@ -18,8 +18,8 @@ export async function getRecipes(): Promise<Recipe[]> {
 
 export async function getRecipe(id: number): Promise<RecipeWithIngredients | null> {
   const [recipeResult, ingredientResult] = await Promise.all([
-    db.execute({ sql: "SELECT * FROM recipes WHERE id = ?", args: [id] }),
-    db.execute({
+    getDb().execute({ sql: "SELECT * FROM recipes WHERE id = ?", args: [id] }),
+    getDb().execute({
       sql: "SELECT * FROM recipe_ingredients WHERE recipe_id = ? ORDER BY id",
       args: [id],
     }),
@@ -36,7 +36,7 @@ export async function getRecipe(id: number): Promise<RecipeWithIngredients | nul
 
 /** Item names currently in stock, lowercased, for recipe match indicators. */
 export async function getStockedItemNames(): Promise<Set<string>> {
-  const result = await db.execute("SELECT name FROM items WHERE quantity > 0");
+  const result = await getDb().execute("SELECT name FROM items WHERE quantity > 0");
   return new Set(
     (result.rows as unknown as { name: string }[]).map((r) => r.name.toLowerCase()),
   );

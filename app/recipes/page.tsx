@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getRecipes, getStockedItemNames } from "@/lib/queries";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import type { RecipeIngredient } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export default async function RecipesPage() {
 
   // One query for every ingredient line, then bucket by recipe - avoids an
   // N+1 round trip per recipe just to compute the pantry-match count.
-  const ingredientRows = await db.execute(
+  const ingredientRows = await getDb().execute(
     "SELECT recipe_id, item_name FROM recipe_ingredients",
   );
   const byRecipe = new Map<number, RecipeIngredient[]>();
