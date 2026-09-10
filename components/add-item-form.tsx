@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { addItem, type AddItemState } from "@/app/pantry/actions";
+import { SoftSelect } from "@/components/soft-select";
 import { LOCATIONS } from "@/lib/locations";
-import { UNITS_BY_DIMENSION } from "@/lib/units";
+import { dimensionOf, UNITS_BY_DIMENSION } from "@/lib/units";
 import type { Dimension } from "@/lib/types";
 
 const FIELD =
@@ -11,10 +12,22 @@ const FIELD =
 const LABEL =
   "mb-1.5 block text-xs font-bold uppercase tracking-[0.08em] text-label";
 
+/** Group headings in the unit picker. */
 const DIMENSION_LABEL: Record<Dimension, string> = {
   mass: "Weight",
   volume: "Volume",
   count: "Count",
+};
+
+/**
+ * What the number actually means, which depends on the unit beside it. Asking
+ * for "Quantity" in grams reads oddly; asking for "Weight" in onions reads
+ * worse.
+ */
+const AMOUNT_LABEL: Record<Dimension, string> = {
+  mass: "Weight",
+  volume: "Volume",
+  count: "Quantity",
 };
 
 /** Values a barcode scan can arrive with; everything is optional. */
@@ -36,6 +49,11 @@ export function AddItemForm({
     addItem,
     {},
   );
+  const [unit, setUnit] = useState(prefill.unit ?? "g");
+
+  // An unrecognised prefill unit falls back to mass rather than blanking the
+  // label; the action rejects it on submit either way.
+  const dimension = dimensionOf(unit) ?? "mass";
 
   return (
     <form action={formAction} className="space-y-4">
@@ -58,7 +76,7 @@ export function AddItemForm({
       <div className="flex gap-3">
         <div className="flex-1">
           <label htmlFor="quantity" className={LABEL}>
-            Quantity
+            {AMOUNT_LABEL[dimension]}
           </label>
           <input
             id="quantity"
@@ -80,7 +98,8 @@ export function AddItemForm({
           <select
             id="unit"
             name="unit"
-            defaultValue={prefill.unit ?? "g"}
+            value={unit}
+            onChange={(event) => setUnit(event.target.value)}
             className={FIELD}
           >
             {(Object.keys(UNITS_BY_DIMENSION) as Dimension[]).map((dimension) => (
@@ -100,21 +119,15 @@ export function AddItemForm({
         <label htmlFor="category" className={LABEL}>
           Category <span className="normal-case text-muted-foreground">optional</span>
         </label>
-        <input
+        {/* Offers what's already in use so the grouping doesn't fragment into
+            "Dairy", "dairy" and "Dairy products", without refusing a new one. */}
+        <SoftSelect
           id="category"
           name="category"
-          type="text"
-          list="known-categories"
+          options={categories}
           defaultValue={prefill.category ?? ""}
-          className={FIELD}
+          className={`${FIELD} pr-11`}
         />
-        {/* Suggests what's already in use so the grouping doesn't fragment
-            into "Dairy", "dairy" and "Dairy products". */}
-        <datalist id="known-categories">
-          {categories.map((category) => (
-            <option key={category} value={category} />
-          ))}
-        </datalist>
       </div>
 
       <div className="flex gap-3">
