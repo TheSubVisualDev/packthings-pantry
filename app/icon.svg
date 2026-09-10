@@ -1,0 +1,11 @@
+<svg width="32" height="32" viewBox="-4 -3 62 68" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <!-- Padded viewBox and heavier strokes than the full mark: at 16px the
+       original 4.5 hairlines close up into mush. Jar and box are dropped for
+       the same reason - at favicon size they read as noise. -->
+  <rect x="-4" y="-3" width="62" height="68" rx="10" fill="#f7f3ec"/>
+  <g stroke="#2a2520" stroke-width="6">
+    <path d="M6 18C6 11 15 7 27 7s21 4 21 11v34a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V18Z"/>
+    <line x1="6" y1="32" x2="48" y2="32"/>
+    <line x1="6" y1="45" x2="48" y2="45"/>
+  </g>
+</svg>

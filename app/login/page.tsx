@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LoginForm } from "@/components/login-form";
+import { PantryMark } from "@/components/pantry-mark";
 import { safeNextPath } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -15,6 +16,7 @@ export default async function LoginPage({
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-[420px] flex-col justify-center px-5 py-10">
+      <PantryMark className="mb-4 h-11 w-10 text-primary" />
       <h1 className="text-[28px] font-extrabold tracking-[-0.02em]">Pantry</h1>
       <p className="mt-1 mb-7 text-sm font-semibold text-muted-foreground">
         Sign in to see what&apos;s in the kitchen.

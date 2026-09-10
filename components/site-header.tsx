@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { logout } from "@/app/login/actions";
+import { PantryMark } from "@/components/pantry-mark";
 
 const tabs = [
   { href: "/pantry", key: "stock", label: "Stock" },
@@ -24,8 +25,9 @@ export function SiteHeader({
         <div className="flex items-center gap-4 sm:gap-7">
           <Link
             href="/pantry"
-            className="text-[22px] font-extrabold tracking-[-0.02em]"
+            className="flex items-center gap-2 text-[22px] font-extrabold tracking-[-0.02em]"
           >
+            <PantryMark className="h-[26px] w-[23px] text-primary" />
             Pantry
           </Link>
           <nav className="flex gap-1.5 rounded-full bg-[oklch(0.93_0.02_60)] p-1 text-[13px] font-bold sm:gap-1 sm:bg-transparent sm:p-0 sm:text-[15px] sm:font-semibold">

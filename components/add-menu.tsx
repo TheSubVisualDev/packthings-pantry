@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -18,16 +19,17 @@ function BarcodeIcon() {
   );
 }
 
+/** `href` is what makes an action live; the rest are still visual only. */
 const actions = [
-  { key: "scan", label: "Scan barcode", icon: <BarcodeIcon /> },
-  { key: "add", label: "Add item", icon: "+" },
-  { key: "recipe", label: "New recipe", icon: "✎" },
-  { key: "adjust", label: "Quick adjust", icon: "↕" },
+  { key: "scan", label: "Scan barcode", icon: <BarcodeIcon />, href: null },
+  { key: "add", label: "Add item", icon: "+", href: "/pantry/add" },
+  { key: "recipe", label: "New recipe", icon: "✎", href: null },
+  { key: "adjust", label: "Quick adjust", icon: "↕", href: "/pantry/adjust" },
 ] as const;
 
 /**
- * Floating add menu from artboards 2a/2b. The four actions are visual only
- * until the write paths land - each one currently just closes the menu.
+ * Floating add menu from artboards 2a/2b. Add item and Quick adjust now go
+ * somewhere; scanning and new-recipe still just close the menu.
  */
 export function AddMenu() {
   const [open, setOpen] = useState(false);
@@ -59,20 +61,39 @@ export function AddMenu() {
 
       {open && (
         <div className="fixed right-5 bottom-24 z-50 w-58 rounded-[18px] border border-border bg-white p-2 shadow-[0_18px_40px_-18px_rgba(60,44,30,0.5)] sm:right-8 sm:bottom-26">
-          {actions.map((action) => (
-            <button
-              key={action.key}
-              type="button"
-              title="Available once the write paths land"
-              onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold transition-colors hover:bg-chip"
-            >
-              <span className="flex w-5 justify-center font-extrabold text-primary">
-                {action.icon}
-              </span>
-              {action.label}
-            </button>
-          ))}
+          {actions.map((action) => {
+            const row = (
+              <>
+                <span className="flex w-5 justify-center font-extrabold text-primary">
+                  {action.icon}
+                </span>
+                {action.label}
+              </>
+            );
+            const className =
+              "flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold transition-colors hover:bg-chip";
+
+            return action.href ? (
+              <Link
+                key={action.key}
+                href={action.href}
+                onClick={() => setOpen(false)}
+                className={className}
+              >
+                {row}
+              </Link>
+            ) : (
+              <button
+                key={action.key}
+                type="button"
+                title="Available once the write paths land"
+                onClick={() => setOpen(false)}
+                className={`${className} opacity-50`}
+              >
+                {row}
+              </button>
+            );
+          })}
         </div>
       )}
 

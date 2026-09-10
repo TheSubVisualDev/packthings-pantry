@@ -76,3 +76,31 @@ export function scaleQuantity(
 export function formatQuantity(value: number): string {
   return String(Math.round(value * 100) / 100);
 }
+
+/**
+ * The units you're allowed to type, grouped by dimension. Derived from FACTORS
+ * rather than listed again, so adding a conversion can't leave the pickers -
+ * or the importer's legal-units table - quietly out of date.
+ */
+export const UNITS_BY_DIMENSION: Record<Dimension, string[]> = Object.entries(
+  FACTORS,
+).reduce(
+  (grouped, [unit, { dimension }]) => {
+    grouped[dimension].push(unit);
+    return grouped;
+  },
+  { mass: [], volume: [], count: [] } as Record<Dimension, string[]>,
+);
+
+/** Every legal entry unit, in the order FACTORS declares them. */
+export const ENTRY_UNITS = Object.keys(FACTORS);
+
+/**
+ * How much one tap of +/- moves an item. Grams and millilitres are too fine to
+ * step one at a time; counts are whole things and step by one.
+ */
+export const ADJUST_STEP: Record<Dimension, number> = {
+  mass: 100,
+  volume: 100,
+  count: 1,
+};
