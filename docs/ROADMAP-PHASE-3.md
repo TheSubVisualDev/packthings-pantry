@@ -166,13 +166,27 @@ one list. Plus the "add what's missing" button on the recipe page itself —
 `AddShortfallButton` exists but is only on the cook panel, so it is there while you
 cook and absent while you plan.
 
-### S5 · Receipt scanner — about 1.5 to 2 days
+### S5 · Receipt scanner — DONE 11 Sep 2026
 
-The headline item. Server-side OCR (Vercel Functions allow packages up to 5 GB, so
-Tesseract is viable), receipt-line parsing, then `rankItems()` for matching. Confident
-lines apply immediately; uncertain ones queue for one screen of decisions. Model the
-undo on the existing cook undo, which already stores deltas rather than absolutes for
-exactly this reason.
+Photograph a receipt, check what it found, put a whole shop away at once.
+
+`lib/ocr.ts` is Tesseract plus the preprocessing that makes it work at all:
+rotate by EXIF, greyscale, upscale to 1600px, normalise, sharpen. `lib/receipt.ts`
+turns the text into purchases, and `rankItems` — the same scorer the barcode
+scanner uses, on the same thresholds — finds them on the shelf.
+
+**A line needs a price to count as a purchase.** That one rule is what keeps the
+shop name, the address, the phone number and the half-legible strapline out of
+the pantry. Prices are matched against an OCR-repaired copy of the tail only,
+never the name, because repairing a name turns "Olive" into "0live".
+
+Confident matches arrive already accepted, so only the doubtful lines cost
+attention. Nothing is written until Add.
+
+Measured against the real pantry: 94% OCR confidence on a rendered receipt, five
+of six lines confidently matched with brand names correctly ignored, and the one
+thing not stocked falling through to an offer to add it. `npm run check:receipt`
+keeps both halves honest without needing a database or a photograph.
 
 # Wave C — the pantry notices things
 

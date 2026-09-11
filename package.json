@@ -12,7 +12,7 @@
     "reset": "node --env-file=.env.local scripts/reset.mjs",
     "probe": "node --env-file=.env.local scripts/probe-db.mjs",
     "check:cascade": "node scripts/check-cascade.mjs",
-    "check:receipt": "node scripts/check-receipt.mjs"
+    "check:receipt": "node --import ./scripts/ts-imports.mjs scripts/check-receipt.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

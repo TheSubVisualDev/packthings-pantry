@@ -21,6 +21,7 @@ function BarcodeIcon() {
 
 const actions = [
   { key: "scan", label: "Scan barcode", icon: <BarcodeIcon />, href: "/pantry/scan" },
+  { key: "receipt", label: "Scan receipt", icon: "🧾", href: "/pantry/receipt" },
   { key: "add", label: "Add item", icon: "+", href: "/pantry/add" },
   { key: "recipe", label: "New recipe", icon: "✎", href: "/recipes/new" },
   { key: "adjust", label: "Quick adjust", icon: "↕", href: "/pantry/adjust" },
@@ -28,7 +29,7 @@ const actions = [
 ] as const;
 
 /**
- * Floating add menu from artboards 2a/2b. All four actions go somewhere now.
+ * Floating add menu from artboards 2a/2b. Every action goes somewhere now.
  */
 export function AddMenu() {
   const [open, setOpen] = useState(false);

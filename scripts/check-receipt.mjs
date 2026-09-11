@@ -71,5 +71,45 @@ for (const [label, text] of [["Tesco", TESCO], ["OCR-mangled", MANGLED]]) {
   }
 }
 
+
+// --- matching -------------------------------------------------------------
+//
+// Parsing is only half the job; the other half is whether a till's wording
+// finds the pantry's. A fixed shelf rather than the real database, so the check
+// means the same thing on any machine and needs no credentials.
+
+import { rankItems, STRONG_MATCH } from "../lib/match.ts";
+
+const SHELF = [
+  "Dark soy sauce", "Light Soy Sauce", "Tiger Bloomer", "Free Range Eggs",
+  "Unsalted butter", "Cane Icing Sugar", "Almond milk", "Cumin",
+].map((name, id) => ({
+  id: id + 1,
+  name,
+  quantity: 1,
+  canonical_unit: "g",
+  dimension: "mass",
+}));
+
+const TILL = [
+  ["AMOY DARK SOY SAUCE 150ML", "Dark soy sauce"],
+  ["TIGER BLOOMER 800G", "Tiger Bloomer"],
+  ["BRITISH FREE RANGE EGGS X6", "Free Range Eggs"],
+  ["ANCHOR UNSALTED BUTTER 250G", "Unsalted butter"],
+  ["TESCO CANE ICING SUGAR 500G", "Cane Icing Sugar"],
+  ["HEINZ BAKED BEANS 415G", null],
+];
+
+console.log("\n--- matching a till's wording to the shelf ---");
+for (const [printed, want] of TILL) {
+  const line = parseReceipt(`${printed}   1.00`)[0];
+  const best = rankItems(line.name, null, null, SHELF)[0];
+  const got = best && best.score >= STRONG_MATCH ? best.item.name : null;
+  const ok = got === want;
+  if (!ok) problems += 1;
+  const shown = got ?? "(nothing, offers to add it)";
+  console.log(`  ${ok ? "ok  " : "FAIL"} ${printed.padEnd(30)} -> ${shown}${ok ? "" : ` (wanted ${want ?? "no match"})`}`);
+}
+
 console.log(problems === 0 ? "\nall good" : `\n${problems} problems`);
 process.exit(problems === 0 ? 0 : 1);
