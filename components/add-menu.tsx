@@ -59,7 +59,9 @@ export function AddMenu() {
       )}
 
       {open && (
-        <div className="fixed right-5 bottom-24 z-50 w-58 rounded-[18px] border border-border bg-white p-2 shadow-[0_18px_40px_-18px_rgba(60,44,30,0.5)] sm:right-8 sm:bottom-26">
+        <div
+          data-fab
+          className="fixed right-5 bottom-24 z-50 w-58 rounded-[18px] border border-border bg-white p-2 shadow-[0_18px_40px_-18px_rgba(60,44,30,0.5)] sm:right-8 sm:bottom-26">
           {actions.map((action) => (
             <Link
               key={action.key}
@@ -81,6 +83,7 @@ export function AddMenu() {
         aria-label={open ? "Close add menu" : "Open add menu"}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
+        data-fab
         className="fixed right-5 bottom-6 z-50 flex h-[58px] w-[58px] items-center justify-center rounded-full bg-primary text-3xl leading-none text-primary-foreground shadow-[0_12px_28px_-8px_oklch(0.55_0.13_35/0.7)] transition-transform hover:scale-105 sm:right-8 sm:bottom-8 sm:h-15 sm:w-15"
       >
         <span className={open ? "rotate-45 transition-transform" : "transition-transform"}>

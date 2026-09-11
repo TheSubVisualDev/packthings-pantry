@@ -104,3 +104,15 @@
     @apply font-sans;
   }
 }
+
+/**
+ * Selection mode owns the bottom of the screen.
+ *
+ * The floating add button sits at z-50, above the bulk action bar, and covered
+ * its right-hand end. Mid-selection there is nothing you want to add, so it
+ * steps aside rather than fighting for the space - the way a tab bar does when
+ * you start picking photos.
+ */
+[data-bulk="on"] [data-fab] {
+  display: none;
+}

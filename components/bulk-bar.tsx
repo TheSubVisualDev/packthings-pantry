@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { MapPin, Sliders, Tag, Trash2, X } from "lucide-react";
 import {
   bulkDelete,
@@ -44,6 +44,21 @@ export function BulkBar({
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  /**
+   * Tells the rest of the page a selection is being acted on.
+   *
+   * The add button lives in the root layout, three trees away from here, and
+   * sits at z-50 - directly on top of this bar's right-hand end. Rather than
+   * thread state up through server components, the bar marks the document
+   * while it is mounted and globals.css gets the button out of the way.
+   */
+  useEffect(() => {
+    document.documentElement.dataset.bulk = "on";
+    return () => {
+      delete document.documentElement.dataset.bulk;
+    };
+  }, []);
 
   const count = ids.length;
   const noun = `${count} ${count === 1 ? "item" : "items"}`;
