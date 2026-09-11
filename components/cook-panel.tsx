@@ -10,6 +10,7 @@ import {
   type UndoResult,
 } from "@/app/recipes/[id]/actions";
 import { totalOnHand } from "@/lib/containers";
+import { SubstitutePicker } from "@/components/substitute-picker";
 import { NewPackDates } from "@/components/new-pack-dates";
 import { AddShortfallButton } from "@/components/add-shortfall-button";
 import { RecipeMethod, type CookStep } from "@/components/recipe-method";
@@ -20,6 +21,25 @@ import {
   scaleQuantity,
 } from "@/lib/units";
 import type { Item } from "@/lib/types";
+
+/** A stand-in the pantry could offer for one ingredient. */
+export interface SubstituteOption {
+  id: number;
+  name: string;
+  /** Tags it has in common with what the recipe asked for, if any. */
+  shared: string[];
+  /** Its stock row, so a swap can be judged against the shelf immediately. */
+  level: Pick<
+    Item,
+    | "quantity"
+    | "canonical_unit"
+    | "sealed_count"
+    | "pack_size"
+    | "pack_unit"
+    | "unspecified"
+    | "dimension"
+  >;
+}
 
 export interface CookLine {
   id: number;
@@ -48,6 +68,8 @@ export interface CookLine {
     | "pack_unit"
     | "unspecified"
   > | null;
+  /** What else is in that could stand in, best first. Empty is common. */
+  substitutes: SubstituteOption[];
 }
 
 /** How long the undo stays the loud button. It never stops being possible. */
@@ -63,19 +85,33 @@ type Status =
  * Resolves a line at the chosen serving count. Recomputed on every servings
  * change - whether a line is short depends on how many you're cooking for.
  */
+/**
+ * Judges one line against the shelf - or against its stand-in, if one has been
+ * picked. The substitute is compared exactly as the original would be, so
+ * swapping in something you have less of still reads as short.
+ */
 function resolve(
   line: CookLine,
+  swap: SubstituteOption | null,
   base: number,
   servings: number,
 ): { status: Status; display: number } {
   const scaled = scaleQuantity(line.quantity, base, servings);
-  if (!line.item) return { status: { kind: "not-in-pantry" }, display: scaled };
+  /**
+   * The stand-in's stock row, or the line's own.
+   *
+   * Checked before the not-in-pantry case rather than after: a substitute is
+   * most useful exactly when the recipe asks for something this kitchen has
+   * never held, and testing line.item first would refuse to offer one.
+   */
+  const level = swap ? swap.level : line.item;
+  if (!level) return { status: { kind: "not-in-pantry" }, display: scaled };
 
   const converted = resolveAmount(
     scaled,
     line.unit,
     { size: line.pack_size, unit: line.pack_unit },
-    line.item.dimension,
+    level.dimension,
   );
 
   if (!converted.ok) {
@@ -84,7 +120,7 @@ function resolve(
         kind: "needs-manual",
         detail:
           converted.reason === "dimension-mismatch"
-            ? `${line.unit} can't convert to ${line.item.canonical_unit}`
+            ? `${line.unit} can't convert to ${level.canonical_unit}`
             : `unknown unit "${line.unit}"`,
       },
       display: scaled,
@@ -94,7 +130,7 @@ function resolve(
   // Counts are rounded up during conversion, so show the whole number that
   // will actually leave stock rather than the raw fraction.
   const display =
-    line.item.dimension === "count" ? converted.quantity : scaled;
+    level.dimension === "count" ? converted.quantity : scaled;
 
   /**
    * Everything on the shelf, not just the open container.
@@ -104,13 +140,13 @@ function resolve(
    * behind the nearly-empty one. Unspecified items have no number to compare,
    * and are taken at their word.
    */
-  const onHand = totalOnHand(line.item);
+  const onHand = totalOnHand(level);
 
   if (onHand !== null && converted.quantity > onHand) {
     return {
       status: {
         kind: "short",
-        detail: `need ${formatQuantity(converted.quantity)}${line.item.canonical_unit}, have ${formatQuantity(onHand)}${line.item.canonical_unit}`,
+        detail: `need ${formatQuantity(converted.quantity)}${level.canonical_unit}, have ${formatQuantity(onHand)}${level.canonical_unit}`,
       },
       display,
     };
@@ -172,6 +208,14 @@ export function CookPanel({
   const [deadline, setDeadline] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [pending, startTransition] = useTransition();
+
+  /**
+   * Stand-ins chosen for this cook, by ingredient line.
+   *
+   * Not saved to the recipe: using oat milk tonight because that is what is in
+   * does not make it an oat milk recipe. It lives as long as this screen does.
+   */
+  const [swaps, setSwaps] = useState<Record<number, number>>({});
   const [undoPending, startUndo] = useTransition();
   const [ratingPending, startRating] = useTransition();
 
@@ -190,10 +234,11 @@ export function CookPanel({
     return () => clearInterval(timer);
   }, [deadline]);
 
-  const resolved = lines.map((line) => ({
-    line,
-    ...resolve(line, baseServings, servings),
-  }));
+  const resolved = lines.map((line) => {
+    const swap =
+      line.substitutes.find((option) => option.id === swaps[line.id]) ?? null;
+    return { line, swap, ...resolve(line, swap, baseServings, servings) };
+  });
 
   const blockers = resolved.filter((r) => r.status.kind !== "in-stock");
 
@@ -221,7 +266,7 @@ export function CookPanel({
     setSecondsLeft(0);
 
     startTransition(async () => {
-      const cooked = await cookRecipe(recipeId, servings);
+      const cooked = await cookRecipe(recipeId, servings, swaps);
       setResult(cooked);
 
       if (cooked.eventId !== undefined) {
@@ -297,11 +342,12 @@ export function CookPanel({
               </h3>
             )}
             <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              {section.entries.map(({ line, display, status }) => (
+              {section.entries.map(({ line, swap, display, status }) => (
                 <li
                   key={line.id}
-                  className="flex items-center justify-between gap-3 border-b border-border px-4 py-3.5 last:border-b-0 sm:px-5"
+                  className="border-b border-border px-4 py-3.5 last:border-b-0 sm:px-5"
                 >
+                  <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="font-bold break-words">
                       {line.item_name}
@@ -325,6 +371,23 @@ export function CookPanel({
                     </div>
                   </div>
                   <StatusBadge status={status} />
+                  </div>
+
+                  {line.substitutes.length > 0 && (
+                    <SubstitutePicker
+                      options={line.substitutes}
+                      chosen={swap}
+                      wanted={line.item_name}
+                      onChoose={(id) =>
+                        setSwaps((current) => {
+                          const next = { ...current };
+                          if (id === null) delete next[line.id];
+                          else next[line.id] = id;
+                          return next;
+                        })
+                      }
+                    />
+                  )}
                 </li>
               ))}
             </ul>

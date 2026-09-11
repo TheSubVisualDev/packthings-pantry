@@ -19,6 +19,8 @@ import {
   getCookedLog,
 } from "@/lib/queries";
 import { getLineage, getRemixes } from "@/lib/social";
+import { rankSubstitutes } from "@/lib/substitutes";
+import { getTags, getTagsByItem } from "@/lib/tags";
 import { recipeMacros } from "@/lib/recipe-nutrition";
 import { currentKitchen } from "@/lib/session";
 import { myRating } from "@/lib/recipe-store";
@@ -51,7 +53,18 @@ export default async function RecipePage({
   // Everything the page still needs, in one round trip rather than two.
   // libSQL over HTTP opens a request per query, so awaits in sequence cost
   // sequential trips to Nuremberg; none of these five depends on another.
-  const [author, forkedFrom, yourRating, social, comments, ancestors, remixes, history] =
+  const [
+    author,
+    forkedFrom,
+    yourRating,
+    social,
+    comments,
+    ancestors,
+    remixes,
+    history,
+    tagsByItem,
+    kitchenTags,
+  ] =
     await Promise.all([
     recipe.author_id ? getUser(recipe.author_id) : null,
     // Looked up without a visibility check on purpose: the credit has to
@@ -63,10 +76,14 @@ export default async function RecipePage({
     getLineage(recipe.id),
     getRemixes(recipe.id, context.user.id),
     getCookedLog(kitchen?.id ?? null, 20, recipe.id),
+    getTagsByItem(kitchen?.id ?? null),
+    getTags(kitchen?.id ?? null),
   ]);
 
   const forkedAuthor =
     forkedFrom && forkedFrom.id !== recipe.author_id ? forkedFrom : null;
+
+  const tagCounts = new Map(kitchenTags.map((tag) => [tag.id, tag.item_count]));
 
   const itemsByName = new Map(
     items.map((item) => [item.name.toLowerCase(), item]),
@@ -105,6 +122,33 @@ export default async function RecipePage({
       note: line.note,
       optional: line.optional === 1,
       section: line.section,
+      /**
+       * What else on the shelf could stand in.
+       *
+       * Worked out here rather than in the browser because it needs the whole
+       * kitchen's tags, and shipping those to rank four chips would be sending
+       * the shelf to decide what is on it.
+       */
+      substitutes: rankSubstitutes(
+        line.item_name,
+        item ?? null,
+        items,
+        tagsByItem,
+        tagCounts,
+      ).map((option) => ({
+        id: option.item.id,
+        name: option.item.name,
+        shared: option.shared,
+        level: {
+          quantity: option.item.quantity,
+          canonical_unit: option.item.canonical_unit,
+          sealed_count: option.item.sealed_count,
+          pack_size: option.item.pack_size,
+          pack_unit: option.item.pack_unit,
+          unspecified: option.item.unspecified,
+          dimension: option.item.dimension,
+        },
+      })),
       item: item
         ? {
             quantity: item.quantity,

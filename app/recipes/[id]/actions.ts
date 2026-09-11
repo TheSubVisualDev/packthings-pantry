@@ -62,6 +62,14 @@ export interface CookResult {
 export async function cookRecipe(
   recipeId: number,
   servings: number,
+  /**
+   * Stand-ins chosen for this cook only, as ingredient line id to stock id.
+   *
+   * Not written to the recipe: using oat milk tonight because that is what is
+   * in does not mean the recipe was always an oat milk recipe. The swap lives
+   * in this one cook, and the log records what actually left the shelf.
+   */
+  substitutions: Record<number, number> = {},
 ): Promise<CookResult> {
   if (!Number.isInteger(recipeId) || recipeId <= 0) {
     return { ok: false, error: "Invalid recipe", opened: [], applied: [], flagged: [] };
@@ -99,8 +107,10 @@ export async function cookRecipe(
       sql: "SELECT * FROM items WHERE kitchen_id = ?",
       args: [access.kitchen.id],
     });
+    const stock = itemResult.rows as unknown as Item[];
+    const stockById = new Map(stock.map((item) => [item.id, item]));
     const itemsByName = new Map(
-      (itemResult.rows as unknown as Item[]).map((item) => [
+      stock.map((item) => [
         item.name.toLowerCase(),
         item,
       ]),
@@ -112,7 +122,17 @@ export async function cookRecipe(
     const opened: OpenedPack[] = [];
 
     for (const line of lines) {
-      const item = itemsByName.get(line.item_name.toLowerCase());
+      /**
+       * The substitute if one was picked, otherwise whatever the line names.
+       *
+       * Looked up by id among this kitchen's stock, so a number from somewhere
+       * else resolves to nothing and the line is simply flagged - the same as
+       * asking for something the pantry has never held.
+       */
+      const swapId = substitutions[line.id];
+      const item = swapId
+        ? stockById.get(swapId)
+        : itemsByName.get(line.item_name.toLowerCase());
       if (!item) {
         flagged.push({ item_name: line.item_name, issue: "not-in-pantry" });
         continue;
