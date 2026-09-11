@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SuggestionCard, TopMatchCard } from "@/components/recipe-suggestion";
 import { getItems, getRecipesWithMatches } from "@/lib/queries";
@@ -165,6 +166,8 @@ export default async function PantryPage({
           )}
         </main>
       </div>
+
+      <SiteFooter />
     </>
   );
 }

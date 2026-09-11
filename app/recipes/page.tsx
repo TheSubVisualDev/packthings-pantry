@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import {
   SuggestionCard,
@@ -54,6 +55,8 @@ export default async function RecipesPage() {
           </>
         )}
       </div>
+
+      <SiteFooter />
     </>
   );
 }

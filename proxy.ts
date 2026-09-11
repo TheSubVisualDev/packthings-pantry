@@ -13,9 +13,10 @@ import {
  *
  * People get the cookie by way of the /login form, which password managers can
  * actually fill - the native Basic dialog can't be autofilled on iOS Safari.
- * Basic stays accepted so curl has a non-interactive way in, and the bearer
- * token exists so a Claude session can read the pantry without being handed a
- * password that also unlocks the browser.
+ * Basic stays accepted so curl has a non-interactive way in. The bearer token
+ * exists so a Claude session can read the pantry without being handed a
+ * password that also unlocks the browser, and is confined to /api for the same
+ * reason.
  *
  * Named `proxy` rather than `middleware`: Next 16 renamed the convention and
  * warns on the old filename. Proxy always runs on the Node.js runtime, which
@@ -33,10 +34,18 @@ export default function proxy(request: NextRequest) {
 
   const authorization = request.headers.get("authorization");
 
+  // The API token unlocks /api only, never the pages. Everything the app can
+  // do, it does through server actions on its own routes - so a token that
+  // opened those would be a second password able to empty the fridge, when all
+  // it's for is letting a Claude session read stock and write recipes. The
+  // endpoints under /api are the whole contract; least privilege keeps it that
+  // way, and keeps /claude's promise about what the key can reach honest.
+  const isApi = request.nextUrl.pathname.startsWith("/api/");
+
   const authenticated =
     sessionValid(request.cookies.get(SESSION_COOKIE)?.value) ||
     basicAuthValid(authorization) ||
-    apiTokenValid(authorization);
+    (isApi && apiTokenValid(authorization));
 
   const isLoginPage = request.nextUrl.pathname === "/login";
 
