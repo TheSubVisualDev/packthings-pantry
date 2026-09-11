@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { createWorker } from "tesseract.js";
+import { tmpdir } from "node:os";
 
 /**
  * Reading text off a photograph of a receipt.
@@ -45,7 +46,16 @@ export interface OcrResult {
 export async function readReceipt(input: Buffer): Promise<OcrResult> {
   const prepared = await prepare(input);
 
-  const worker = await createWorker("eng");
+  /**
+   * The language data has to land somewhere writable.
+   *
+   * tesseract.js downloads eng.traineddata on first use and caches it beside
+   * the process's working directory, which on a deployment is read-only - so
+   * the very first scan in production threw before any of this code ran. The
+   * temp directory is the one place a function may write, and it survives for
+   * the life of a warm instance, so the download happens about once.
+   */
+  const worker = await createWorker("eng", 1, { cachePath: tmpdir() });
   try {
     const { data } = await worker.recognize(prepared);
     return { text: data.text, confidence: data.confidence };

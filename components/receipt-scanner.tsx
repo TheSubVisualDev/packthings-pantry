@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
-import { Camera, Check, X } from "lucide-react";
+import { Camera, Check, ImageUp, X } from "lucide-react";
 import {
   applyReceipt,
   scanReceipt,
   type ApplyResult,
   type ReceiptMatch,
 } from "@/app/pantry/receipt/actions";
+import { shrinkForUpload } from "@/lib/shrink";
 
 const CARD = "rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]";
 
@@ -24,7 +25,8 @@ const CARD = "rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]";
  * starting over, which is the right cost for a bad photo.
  */
 export function ReceiptScanner() {
-  const input = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
+  const library = useRef<HTMLInputElement>(null);
   const [matches, setMatches] = useState<ReceiptMatch[] | null>(null);
   const [confidence, setConfidence] = useState<number | null>(null);
   const [chosen, setChosen] = useState<Record<number, number | null>>({});
@@ -36,10 +38,14 @@ export function ReceiptScanner() {
   function read(file: File) {
     setError(null);
     setDone(null);
-    const body = new FormData();
-    body.set("photo", file);
 
     startReading(async () => {
+      // Scaled down here rather than uploaded whole: the recogniser resizes to
+      // 1600px on arrival anyway, so the extra megabytes buy nothing and cost
+      // somebody standing in a kitchen on a phone connection.
+      const body = new FormData();
+      body.set("photo", await shrinkForUpload(file));
+
       const result = await scanReceipt(body);
       if (!result.ok || !result.matches) {
         setError(result.error ?? "Couldn't read that.");
@@ -110,8 +116,12 @@ export function ReceiptScanner() {
   if (!matches) {
     return (
       <section className={CARD}>
+        {/* Two inputs, because `capture` is a demand rather than a hint: with
+            it the phone opens the camera and offers no way to reach a photo
+            you already took, which is exactly what you want when the receipt
+            is in your pocket and exactly wrong when it is in your photos. */}
         <input
-          ref={input}
+          ref={camera}
           type="file"
           accept="image/*"
           capture="environment"
@@ -122,15 +132,38 @@ export function ReceiptScanner() {
             event.target.value = "";
           }}
         />
-        <button
-          type="button"
-          disabled={reading}
-          onClick={() => input.current?.click()}
-          className="flex w-full items-center justify-center gap-2.5 rounded-[14px] bg-primary px-4 py-4 text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
-        >
-          <Camera className="h-5 w-5" strokeWidth={2.5} />
-          {reading ? "Reading it…" : "Photograph a receipt"}
-        </button>
+        <input
+          ref={library}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) read(file);
+            event.target.value = "";
+          }}
+        />
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={reading}
+            onClick={() => camera.current?.click()}
+            className="flex min-w-44 flex-1 items-center justify-center gap-2.5 rounded-[14px] bg-primary px-4 py-4 text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
+          >
+            <Camera className="h-5 w-5" strokeWidth={2.5} />
+            {reading ? "Reading it…" : "Photograph one"}
+          </button>
+          <button
+            type="button"
+            disabled={reading}
+            onClick={() => library.current?.click()}
+            className="flex min-w-36 flex-1 items-center justify-center gap-2.5 rounded-[14px] bg-chip px-4 py-4 text-[15px] font-extrabold disabled:opacity-60"
+          >
+            <ImageUp className="h-5 w-5" strokeWidth={2.5} />
+            Upload
+          </button>
+        </div>
         <p className="mt-3 text-sm font-semibold text-muted-foreground">
           Flat, bright, and just the items. Reading takes a few seconds, and
           nothing is saved until you say so.

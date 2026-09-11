@@ -44,6 +44,30 @@ export interface ScanResult {
 }
 
 /**
+ * Reads a photo of a receipt, reporting failure rather than throwing.
+ *
+ * An uncaught error in a Server Action reaches the browser as a digest and
+ * nothing else - a number the person holding the phone can do nothing with.
+ * Image work has more ways to fail than most code (a format sharp will not
+ * open, a photo too large for memory, language data that will not download),
+ * so every one of them becomes a sentence instead.
+ */
+export async function scanReceipt(formData: FormData): Promise<ScanResult> {
+  try {
+    return await readAndMatch(formData);
+  } catch (error) {
+    // Logged server-side, where it is useful, and summarised for the person,
+    // where the stack would not be.
+    console.error("receipt scan failed", error);
+    return {
+      ok: false,
+      error:
+        "Something went wrong reading that. A smaller or flatter photo often works - and if it keeps happening, the pantry logs have the detail.",
+    };
+  }
+}
+
+/**
  * Reads a photo of a receipt and works out what of it you already stock.
  *
  * Nothing is written here. OCR on thermal paper is unreliable enough that
@@ -54,7 +78,7 @@ export interface ScanResult {
  * same thresholds: they were tuned against real supermarket product names,
  * which is exactly what a receipt line is.
  */
-export async function scanReceipt(formData: FormData): Promise<ScanResult> {
+async function readAndMatch(formData: FormData): Promise<ScanResult> {
   const access = await requireKitchenRole("editor");
   if (!access.ok) return { ok: false, error: access.error };
 
