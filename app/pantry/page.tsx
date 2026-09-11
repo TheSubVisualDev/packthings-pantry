@@ -124,12 +124,20 @@ export default async function PantryPage({
                 Use these up
               </h2>
               <ul className="mt-2.5 space-y-1.5">
-                {expiring.slice(0, 5).map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-baseline justify-between gap-3 text-sm font-semibold"
-                  >
-                    <span className="min-w-0 break-words">{item.name}</span>
+                {expiring.slice(0, 6).map((item) => (
+                  <li key={item.id}>
+                    <Link
+                      href={`/pantry/item/${item.id}`}
+                      className="flex items-baseline justify-between gap-3 text-sm font-semibold hover:underline"
+                    >
+                    <span className="min-w-0 break-words">
+                      {item.name}
+                      {item.because_opened === 1 && (
+                        <span className="ml-1.5 text-xs font-semibold text-muted-foreground">
+                          open
+                        </span>
+                      )}
+                    </span>
                     <span
                       className={`shrink-0 text-xs font-bold ${
                         item.days_left < 0 ? "text-destructive" : "text-muted-foreground"
@@ -141,6 +149,7 @@ export default async function PantryPage({
                           ? "today"
                           : `${item.days_left}d`}
                     </span>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -205,14 +214,24 @@ export default async function PantryPage({
                     </h2>
                     <ul className="flex flex-wrap gap-2">
                       {groupItems.map((item) => (
-                        <li
-                          key={item.id}
-                          className="rounded-[14px] bg-card px-3 py-2.5 text-sm font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:rounded-xl sm:bg-chip sm:px-3 sm:py-2 sm:shadow-none"
-                        >
-                          {item.name}{" "}
-                          <span className="font-bold text-quantity">
-                            {quantityLabel(item)}
-                          </span>
+                        <li key={item.id}>
+                          <Link
+                            href={`/pantry/item/${item.id}`}
+                            className="block rounded-[14px] bg-card px-3 py-2.5 text-sm font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-colors hover:bg-chip sm:rounded-xl sm:bg-chip sm:px-3 sm:py-2 sm:shadow-none sm:hover:bg-border"
+                          >
+                            {item.name}{" "}
+                            <span className="font-bold text-quantity">
+                              {quantityLabel(item)}
+                            </span>
+                            {item.opened_at && (
+                              <span
+                                title="Opened"
+                                className="ml-1.5 text-xs font-bold text-muted-foreground"
+                              >
+                                open
+                              </span>
+                            )}
+                          </Link>
                         </li>
                       ))}
                     </ul>

@@ -45,6 +45,9 @@ for (const statement of statements.filter((s) => !isIndex(s))) {
  */
 const ADDED_COLUMNS = [
   { table: "items", column: "location", definition: "TEXT" },
+  // Once-opened tracking: the date on the packet stops applying when it's open.
+  { table: "items", column: "opened_at", definition: "TIMESTAMP" },
+  { table: "items", column: "shelf_life_days", definition: "INTEGER" },
 
   // Recipes became documents rather than lists: a blurb, timings, a source.
   { table: "recipes", column: "description", definition: "TEXT" },

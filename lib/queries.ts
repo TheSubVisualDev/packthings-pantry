@@ -365,15 +365,38 @@ export async function searchPeople(viewerId: number, term: string) {
 }
 
 export interface ExpiringItem extends Item {
+  /** The earlier of the packet date and the opened-plus-shelf-life date. */
+  use_by: string;
   days_left: number;
+  /** True when the deadline comes from having opened it, not the packet. */
+  because_opened: number;
 }
+
+/**
+ * The deadline that actually applies to a jar.
+ *
+ * A sealed thing is good until the date on it. An open thing is good for
+ * however long it keeps once open, counted from when it was opened - and if
+ * both apply, whichever comes first wins. Written once here because three
+ * places need to agree about it.
+ */
+const USE_BY = `
+  MIN(
+    COALESCE(expiry_date, '9999-12-31'),
+    COALESCE(
+      CASE WHEN opened_at IS NOT NULL AND shelf_life_days IS NOT NULL
+        THEN date(opened_at, '+' || shelf_life_days || ' days')
+      END,
+      '9999-12-31'
+    )
+  )
+`;
 
 /**
  * What's about to go off, soonest first.
  *
- * items.expiry_date has existed since the first schema and nothing has ever
- * read it. Anything already past is included with a negative count, because
- * "this went off on Tuesday" is more useful than silence.
+ * Anything already past is included with a negative count, because "this went
+ * off on Tuesday" is more useful than silence.
  */
 export async function getExpiring(
   kitchenId: number | null,
@@ -382,14 +405,30 @@ export async function getExpiring(
   if (kitchenId === null) return [];
 
   const result = await getDb().execute({
-    sql: `SELECT *, CAST(julianday(expiry_date) - julianday('now') AS INTEGER) AS days_left
+    sql: `SELECT *, ${USE_BY} AS use_by,
+                 CAST(julianday(${USE_BY}) - julianday('now') AS INTEGER) AS days_left,
+                 (opened_at IS NOT NULL
+                   AND shelf_life_days IS NOT NULL
+                   AND date(opened_at, '+' || shelf_life_days || ' days') <=
+                       COALESCE(expiry_date, '9999-12-31')) AS because_opened
           FROM items
           WHERE kitchen_id = ?
-            AND expiry_date IS NOT NULL
             AND quantity > 0
-            AND julianday(expiry_date) - julianday('now') <= ?
-          ORDER BY expiry_date`,
+            AND ${USE_BY} < '9999-12-31'
+            AND julianday(${USE_BY}) - julianday('now') <= ?
+          ORDER BY use_by`,
     args: [kitchenId, withinDays],
   });
   return result.rows as unknown as ExpiringItem[];
+}
+
+export async function getItem(
+  kitchenId: number,
+  itemId: number,
+): Promise<Item | null> {
+  const result = await getDb().execute({
+    sql: "SELECT * FROM items WHERE id = ? AND kitchen_id = ?",
+    args: [itemId, kitchenId],
+  });
+  return (result.rows[0] as unknown as Item) ?? null;
 }

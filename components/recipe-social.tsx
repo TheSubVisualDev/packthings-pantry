@@ -4,18 +4,10 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Avatar } from "@/components/avatar";
 import { comment, removeComment, setLiked } from "@/app/social/actions";
+import { shortDate } from "@/lib/dates";
 import type { Comment } from "@/lib/queries";
 
 const CARD = "rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]";
-
-/** Dates only; the hour someone commented has never mattered to anyone. */
-function when(value: string | null): string {
-  if (!value) return "";
-  const date = new Date(value.replace(" ", "T") + "Z");
-  return Number.isNaN(date.getTime())
-    ? ""
-    : date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-}
 
 export function RecipeSocial({
   recipeId,
@@ -85,7 +77,7 @@ export function RecipeSocial({
                     {entry.display_name}
                   </Link>
                   <span className="ml-2 text-xs font-semibold text-muted-foreground">
-                    {when(entry.created_at)}
+                    {shortDate(entry.created_at)}
                   </span>
                   <p className="mt-1 text-[15px] leading-relaxed font-medium break-words">
                     {entry.body}

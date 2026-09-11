@@ -11,7 +11,12 @@ CREATE TABLE IF NOT EXISTS items (
   dimension      TEXT NOT NULL,   -- 'mass' | 'volume' | 'count'
   category       TEXT,
   location       TEXT,            -- where in the kitchen: Fridge | Freezer | ...
-  expiry_date    DATE,
+  expiry_date    DATE,              -- the date on the packet, while sealed
+  -- Once a jar is open the date on it stops being the answer. opened_at is
+  -- when it was, shelf_life_days how long it keeps after that, and the earlier
+  -- of the two deadlines is the one that matters.
+  opened_at      TIMESTAMP,
+  shelf_life_days INTEGER,
   updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

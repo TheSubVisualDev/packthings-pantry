@@ -10,6 +10,10 @@ export interface Item {
   category: string | null;
   location: string | null;
   expiry_date: string | null;
+  /** When it was opened, if it has been. */
+  opened_at: string | null;
+  /** How long it keeps once opened. */
+  shelf_life_days: number | null;
   updated_at: string | null;
 }
 

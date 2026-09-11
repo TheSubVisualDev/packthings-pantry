@@ -147,3 +147,119 @@ export async function adjustItem(
   revalidatePath("/recipes");
   return { ok: true, quantity: row.quantity };
 }
+
+export interface ItemResult {
+  ok: boolean;
+  error?: string;
+  message?: string;
+}
+
+/**
+ * Edits one item.
+ *
+ * The kitchen is in the WHERE clause rather than checked beforehand, so an id
+ * from another kitchen matches nothing - the same rule the rest of the stock
+ * queries follow.
+ */
+export async function updateItem(
+  _previous: ItemResult,
+  formData: FormData,
+): Promise<ItemResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  const itemId = Number(formData.get("item_id"));
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return { ok: false, error: "Unknown item" };
+  }
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { ok: false, error: "Give it a name." };
+
+  const quantity = Number(String(formData.get("quantity") ?? "").trim());
+  if (!Number.isFinite(quantity) || quantity < 0) {
+    return { ok: false, error: "Quantity has to be a number, zero or more." };
+  }
+
+  const shelfRaw = String(formData.get("shelf_life_days") ?? "").trim();
+  const shelfLife = shelfRaw ? Number(shelfRaw) : null;
+  if (shelfLife !== null && (!Number.isInteger(shelfLife) || shelfLife <= 0)) {
+    return { ok: false, error: "Shelf life should be a whole number of days." };
+  }
+
+  const expiry = String(formData.get("expiry_date") ?? "").trim();
+  const places = await getLocations(access.kitchen.id);
+  const location = String(formData.get("location") ?? "").trim();
+  const category = String(formData.get("category") ?? "").trim();
+
+  // The unit and dimension aren't editable: changing them would reinterpret a
+  // number already on the shelf, and "800" meaning grams one minute and
+  // millilitres the next is how stock counts quietly go wrong. Delete and
+  // re-add is the honest way to change what something is measured in.
+  try {
+    await getDb().execute({
+      sql: `UPDATE items SET name = ?, quantity = ?, category = ?, location = ?,
+              expiry_date = ?, shelf_life_days = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND kitchen_id = ?`,
+      args: [
+        name,
+        quantity,
+        category || null,
+        isKnownLocation(location, places) ? location : null,
+        /^\d{4}-\d{2}-\d{2}$/.test(expiry) ? expiry : null,
+        shelfLife,
+        itemId,
+        access.kitchen.id,
+      ],
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("UNIQUE")) {
+      return { ok: false, error: `"${name}" is already in this kitchen.` };
+    }
+    return { ok: false, error: message || "Couldn't save that." };
+  }
+
+  revalidatePath("/pantry");
+  revalidatePath(`/pantry/item/${itemId}`);
+  return { ok: true, message: "Saved." };
+}
+
+/**
+ * Records that something has been opened.
+ *
+ * Only stamps a date that isn't there: opening an already-open jar doesn't
+ * make it fresher, and re-stamping would quietly extend a deadline that has
+ * already started running.
+ */
+export async function setOpened(itemId: number, opened: boolean): Promise<ItemResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  await getDb().execute({
+    sql: opened
+      ? `UPDATE items SET opened_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND kitchen_id = ? AND opened_at IS NULL`
+      : `UPDATE items SET opened_at = NULL WHERE id = ? AND kitchen_id = ?`,
+    args: [itemId, access.kitchen.id],
+  });
+
+  revalidatePath("/pantry");
+  revalidatePath(`/pantry/item/${itemId}`);
+  return { ok: true };
+}
+
+export async function deleteItem(itemId: number): Promise<ItemResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  // recipe_ingredients.item_id is ON DELETE SET NULL, so recipes keep their
+  // line and simply stop being linked to stock - the name is the portable half.
+  await getDb().execute({
+    sql: "DELETE FROM items WHERE id = ? AND kitchen_id = ?",
+    args: [itemId, access.kitchen.id],
+  });
+
+  revalidatePath("/pantry");
+  redirect("/pantry");
+}

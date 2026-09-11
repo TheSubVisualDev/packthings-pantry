@@ -142,6 +142,18 @@ export async function cookRecipe(
         args: [remaining, item.id],
       });
 
+      // Taking some of something is opening it. Only stamped when there isn't
+      // a date already: an open jar doesn't become fresher for being used
+      // again, and re-stamping would keep pushing back a deadline that has
+      // already started running.
+      if (take > 0) {
+        await tx.execute({
+          sql: `UPDATE items SET opened_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND opened_at IS NULL`,
+          args: [item.id],
+        });
+      }
+
       // Zero-take lines have nothing to give back, so they stay out of the log.
       if (take > 0) {
         changes.push({ item_id: item.id, delta: take, unit: item.canonical_unit });
