@@ -76,6 +76,14 @@ export function RecipeNutrition({ macros }: { macros: RecipeMacros }) {
         ) : (
           <>From all {macros.total} ingredients.</>
         )}
+        {macros.estimated > 0 && (
+          <>
+            {" "}
+            {macros.estimated} of them{" "}
+            {macros.estimated === 1 ? "is a" : "are"} standard figure
+            {macros.estimated === 1 ? "" : "s"} rather than a packet.
+          </>
+        )}
       </p>
     </section>
   );

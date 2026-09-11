@@ -60,6 +60,14 @@ export interface Item {
   fat_100: number | null;
   fibre_100: number | null;
   salt_100: number | null;
+  /**
+   * Where those figures came from.
+   *
+   * "scan" is off the packet via Open Food Facts, "estimate" is a standard
+   * figure for that kind of food, "manual" is somebody typing it. Kept because
+   * a saved guess is indistinguishable from a measurement without it.
+   */
+  nutrition_source: "scan" | "estimate" | "manual" | null;
 
   updated_at: string | null;
 }

@@ -20,6 +20,8 @@ export interface RecipeMacros extends Macros {
   counted: number;
   /** Lines there were. */
   total: number;
+  /** How many of the counted lines rested on a standard figure, not a packet. */
+  estimated: number;
   /** Names of the lines that had nothing, so it can say what is missing. */
   missing: string[];
 }
@@ -49,6 +51,7 @@ export function recipeMacros(
   };
 
   let counted = 0;
+  let estimated = 0;
   const missing: string[] = [];
   const scale = baseServings > 0 ? servings / baseServings : 1;
 
@@ -90,7 +93,12 @@ export function recipeMacros(
       contributed = true;
     }
 
-    if (contributed) counted += 1;
+    if (contributed) {
+      counted += 1;
+      // Worth carrying up: a total resting on standard figures is a different
+      // claim from one resting on packets, and "roughly" should say why.
+      if (item.nutrition_source === "estimate") estimated += 1;
+    }
     else missing.push(line.item_name);
   }
 
@@ -109,5 +117,5 @@ export function recipeMacros(
     salt_100: each("salt_100"),
   };
 
-  return { ...divided, counted, total: ingredients.length, missing };
+  return { ...divided, counted, estimated, total: ingredients.length, missing };
 }

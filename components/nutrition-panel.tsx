@@ -104,7 +104,16 @@ export function NutritionPanel({ item }: { item: Item }) {
       </dl>
 
       <p className="mt-3 text-xs font-semibold text-muted-foreground">
-        From Open Food Facts, kept locally after the first look.
+        {item.nutrition_source === "estimate" ? (
+          <>
+            Estimated — these are standard figures for this kind of food, not
+            what is on your packet. Scan it and the real ones replace them.
+          </>
+        ) : item.nutrition_source === "manual" ? (
+          <>Entered by hand.</>
+        ) : (
+          <>From Open Food Facts, kept locally after the first look.</>
+        )}
       </p>
     </div>
   );

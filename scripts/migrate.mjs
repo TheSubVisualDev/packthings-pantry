@@ -134,6 +134,10 @@ const ADDED_COLUMNS = [
   { table: "items", column: "fat_100", definition: "REAL" },
   { table: "items", column: "fibre_100", definition: "REAL" },
   { table: "items", column: "salt_100", definition: "REAL" },
+  // Where the figures above came from: a barcode, a standard table, or a person.
+  // Saved alongside them so a guess can never be mistaken for a measurement six
+  // months later, and so estimates can be refreshed without touching scans.
+  { table: "items", column: "nutrition_source", definition: "TEXT" },
 
   // "I have some, I do not know how much." quantity is NOT NULL and making it
   // nullable would mean another table rebuild, so the honest answer is a flag
@@ -297,3 +301,19 @@ const targeted = await client.execute(`
     AND (restock_to IS NOT NULL OR restock_min IS NOT NULL)
 `);
 console.log(`restock_target: ${targeted.rowsAffected} targets carried over`);
+
+/**
+ * Marks figures that arrived before the pantry recorded where they came from.
+ *
+ * Anything with numbers and a barcode against it came from Open Food Facts, so
+ * it is a scan. Said explicitly rather than left null, because null now means
+ * "nobody has looked" and the estimator would take that as an invitation to
+ * overwrite a real measurement with a standard one.
+ */
+const sourced = await client.execute(`
+  UPDATE items SET nutrition_source = 'scan'
+  WHERE nutrition_source IS NULL
+    AND (kcal_100 IS NOT NULL OR protein_100 IS NOT NULL)
+    AND EXISTS (SELECT 1 FROM products p WHERE p.item_id = items.id)
+`);
+console.log(`nutrition_source: ${sourced.rowsAffected} existing figures marked as scanned`);

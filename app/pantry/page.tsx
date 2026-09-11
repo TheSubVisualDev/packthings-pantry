@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { UseItUp } from "@/components/use-it-up";
+import { EstimateButton } from "@/components/estimate-button";
 import { StockList } from "@/components/stock-list";
 import { SuggestionCard, TopMatchCard } from "@/components/recipe-suggestion";
 import { getItems, getRecipesWithMatches } from "@/lib/queries";
@@ -195,6 +196,18 @@ export default async function PantryPage({
                 </span>
                 <GroupToggle active={groupBy} />
               </div>
+
+              {/* Only where it is relevant: under any other grouping a button
+                  about nutrition is noise. */}
+              {groupBy === "nutrition" && (
+                <EstimateButton
+                  missing={
+                    items.filter(
+                      (item) => item.kcal_100 === null && item.protein_100 === null,
+                    ).length
+                  }
+                />
+              )}
 
               <StockList
                 groups={groups}

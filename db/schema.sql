@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS items (
   fat_100        REAL,
   fibre_100      REAL,
   salt_100       REAL,
+  -- 'scan' | 'estimate' | 'manual'. Which of those it is matters as much as
+  -- the numbers: an estimate is worth showing and never worth trusting equally.
+  nutrition_source TEXT,
   -- "Some, I do not know how much": read nothing into quantity when this is 1.
   unspecified    INTEGER NOT NULL DEFAULT 0,
   updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

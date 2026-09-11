@@ -1,5 +1,6 @@
 import { getDb } from "./db";
 import { lookupOpenFoodFacts, type Nutrition } from "./off";
+import { estimateFor } from "./generic-nutrition";
 
 /**
  * Nutrition, fetched once and then read from our own database.
@@ -179,9 +180,13 @@ export async function macrosForBarcode(barcode: string): Promise<Macros> {
 /**
  * Copies a barcode's figures onto the item it was linked to.
  *
- * Only fills blanks. Nutrition typed by hand, or copied from a more
- * representative barcode, is a better answer than whichever packet happened to
- * be scanned last, so it is never overwritten.
+ * A scan replaces an estimate outright rather than filling round it. The
+ * standard figure for "milk" is a reasonable guess; what the carton actually
+ * says is better, and leaving half a guess mixed into a scan would produce a
+ * row that is neither and is labelled as one.
+ *
+ * It never replaces figures a person entered. Somebody who typed them meant
+ * them, and a packet they did not scan is not an argument against that.
  */
 export async function copyMacrosToItem(
   kitchenId: number,
@@ -192,13 +197,10 @@ export async function copyMacrosToItem(
 
   await getDb().execute({
     sql: `UPDATE items
-          SET kcal_100 = COALESCE(kcal_100, ?),
-              protein_100 = COALESCE(protein_100, ?),
-              carbs_100 = COALESCE(carbs_100, ?),
-              fat_100 = COALESCE(fat_100, ?),
-              fibre_100 = COALESCE(fibre_100, ?),
-              salt_100 = COALESCE(salt_100, ?)
-          WHERE id = ? AND kitchen_id = ?`,
+          SET kcal_100 = ?, protein_100 = ?, carbs_100 = ?, fat_100 = ?,
+              fibre_100 = ?, salt_100 = ?, nutrition_source = 'scan'
+          WHERE id = ? AND kitchen_id = ?
+            AND (nutrition_source IS NULL OR nutrition_source <> 'manual')`,
     args: [
       macros.kcal_100,
       macros.protein_100,
@@ -210,4 +212,61 @@ export async function copyMacrosToItem(
       kitchenId,
     ],
   });
+}
+
+/**
+ * Fills in standard figures for things no barcode will ever cover.
+ *
+ * Saved rather than computed on the fly, because the whole pantry groups and
+ * sorts on these columns and a join per row to work out that carrots are
+ * carrots would be paid on every page. `nutrition_source` is what keeps that
+ * honest: the guess sits in the same columns as a scan and says, next to
+ * itself, that it is a guess.
+ *
+ * Only fills items that have nothing. A scan is a better answer than a standard
+ * table, and a person typing it is better still, so neither is overwritten -
+ * which is also why a re-run costs nothing and can be done whenever the table
+ * of generics grows.
+ */
+export async function estimateMissing(
+  kitchenId: number,
+): Promise<{ item_id: number; name: string; basis: string }[]> {
+  const db = getDb();
+
+  const blank = await db.execute({
+    sql: `SELECT id, name FROM items
+          WHERE kitchen_id = ?
+            AND nutrition_source IS NULL
+            AND kcal_100 IS NULL AND protein_100 IS NULL
+            AND carbs_100 IS NULL AND fat_100 IS NULL`,
+    args: [kitchenId],
+  });
+
+  const done: { item_id: number; name: string; basis: string }[] = [];
+
+  for (const row of blank.rows as unknown as { id: number; name: string }[]) {
+    const generic = estimateFor(row.name);
+    if (!generic) continue;
+
+    await db.execute({
+      sql: `UPDATE items
+            SET kcal_100 = ?, protein_100 = ?, carbs_100 = ?, fat_100 = ?,
+                fibre_100 = ?, salt_100 = ?, nutrition_source = 'estimate'
+            WHERE id = ? AND kitchen_id = ?`,
+      args: [
+        generic.kcal_100,
+        generic.protein_100,
+        generic.carbs_100,
+        generic.fat_100,
+        generic.fibre_100,
+        generic.salt_100,
+        row.id,
+        kitchenId,
+      ],
+    });
+
+    done.push({ item_id: row.id, name: row.name, basis: generic.label });
+  }
+
+  return done;
 }

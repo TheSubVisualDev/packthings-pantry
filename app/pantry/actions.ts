@@ -11,7 +11,7 @@ import { CANONICAL_FOR, dimensionOf, toCanonical } from "@/lib/units";
 import { ADJUST_SQL, PACK_SQL } from "@/lib/containers";
 import { cleanTagName, ensureTag, setPrimaryTag, tagItem, untagItem } from "@/lib/tags";
 import { cleanShopName, setPreferredShop, shopItem, unshopItem } from "@/lib/shops";
-import { copyMacrosToItem, macrosForBarcode } from "@/lib/nutrition";
+import { copyMacrosToItem, estimateMissing, macrosForBarcode } from "@/lib/nutrition";
 
 export interface AddItemState {
   error?: string;
@@ -829,4 +829,32 @@ export async function setExpiry(
   revalidatePath("/pantry");
   revalidatePath(`/pantry/item/${itemId}`);
   return { ok: true, message: "Saved." };
+}
+
+export interface EstimateResult {
+  ok: boolean;
+  error?: string;
+  /** What was filled in, and what each was taken to be. */
+  filled?: { name: string; basis: string }[];
+}
+
+/**
+ * Fills in standard figures for stock that has none.
+ *
+ * A button rather than something that happens quietly on a timer, because it is
+ * a judgement: these are what carrots are usually like, not what yours are. A
+ * person should choose to accept that, and should see the list of what was
+ * assumed afterwards.
+ *
+ * Safe to run again whenever the table of generics grows - it only touches rows
+ * that still have nothing.
+ */
+export async function estimateNutrition(): Promise<EstimateResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  const filled = await estimateMissing(access.kitchen.id);
+
+  revalidatePath("/pantry");
+  return { ok: true, filled: filled.map(({ name, basis }) => ({ name, basis })) };
 }
