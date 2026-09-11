@@ -7,9 +7,6 @@ import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-// Reading a receipt is seconds of image work, not milliseconds of SQL.
-export const maxDuration = 120;
-
 export const metadata: Metadata = {
   title: "Scan a receipt · Pantry",
 };

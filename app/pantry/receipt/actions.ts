@@ -4,13 +4,12 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
 import { PACK_SQL } from "@/lib/containers";
 import { STRONG_MATCH, rankItems } from "@/lib/match";
-import { readReceipt } from "@/lib/ocr";
 import { parseReceipt } from "@/lib/receipt";
 import { getItems } from "@/lib/queries";
 import { requireKitchenRole } from "@/lib/session";
 
-/** A photo bigger than this is a mistake, not a receipt. */
-const MAX_BYTES = 12 * 1024 * 1024;
+/** More text than any till produces; past this it is not a receipt. */
+const MAX_TEXT = 100_000;
 
 export interface ReceiptOption {
   id: number;
@@ -31,81 +30,41 @@ export interface ReceiptMatch {
   itemId: number | null;
   /** Whether it can go in without being looked at. */
   confident: boolean;
-  /** Whether the chosen item is packaged, so stock can actually be added. */
-  packaged: boolean;
 }
 
 export interface ScanResult {
   ok: boolean;
   error?: string;
-  /** 0-100, worth saying out loud before anyone trusts what follows. */
-  confidence?: number;
   matches?: ReceiptMatch[];
 }
 
 /**
- * Reads a photo of a receipt, reporting failure rather than throwing.
+ * Works out what a receipt's text says you bought, and what of it you stock.
  *
- * An uncaught error in a Server Action reaches the browser as a digest and
- * nothing else - a number the person holding the phone can do nothing with.
- * Image work has more ways to fail than most code (a format sharp will not
- * open, a photo too large for memory, language data that will not download),
- * so every one of them becomes a sentence instead.
- */
-export async function scanReceipt(formData: FormData): Promise<ScanResult> {
-  try {
-    return await readAndMatch(formData);
-  } catch (error) {
-    // Logged server-side, where it is useful, and summarised for the person,
-    // where the stack would not be.
-    console.error("receipt scan failed", error);
-    return {
-      ok: false,
-      error:
-        "Something went wrong reading that. A smaller or flatter photo often works - and if it keeps happening, the pantry logs have the detail.",
-    };
-  }
-}
-
-/**
- * Reads a photo of a receipt and works out what of it you already stock.
+ * Takes text, not a photograph. Recognition happens in the browser now: the
+ * Node build of tesseract spawns a worker from a file path, which does not
+ * survive being bundled into a serverless function, so the worker never started
+ * and the request simply hung. A phone is a better place for it regardless -
+ * nothing large is uploaded, there is no function timeout to hit, and the
+ * language data is downloaded once per device rather than once per cold start.
+ *
+ * Matching is rankItems, the same scorer the barcode scanner uses, on the same
+ * thresholds: they were tuned against real supermarket product names, which is
+ * exactly what a receipt line is.
  *
  * Nothing is written here. OCR on thermal paper is unreliable enough that
- * applying anything before a person has looked would put rubbish on the shelves
- * - so this returns a proposal and applyReceipt does the writing.
- *
- * The matching is rankItems, the same scorer the barcode scanner uses, with the
- * same thresholds: they were tuned against real supermarket product names,
- * which is exactly what a receipt line is.
+ * applying anything before a person has looked would put rubbish on the
+ * shelves, so this returns a proposal and applyReceipt does the writing.
  */
-async function readAndMatch(formData: FormData): Promise<ScanResult> {
+export async function matchReceipt(text: string): Promise<ScanResult> {
   const access = await requireKitchenRole("editor");
   if (!access.ok) return { ok: false, error: access.error };
 
-  const file = formData.get("photo");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "Pick a photo of the receipt." };
-  }
-  if (file.size > MAX_BYTES) {
-    return { ok: false, error: "That photo is too big - try a smaller one." };
-  }
-  if (!file.type.startsWith("image/")) {
-    return { ok: false, error: "That isn't an image." };
+  if (typeof text !== "string" || text.trim().length === 0) {
+    return { ok: false, error: "Nothing was readable on that." };
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  let text: string;
-  let confidence: number;
-  try {
-    const read = await readReceipt(buffer);
-    text = read.text;
-    confidence = read.confidence;
-  } catch {
-    return { ok: false, error: "Couldn't read that image." };
-  }
-
-  const lines = parseReceipt(text);
+  const lines = parseReceipt(text.slice(0, MAX_TEXT));
   if (lines.length === 0) {
     return {
       ok: false,
@@ -136,11 +95,10 @@ async function readAndMatch(formData: FormData): Promise<ScanResult> {
       })),
       itemId: confident ? best.item.id : null,
       confident,
-      packaged: confident ? best.item.pack_size !== null : false,
     };
   });
 
-  return { ok: true, confidence, matches };
+  return { ok: true, matches };
 }
 
 export interface ReceiptDecision {

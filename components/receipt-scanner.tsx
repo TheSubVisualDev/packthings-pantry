@@ -5,11 +5,11 @@ import { useRef, useState, useTransition } from "react";
 import { Camera, Check, ImageUp, X } from "lucide-react";
 import {
   applyReceipt,
-  scanReceipt,
+  matchReceipt,
   type ApplyResult,
   type ReceiptMatch,
 } from "@/app/pantry/receipt/actions";
-import { shrinkForUpload } from "@/lib/shrink";
+import { prepareReceipt } from "@/lib/scan-image";
 
 const CARD = "rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]";
 
@@ -28,9 +28,12 @@ export function ReceiptScanner() {
   const camera = useRef<HTMLInputElement>(null);
   const library = useRef<HTMLInputElement>(null);
   const [matches, setMatches] = useState<ReceiptMatch[] | null>(null);
-  const [confidence, setConfidence] = useState<number | null>(null);
   const [chosen, setChosen] = useState<Record<number, number | null>>({});
   const [done, setDone] = useState<ApplyResult | null>(null);
+  // Recognition takes seconds, and the first one on a device downloads the
+  // language data. Silence would read as a hang - which is precisely what the
+  // server-side version turned out to be.
+  const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reading, startReading] = useTransition();
   const [saving, startSaving] = useTransition();
@@ -40,22 +43,53 @@ export function ReceiptScanner() {
     setDone(null);
 
     startReading(async () => {
-      // Scaled down here rather than uploaded whole: the recogniser resizes to
-      // 1600px on arrival anyway, so the extra megabytes buy nothing and cost
-      // somebody standing in a kitchen on a phone connection.
-      const body = new FormData();
-      body.set("photo", await shrinkForUpload(file));
+      try {
+        setProgress("Straightening it out…");
+        const canvas = await prepareReceipt(file);
 
-      const result = await scanReceipt(body);
-      if (!result.ok || !result.matches) {
-        setError(result.error ?? "Couldn't read that.");
-        return;
+        // Imported here rather than at the top so the recogniser and its
+        // WebAssembly are fetched the first time somebody actually scans
+        // something, not by everyone who opens the pantry.
+        const { createWorker } = await import("tesseract.js");
+        const worker = await createWorker("eng", 1, {
+          logger: (message: { status: string; progress: number }) => {
+            const percent = Math.round(message.progress * 100);
+            if (message.status === "recognizing text") {
+              setProgress(`Reading it — ${percent}%`);
+            } else if (message.status.includes("loading language")) {
+              setProgress(`Getting ready — ${percent}% (first time only)`);
+            }
+          },
+        });
+
+        let text: string;
+        try {
+          const { data } = await worker.recognize(canvas);
+          text = data.text;
+        } finally {
+          await worker.terminate();
+        }
+
+        setProgress("Matching it to your shelves…");
+        const result = await matchReceipt(text);
+        if (!result.ok || !result.matches) {
+          setError(result.error ?? "Couldn't read that.");
+          return;
+        }
+        setMatches(result.matches);
+        setChosen(
+          Object.fromEntries(
+            result.matches.map((match) => [match.index, match.itemId]),
+          ),
+        );
+      } catch (problem) {
+        console.error("receipt scan failed", problem);
+        setError(
+          "Something went wrong reading that. A flatter, brighter photo often works — or try again in a moment.",
+        );
+      } finally {
+        setProgress(null);
       }
-      setMatches(result.matches);
-      setConfidence(result.confidence ?? null);
-      setChosen(
-        Object.fromEntries(result.matches.map((match) => [match.index, match.itemId])),
-      );
     });
   }
 
@@ -152,7 +186,7 @@ export function ReceiptScanner() {
             className="flex min-w-44 flex-1 items-center justify-center gap-2.5 rounded-[14px] bg-primary px-4 py-4 text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
           >
             <Camera className="h-5 w-5" strokeWidth={2.5} />
-            {reading ? "Reading it…" : "Photograph one"}
+            {reading ? "Working…" : "Photograph one"}
           </button>
           <button
             type="button"
@@ -165,9 +199,16 @@ export function ReceiptScanner() {
           </button>
         </div>
         <p className="mt-3 text-sm font-semibold text-muted-foreground">
-          Flat, bright, and just the items. Reading takes a few seconds, and
-          nothing is saved until you say so.
+          Flat, bright, and just the items. Reading happens on this device, so
+          nothing leaves it but the words — and the first receipt takes a little
+          longer while it gets set up.
         </p>
+
+        {progress && (
+          <p className="mt-3 text-sm font-bold text-primary" role="status">
+            {progress}
+          </p>
+        )}
         {error && (
           <p role="alert" className="mt-3 text-sm font-bold text-destructive">
             {error}
@@ -183,13 +224,6 @@ export function ReceiptScanner() {
 
   return (
     <div className="space-y-3">
-      {confidence !== null && confidence < 70 && (
-        <p className="rounded-[14px] bg-[oklch(0.96_0.03_40)] px-4 py-3 text-sm font-bold text-[oklch(0.44_0.09_38)]">
-          That photo read poorly ({Math.round(confidence)}% sure), so check these
-          carefully — or take another in better light.
-        </p>
-      )}
-
       {unsure.length > 0 && (
         <section className={CARD}>
           <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-label">

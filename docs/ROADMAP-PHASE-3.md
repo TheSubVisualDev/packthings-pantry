@@ -188,6 +188,25 @@ of six lines confidently matched with brand names correctly ignored, and the one
 thing not stocked falling through to an offer to add it. `npm run check:receipt`
 keeps both halves honest without needing a database or a photograph.
 
+**Recognition runs in the browser, not on the server** — changed 11 Sep 2026
+after it hung in production. The Node build of tesseract spawns a
+`worker_threads` Worker *from a file path*, and that path does not survive being
+bundled into a serverless function: the worker never starts and the promise
+never settles. A hang rather than a crash, which is the worse of the two,
+because a crash at least says something.
+
+Before that it failed a different way: Server Actions accept one megabyte by
+default and a phone photograph is two to five, so the request was rejected
+inside the framework and arrived as a bare digest.
+
+A phone is the better place for all of it. Nothing large is uploaded — the
+browser sends the *text* — there is no function timeout to run into, and the
+language data is fetched once per device instead of once per cold start. The
+preprocessing moved with it: greyscale and a contrast stretch on a canvas,
+doing sharp's old job with the decoder the browser already has. Progress is
+reported the whole way through, because silence was indistinguishable from the
+hang it replaced.
+
 ### S5b · Say what you want to keep, in the thing itself — DONE 11 Sep 2026
 
 **Reported 11 Sep 2026, and it is wrong behaviour rather than missing polish.**
