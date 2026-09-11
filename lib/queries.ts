@@ -538,6 +538,8 @@ export interface CookedEntry {
 export async function getCookedLog(
   kitchenId: number | null,
   limit = 60,
+  /** Just this recipe, for the history on its own page. */
+  recipeId?: number,
 ): Promise<CookedEntry[]> {
   if (kitchenId === null) return [];
 
@@ -548,9 +550,10 @@ export async function getCookedLog(
           JOIN recipes r ON r.id = c.recipe_id
           LEFT JOIN users u ON u.id = c.cooked_by
           WHERE c.kitchen_id = ? AND c.undone_at IS NULL
+            AND (? IS NULL OR c.recipe_id = ?)
           ORDER BY c.cooked_at DESC, c.id DESC
           LIMIT ?`,
-    args: [kitchenId, limit],
+    args: [kitchenId, recipeId ?? null, recipeId ?? null, limit],
   });
   return result.rows as unknown as CookedEntry[];
 }

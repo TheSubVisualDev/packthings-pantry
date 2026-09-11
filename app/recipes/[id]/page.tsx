@@ -5,6 +5,8 @@ import { SiteHeader } from "@/components/site-header";
 import { RecipeVisibility } from "@/components/recipe-visibility";
 import { RemixButton } from "@/components/remix-button";
 import { Lineage } from "@/components/lineage";
+import { CookHistory } from "@/components/cook-history";
+import { RecipeNutrition } from "@/components/recipe-nutrition";
 import { RecipeSocial } from "@/components/recipe-social";
 import { CookPanel, type CookLine } from "@/components/cook-panel";
 import type { CookStep } from "@/components/recipe-method";
@@ -14,8 +16,10 @@ import {
   getRecipe,
   getRecipeAuthorHandle,
   getRecipeSocial,
+  getCookedLog,
 } from "@/lib/queries";
 import { getLineage, getRemixes } from "@/lib/social";
+import { recipeMacros } from "@/lib/recipe-nutrition";
 import { currentKitchen } from "@/lib/session";
 import { myRating } from "@/lib/recipe-store";
 import { getUser } from "@/lib/users";
@@ -47,7 +51,7 @@ export default async function RecipePage({
   // Everything the page still needs, in one round trip rather than two.
   // libSQL over HTTP opens a request per query, so awaits in sequence cost
   // sequential trips to Nuremberg; none of these five depends on another.
-  const [author, forkedFrom, yourRating, social, comments, ancestors, remixes] =
+  const [author, forkedFrom, yourRating, social, comments, ancestors, remixes, history] =
     await Promise.all([
     recipe.author_id ? getUser(recipe.author_id) : null,
     // Looked up without a visibility check on purpose: the credit has to
@@ -58,6 +62,7 @@ export default async function RecipePage({
     getComments(recipe.id, context.user.id),
     getLineage(recipe.id),
     getRemixes(recipe.id, context.user.id),
+    getCookedLog(kitchen?.id ?? null, 20, recipe.id),
   ]);
 
   const forkedAuthor =
@@ -65,6 +70,20 @@ export default async function RecipePage({
 
   const itemsByName = new Map(
     items.map((item) => [item.name.toLowerCase(), item]),
+  );
+
+  /**
+   * What one portion comes to.
+   *
+   * Computed at base servings and left there: scaling a recipe multiplies the
+   * total and the portions equally, so a portion is the same whatever you cook
+   * for. No need to follow the stepper.
+   */
+  const nutrition = recipeMacros(
+    recipe.ingredients,
+    itemsByName,
+    recipe.base_servings,
+    recipe.base_servings,
   );
 
   // Pass raw stock alongside each line so the panel can re-resolve status as
@@ -246,6 +265,10 @@ export default async function RecipePage({
         />
 
         <Lineage ancestors={ancestors} remixes={remixes} />
+
+        <RecipeNutrition macros={nutrition} />
+
+        <CookHistory entries={history} />
 
         {recipe.notes && (
           <section className="mt-5">
