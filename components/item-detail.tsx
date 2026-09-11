@@ -31,7 +31,9 @@ export function ItemDetail({
     ok: true,
   });
   const [opened, setOpenedLocal] = useState(item.opened_at);
+  const [openError, setOpenError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // Delete still shows progress - a destructive action should wait and say so.
   const [busy, startTransition] = useTransition();
 
   // Recomputed here rather than passed in, so it follows the toggle without a
@@ -80,14 +82,22 @@ export function ItemDetail({
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
               type="button"
-              disabled={busy}
-              onClick={() =>
+              onClick={() => {
+                // Flipped here, not after the round trip to Nuremberg. The
+                // old order also flipped it whether or not the write landed,
+                // which told you it was open when it wasn't.
+                const was = opened;
+                const next = !opened;
+                setOpenedLocal(next ? new Date().toISOString() : null);
+                setOpenError(null);
                 startTransition(async () => {
-                  const next = !opened;
-                  await setOpened(item.id, next);
-                  setOpenedLocal(next ? new Date().toISOString() : null);
-                })
-              }
+                  const result = await setOpened(item.id, next);
+                  if (!result.ok) {
+                    setOpenedLocal(was);
+                    setOpenError(result.error ?? "Couldn't save that.");
+                  }
+                });
+              }}
               className={`rounded-[14px] px-4 py-2.5 text-sm font-extrabold disabled:opacity-60 ${
                 opened
                   ? "bg-chip text-muted-foreground"
@@ -100,6 +110,12 @@ export function ItemDetail({
             {opened && !item.shelf_life_days && (
               <span className="text-xs font-semibold text-muted-foreground">
                 Say how long it keeps once open, below, and this becomes a deadline.
+              </span>
+            )}
+
+            {openError && (
+              <span role="alert" className="text-xs font-bold text-destructive">
+                {openError}
               </span>
             )}
           </div>

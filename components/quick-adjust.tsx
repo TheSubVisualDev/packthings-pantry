@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { adjustItem } from "@/app/pantry/actions";
 import { ADJUST_STEP, formatQuantity } from "@/lib/units";
 import type { Item } from "@/lib/types";
@@ -11,6 +11,11 @@ import type { Item } from "@/lib/types";
  * Each row carries its own amount box seeded with a sensible step for the
  * dimension: grams and millilitres move 100 at a time, counts move one, and
  * either can be overtyped for a one-off.
+ *
+ * The number moves the instant you tap, before the server is asked. The
+ * database is in Nuremberg and the browser usually isn't, so waiting for the
+ * round trip meant every tap bought a visible pause - and a stepper that
+ * hesitates is a stepper you stop trusting and stop using.
  */
 export function QuickAdjust({ items }: { items: Item[] }) {
   const [query, setQuery] = useState("");
@@ -18,9 +23,13 @@ export function QuickAdjust({ items }: { items: Item[] }) {
   // Only holds rows this session has changed; everything else reads through to
   // the server's numbers, so a refresh elsewhere isn't masked by stale state.
   const [edited, setEdited] = useState<Record<number, number>>({});
-  const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  // How many adjustments are still in the air per item. The server's reply
+  // carries an absolute quantity, which is only safe to adopt once nothing
+  // newer is outstanding - otherwise an early reply overwrites a later tap.
+  const inFlight = useRef<Record<number, number>>({});
 
   const needle = query.trim().toLowerCase();
   const visible = needle
@@ -38,18 +47,35 @@ export function QuickAdjust({ items }: { items: Item[] }) {
       return;
     }
 
+    const delta = amount * direction;
     setError(null);
-    setBusyId(item.id);
+
+    // Matching the server's own MAX(0, ...) so the optimistic number and the
+    // authoritative one agree about what taking too much does.
+    setEdited((current) => ({
+      ...current,
+      [item.id]: Math.max(0, (current[item.id] ?? item.quantity) + delta),
+    }));
+    inFlight.current[item.id] = (inFlight.current[item.id] ?? 0) + 1;
 
     startTransition(async () => {
-      const result = await adjustItem(item.id, amount * direction);
-      setBusyId(null);
+      const result = await adjustItem(item.id, delta);
+      inFlight.current[item.id] -= 1;
 
       if (!result.ok) {
+        // Undo this delta specifically rather than restoring a snapshot, so a
+        // tap that landed in the meantime isn't undone along with it.
+        setEdited((current) => ({
+          ...current,
+          [item.id]: Math.max(0, (current[item.id] ?? item.quantity) - delta),
+        }));
         setError(result.error ?? "Couldn't adjust that.");
         return;
       }
-      setEdited((current) => ({ ...current, [item.id]: result.quantity! }));
+
+      if (inFlight.current[item.id] === 0) {
+        setEdited((current) => ({ ...current, [item.id]: result.quantity! }));
+      }
     });
   }
 
@@ -78,7 +104,6 @@ export function QuickAdjust({ items }: { items: Item[] }) {
         <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
           {visible.map((item) => {
             const quantity = edited[item.id] ?? item.quantity;
-            const busy = busyId === item.id;
 
             return (
               <li
@@ -98,7 +123,9 @@ export function QuickAdjust({ items }: { items: Item[] }) {
                     type="button"
                     aria-label={`Take from ${item.name}`}
                     onClick={() => apply(item, -1)}
-                    disabled={busy || quantity <= 0}
+                    // Not disabled while a change is in flight: the whole point
+                    // is that you can tap three times without waiting.
+                    disabled={quantity <= 0}
                     className="h-10 w-10 rounded-full bg-chip text-xl font-extrabold leading-none text-foreground disabled:opacity-30"
                   >
                     &minus;
@@ -122,7 +149,6 @@ export function QuickAdjust({ items }: { items: Item[] }) {
                     type="button"
                     aria-label={`Add to ${item.name}`}
                     onClick={() => apply(item, 1)}
-                    disabled={busy}
                     className="h-10 w-10 rounded-full bg-primary text-xl font-extrabold leading-none text-primary-foreground disabled:opacity-30"
                   >
                     +

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE, bearerToken, sessionUserId } from "./auth";
 import {
@@ -20,14 +21,19 @@ export const KITCHEN_COOKIE = "pantry_kitchen";
  * What it can still return null for is the Basic-auth back door, which is a
  * way in that belongs to no account - pages that need a person handle that
  * case rather than assuming one.
+ *
+ * Wrapped in React's cache() because the header and the page body both ask,
+ * and libSQL over HTTP charges a round trip to Nuremberg per query. Deduped
+ * for the length of one render, which is the only window in which the answer
+ * could not have changed anyway.
  */
-export async function currentUser(): Promise<User | null> {
+export const currentUser = cache(async function currentUser(): Promise<User | null> {
   const store = await cookies();
   const userId = sessionUserId(store.get(SESSION_COOKIE)?.value);
   if (!userId) return null;
 
   return getUser(userId);
-}
+});
 
 /**
  * The current user, or an explanation of why there isn't one.
@@ -57,7 +63,7 @@ export async function requireUser(): Promise<
  * through the membership table, so pointing it at someone else's kitchen simply
  * falls back to one of your own.
  */
-export async function currentKitchen(): Promise<
+export const currentKitchen = cache(async function currentKitchen(): Promise<
   { ok: true; user: User; kitchen: KitchenMembership | null } | { ok: false }
 > {
   const session = await requireUser();
@@ -76,7 +82,7 @@ export async function currentKitchen(): Promise<
     user: session.user,
     kitchen: await currentKitchenFor(session.user.id),
   };
-}
+});
 
 /** For writes: refuses when the role isn't high enough. */
 export async function requireKitchenRole(

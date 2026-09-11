@@ -42,16 +42,15 @@ export default async function RecipePage({
 
   const isAuthor = recipe.author_id === context.user.id;
 
-  // Who wrote it, and what this recipe was copied from, if anything.
-  const [author, forkedFrom, yourRating] = await Promise.all([
+  // Everything the page still needs, in one round trip rather than two.
+  // libSQL over HTTP opens a request per query, so awaits in sequence cost
+  // sequential trips to Nuremberg; none of these five depends on another.
+  const [author, forkedFrom, yourRating, social, comments] = await Promise.all([
     recipe.author_id ? getUser(recipe.author_id) : null,
     // Looked up without a visibility check on purpose: the credit has to
     // survive the original being made private.
     recipe.forked_from_id ? getRecipeAuthorHandle(recipe.forked_from_id) : null,
     myRating(recipe.id, context.user.id),
-  ]);
-
-  const [social, comments] = await Promise.all([
     getRecipeSocial(recipe.id, context.user.id),
     getComments(recipe.id, context.user.id),
   ]);
