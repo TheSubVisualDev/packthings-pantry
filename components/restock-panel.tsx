@@ -46,13 +46,23 @@ export function RestockPanel({ suggestions }: { suggestions: RestockSuggestion[]
               )}
             </span>
             <span className="shrink-0 font-semibold text-quantity">
-              {suggestion.short}
-              {suggestion.pack_size !== null && (
-                <span className="font-semibold text-muted-foreground">
-                  {" × "}
-                  {formatQuantity(suggestion.pack_size)}
+              {suggestion.kind === "packs" ? (
+                <>
+                  {suggestion.short}
+                  {suggestion.pack_size !== null && (
+                    <span className="font-semibold text-muted-foreground">
+                      {" × "}
+                      {formatQuantity(suggestion.pack_size)}
+                      {suggestion.canonical_unit === "count" ? "" : suggestion.canonical_unit}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  {formatQuantity(suggestion.short)}
                   {suggestion.canonical_unit === "count" ? "" : suggestion.canonical_unit}
-                </span>
+                  <span className="font-semibold text-muted-foreground"> short</span>
+                </>
               )}
             </span>
           </li>

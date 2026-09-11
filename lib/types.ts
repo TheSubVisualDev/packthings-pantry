@@ -39,6 +39,8 @@ export interface Item {
   sealed_count: number;
   /** How many packs to keep on hand. Null means nobody has said. */
   restock_to: number | null;
+  /** Or, for loose things, the least you want on the shelf. Canonical units. */
+  restock_min: number | null;
   /**
    * "Some, I do not know how much." quantity carries no meaning when this is
    * set - a recipe line against it simply cannot be deducted, which is the same

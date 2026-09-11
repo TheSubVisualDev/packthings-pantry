@@ -130,7 +130,13 @@ export interface RestockSuggestion {
   item_id: number;
   name: string;
   shop: string | null;
-  /** Whole containers to buy: the target, less what is already here. */
+  /**
+   * "packs" for things that come in containers, "amount" for things that do
+   * not. Butter kept in reserve is an amount; tins of tomatoes are packs, and
+   * a shopping list that said "2" for both would be ambiguous in the aisle.
+   */
+  kind: "packs" | "amount";
+  /** Packs to buy, or the amount to make up, in canonical units. */
   short: number;
   pack_size: number | null;
   pack_unit: string | null;
@@ -154,12 +160,25 @@ export async function getRestockSuggestions(
   const result = await getDb().execute({
     sql: `SELECT i.id AS item_id, i.name, ps.name AS shop, i.pack_size, i.pack_unit,
                  i.canonical_unit,
-                 i.restock_to - (i.sealed_count + (CASE WHEN i.quantity > 0 THEN 1 ELSE 0 END)) AS short
+                 CASE WHEN i.pack_size IS NOT NULL AND i.pack_size > 0
+                      THEN 'packs' ELSE 'amount' END AS kind,
+                 CASE
+                   -- Packs: a part-used open one still counts as one you have,
+                   -- because nobody replaces a bottle over the half-full one in
+                   -- the door.
+                   WHEN i.pack_size IS NOT NULL AND i.pack_size > 0
+                     THEN i.restock_to - (i.sealed_count + (CASE WHEN i.quantity > 0 THEN 1 ELSE 0 END))
+                   -- Loose: simply how far under the minimum it has fallen.
+                   ELSE i.restock_min - i.quantity
+                 END AS short
           FROM items i
           LEFT JOIN shops ps ON ps.id = i.preferred_shop_id
           WHERE i.kitchen_id = ?
-            AND i.restock_to IS NOT NULL
             AND i.unspecified = 0
+            AND (
+              (i.pack_size IS NOT NULL AND i.pack_size > 0 AND i.restock_to IS NOT NULL)
+              OR ((i.pack_size IS NULL OR i.pack_size <= 0) AND i.restock_min IS NOT NULL)
+            )
             AND short > 0
             AND NOT EXISTS (
               SELECT 1 FROM shopping_list s
@@ -167,7 +186,7 @@ export async function getRestockSuggestions(
                 AND s.bought_at IS NULL
                 AND LOWER(s.item_name) = LOWER(i.name)
             )
-          ORDER BY short DESC, ps.name IS NULL, ps.name COLLATE NOCASE, i.name COLLATE NOCASE`,
+          ORDER BY ps.name IS NULL, ps.name COLLATE NOCASE, i.name COLLATE NOCASE`,
     args: [kitchenId],
   });
   return result.rows as unknown as RestockSuggestion[];

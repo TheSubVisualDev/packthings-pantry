@@ -172,6 +172,28 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
                   </div>
                 </div>
               )}
+
+              {/* Not everything comes in countable packs, and you still want
+                  a butter in reserve. Same idea as keeping three tins, said
+                  in the unit the thing is actually measured in. */}
+              {!packed && (
+                <div className="mt-3">
+                  <label htmlFor="restock_min" className={LABEL}>
+                    Keep at least ({item.canonical_unit})
+                  </label>
+                  <input
+                    id="restock_min"
+                    name="restock_min"
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
+                    placeholder="any"
+                    defaultValue={item.restock_min ?? ""}
+                    className={FIELD}
+                  />
+                </div>
+              )}
             </>
           )}
 

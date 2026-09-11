@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS items (
   pack_unit      TEXT,
   sealed_count   INTEGER NOT NULL DEFAULT 0,
   restock_to     INTEGER,         -- how many packs to keep on hand
+  restock_min    REAL,            -- or, for loose things, how much to keep
   -- Per 100g or 100ml, as Open Food Facts reports it. Null until scanned.
   kcal_100       REAL,
   protein_100    REAL,

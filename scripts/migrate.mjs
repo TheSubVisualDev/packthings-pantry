@@ -100,6 +100,10 @@ const ADDED_COLUMNS = [
   // How many containers you want on hand, which is what the shopping list
   // fills the gap to. Null means nobody has said.
   { table: "items", column: "restock_to", definition: "INTEGER" },
+  // The same idea for things that do not come in countable packs: keep at
+  // least this much butter, in canonical units. Packs and amounts are separate
+  // columns rather than one field meaning two things depending on context.
+  { table: "items", column: "restock_min", definition: "REAL" },
   // Where you buy it. Its own field rather than a tag: tags describe the
   // ingredient, this describes the errand, and the shopping list groups by it.
   { table: "items", column: "shop", definition: "TEXT" },

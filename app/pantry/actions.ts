@@ -482,6 +482,12 @@ export async function setPackaging(
     return { ok: false, error: "Keep on hand has to be a whole number." };
   }
 
+  const minRaw = String(formData.get("restock_min") ?? "").trim();
+  const restockMin = minRaw ? Number(minRaw) : null;
+  if (restockMin !== null && (!Number.isFinite(restockMin) || restockMin < 0)) {
+    return { ok: false, error: "Keep at least has to be a number, zero or more." };
+  }
+
 
   await getDb().execute({
     sql: `UPDATE items
@@ -491,6 +497,10 @@ export async function setPackaging(
               -- shop is absent on purpose: a stock row can be bought in
               -- several places now, which lives in item_shops instead.
               restock_to = ?,
+              -- One or the other, never both: a packed item counts packs, a
+              -- loose one keeps an amount, and holding both would let them
+              -- disagree about what running low means.
+              restock_min = ?,
               unspecified = ?,
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ? AND kitchen_id = ?`,
@@ -499,7 +509,8 @@ export async function setPackaging(
       packSize,
       packSize,
       sealed,
-      restockTo,
+      packSize === null ? null : restockTo,
+      packSize === null ? restockMin : null,
       unspecified,
       itemId,
       access.kitchen.id,
