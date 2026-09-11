@@ -31,13 +31,36 @@ const RECIPE_WITH_AUTHOR = `
   LEFT JOIN users u ON u.id = r.author_id
 `;
 
-/** Your own collection - what the cook-from-stock panel ranks. */
-export async function getMyRecipes(authorId: number): Promise<RecipeWithAuthor[]> {
+/**
+ * Your own collection - what the cook-from-stock panel ranks.
+ *
+ * `term` searches within it, by name, blurb or ingredient. No visibility clause
+ * here: these are yours, and you can always see your own.
+ */
+export async function getMyRecipes(
+  authorId: number,
+  term = "",
+): Promise<RecipeWithAuthor[]> {
+  const needle = `%${term.trim().toLowerCase()}%`;
+  const filtered = term.trim().length > 0;
+
   const result = await getDb().execute({
     sql: `${RECIPE_WITH_AUTHOR}
           WHERE r.author_id = ?
+          ${
+            filtered
+              ? `AND (
+                  LOWER(r.name) LIKE ?
+                  OR LOWER(COALESCE(r.description, '')) LIKE ?
+                  OR EXISTS (
+                    SELECT 1 FROM recipe_ingredients ri
+                    WHERE ri.recipe_id = r.id AND LOWER(ri.item_name) LIKE ?
+                  )
+                )`
+              : ""
+          }
           ORDER BY r.times_cooked DESC, r.name`,
-    args: [authorId],
+    args: filtered ? [authorId, needle, needle, needle] : [authorId],
   });
   return result.rows as unknown as RecipeWithAuthor[];
 }
@@ -175,9 +198,10 @@ export interface RecipeWithMatch extends RecipeWithAuthor {
 export async function getRecipesWithMatches(
   kitchenId: number,
   authorId: number,
+  term = "",
 ): Promise<RecipeWithMatch[]> {
   const [recipes, stocked, ingredientRows] = await Promise.all([
-    getMyRecipes(authorId),
+    getMyRecipes(authorId, term),
     getStockedItemNames(kitchenId),
     getDb().execute("SELECT recipe_id, item_name FROM recipe_ingredients"),
   ]);

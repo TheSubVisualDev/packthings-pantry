@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { RecipeBrowseCard } from "@/components/recipe-browse-card";
 import { SiteHeader } from "@/components/site-header";
-import { SearchBox } from "./search-box";
+import { SearchBox } from "@/components/search-box";
 import { browseRecipes, getFeed, searchPeople, searchRecipes } from "@/lib/queries";
 import { browsePeople } from "@/lib/social";
 import { currentKitchen } from "@/lib/session";
@@ -50,7 +50,7 @@ export default async function DiscoverPage({
         <SiteHeader active="discover" />
         <div className="mx-auto w-full max-w-[1280px] px-5 pt-6 pb-32 sm:px-9 sm:py-7">
           <Suspense>
-            <SearchBox />
+            <SearchBox basePath="/discover" placeholder="Search recipes, ingredients, people" />
           </Suspense>
 
           <p className="mb-6 text-sm font-semibold text-muted-foreground">
@@ -113,7 +113,7 @@ export default async function DiscoverPage({
         </p>
 
         <Suspense>
-          <SearchBox />
+          <SearchBox basePath="/discover" placeholder="Search recipes, ingredients, people" />
         </Suspense>
 
         {feed.length > 0 && (
