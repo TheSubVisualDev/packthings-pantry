@@ -4,10 +4,15 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
  * Credential checking and session-cookie signing, shared by the proxy and the
  * login action.
  *
- * The signing key is derived from PANTRY_PASSWORD rather than being its own
- * env var: one less thing to set in Vercel, and changing the password then
- * invalidates every outstanding session, which is what you want from a
- * password change anyway.
+ * Sessions are signed with PANTRY_SESSION_SECRET, falling back to
+ * PANTRY_PASSWORD so an existing deployment keeps working without a new env
+ * var. Signing rather than looking anything up matters: the proxy runs on every
+ * request and the database is a network hop away on another continent's worth
+ * of latency, so a cookie that can be checked with arithmetic alone is the
+ * difference between a fast app and a slow one.
+ *
+ * Nothing here touches the database. User rows live in lib/users.ts, and
+ * lib/session.ts joins the two.
  */
 
 export const SESSION_COOKIE = "pantry_session";
@@ -47,50 +52,72 @@ function sign(message: string, secret: string): string {
   return createHmac("sha256", secret).update(message).digest("base64url");
 }
 
-/** `<expiry>.<signature>`, where the signature also covers the username. */
-export function mintSession(): { value: string; maxAge: number } | null {
-  const secret = configuredPassword();
+/** Falls back to the password so a deployment without the new var still works. */
+function sessionSecret(): string | null {
+  return process.env.PANTRY_SESSION_SECRET || configuredPassword();
+}
+
+/**
+ * `v2.<userId>.<expiry>.<signature>`.
+ *
+ * The version prefix is inside the signed message, so a v1 cookie from before
+ * accounts existed can't be replayed as a v2 one. In practice v1 cookies simply
+ * stop verifying, and everyone signs in once more.
+ */
+export function mintSession(userId: number): { value: string; maxAge: number } | null {
+  const secret = sessionSecret();
   if (!secret) return null;
 
   const maxAge = SESSION_DAYS * 86400;
   const expiry = Math.floor(Date.now() / 1000) + maxAge;
-  const message = `v1.${expectedUser()}.${expiry}`;
+  const body = `v2.${userId}.${expiry}`;
 
-  return { value: `${expiry}.${sign(message, secret)}`, maxAge };
-}
-
-export function sessionValid(cookie: string | undefined): boolean {
-  const secret = configuredPassword();
-  if (!secret || !cookie) return false;
-
-  const separator = cookie.indexOf(".");
-  if (separator === -1) return false;
-
-  const expiry = Number(cookie.slice(0, separator));
-  if (!Number.isSafeInteger(expiry) || expiry <= Math.floor(Date.now() / 1000)) {
-    return false;
-  }
-
-  const expected = sign(`v1.${expectedUser()}.${expiry}`, secret);
-  return matches(cookie.slice(separator + 1), expected);
+  return { value: `${body}.${sign(body, secret)}`, maxAge };
 }
 
 /**
- * A bearer token for machines: a Claude session querying the pantry shouldn't
- * need a human's password, and a token can be rotated without signing anyone
- * out. Unset means bearer auth is simply not available, never that it passes.
+ * The user id a cookie vouches for, or null.
+ *
+ * Only says the cookie is authentic and current - not that the user still
+ * exists. Callers that need the row look it up; the proxy deliberately doesn't,
+ * because a database round trip per request is not worth paying to catch the
+ * rare case of a deleted account with a live session.
  */
-export function apiTokenValid(header: string | null): boolean {
-  const expected = process.env.PANTRY_API_TOKEN;
-  if (!expected) return false;
+export function sessionUserId(cookie: string | undefined): number | null {
+  const secret = sessionSecret();
+  if (!secret || !cookie) return null;
 
-  const [scheme, token] = (header ?? "").split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !token) return false;
+  const parts = cookie.split(".");
+  if (parts.length !== 4 || parts[0] !== "v2") return null;
 
-  return matches(token, expected);
+  const [, rawUserId, rawExpiry, signature] = parts;
+
+  const userId = Number(rawUserId);
+  const expiry = Number(rawExpiry);
+  if (!Number.isSafeInteger(userId) || userId <= 0) return null;
+  if (!Number.isSafeInteger(expiry) || expiry <= Math.floor(Date.now() / 1000)) {
+    return null;
+  }
+
+  if (!matches(signature, sign(`v2.${userId}.${expiry}`, secret))) return null;
+  return userId;
 }
 
-/** Parses an `Authorization: Basic` header. Kept for non-interactive callers. */
+/** Pulls the token out of an `Authorization: Bearer` header, if there is one. */
+export function bearerToken(header: string | null): string | null {
+  const [scheme, token] = (header ?? "").split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
+  return token;
+}
+
+/**
+ * The back door.
+ *
+ * Basic auth against PANTRY_USER and PANTRY_PASSWORD, unchanged from before
+ * accounts existed, and unrelated to the users table. It's what gets you back
+ * in if a migration leaves nobody able to sign in. Drop it once accounts have
+ * proven themselves.
+ */
 export function basicAuthValid(header: string | null): boolean {
   const [scheme, encoded] = (header ?? "").split(" ");
   if (scheme?.toLowerCase() !== "basic" || !encoded) return false;

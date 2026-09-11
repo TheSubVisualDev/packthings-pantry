@@ -56,6 +56,12 @@ export function SiteHeader({
               {meta}
             </div>
           )}
+          <Link
+            href="/settings"
+            className="text-[13px] font-semibold text-muted-foreground hover:text-foreground sm:text-sm"
+          >
+            Settings
+          </Link>
           <form action={logout}>
             <button
               type="submit"

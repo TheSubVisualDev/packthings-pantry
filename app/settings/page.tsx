@@ -1,0 +1,87 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { InviteManager } from "@/components/invite-manager";
+import { PasswordChange } from "@/components/password-change";
+import { RevealToken } from "@/components/reveal-token";
+import { RotateTokenButton } from "@/components/rotate-token-button";
+import { SiteHeader } from "@/components/site-header";
+import { requireUser } from "@/lib/session";
+import { listLiveInvites } from "@/lib/users";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Settings · Pantry",
+};
+
+const CARD = "rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:p-6";
+const LABEL = "text-xs font-bold uppercase tracking-[0.08em] text-label";
+
+export default async function SettingsPage() {
+  const session = await requireUser();
+
+  // Arriving through the Basic-auth back door means there's no account to show
+  // settings for. Sending them to sign in properly is the honest answer.
+  if (!session.ok) redirect("/login?next=%2Fsettings");
+
+  const { user } = session;
+  const [invites, headerList] = await Promise.all([listLiveInvites(user.id), headers()]);
+
+  const host = headerList.get("host") ?? "";
+  const protocol = host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https";
+  const origin = `${protocol}://${host}`;
+
+  return (
+    <>
+      <SiteHeader active="stock" />
+
+      <main className="mx-auto w-full max-w-[640px] px-5 py-8 pb-32 sm:px-9">
+        <span className={LABEL}>Settings</span>
+        <h1 className="mt-2 text-[30px] font-extrabold tracking-[-0.02em]">
+          {user.display_name}
+        </h1>
+        <p className="mt-1 text-sm font-semibold text-muted-foreground">
+          @{user.handle}
+        </p>
+
+        <div className="mt-7 space-y-3">
+          <section className={CARD}>
+            <h2 className={LABEL}>Your Claude key</h2>
+            <p className="mt-2 mb-3 text-sm font-medium text-muted-foreground">
+              Read and write access to your pantry through the API. Rotate it if
+              it ever ends up somewhere it shouldn&apos;t.
+            </p>
+            <RevealToken token={user.api_token} />
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <RotateTokenButton />
+              <Link
+                href="/claude"
+                className="text-sm font-semibold text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                How to set it up
+              </Link>
+            </div>
+          </section>
+
+          <section className={CARD}>
+            <h2 className={LABEL}>Invite someone</h2>
+            <p className="mt-2 mb-3 text-sm font-medium text-muted-foreground">
+              There&apos;s no public signup. A link works once and lasts 14 days.
+            </p>
+            <InviteManager invites={invites} origin={origin} />
+          </section>
+
+          <section className={CARD}>
+            <h2 className={LABEL}>Password</h2>
+            <p className="mt-2 mb-3 text-sm font-medium text-muted-foreground">
+              No reset email exists, so keep this somewhere you can find it.
+            </p>
+            <PasswordChange />
+          </section>
+        </div>
+      </main>
+    </>
+  );
+}

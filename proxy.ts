@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   SESSION_COOKIE,
-  apiTokenValid,
   basicAuthValid,
+  bearerToken,
   configuredPassword,
-  sessionValid,
+  sessionUserId,
 } from "@/lib/auth";
+import { getUserByApiToken } from "@/lib/users";
 
 /**
  * Gate on every request: a signed session cookie, HTTP Basic credentials, or a
@@ -13,17 +14,17 @@ import {
  *
  * People get the cookie by way of the /login form, which password managers can
  * actually fill - the native Basic dialog can't be autofilled on iOS Safari.
- * Basic stays accepted so curl has a non-interactive way in. The bearer token
- * exists so a Claude session can read the pantry without being handed a
- * password that also unlocks the browser, and is confined to /api for the same
- * reason.
+ * Basic stays accepted so curl has a non-interactive way in, and as the back
+ * door if accounts ever leave nobody able to sign in. Bearer tokens belong to
+ * a user row and are confined to /api, so a Claude session can read the pantry
+ * without being handed a password that also unlocks the browser.
  *
  * Named `proxy` rather than `middleware`: Next 16 renamed the convention and
  * warns on the old filename. Proxy always runs on the Node.js runtime, which
  * is why lib/auth's node:crypto imports are safe here.
  */
 
-export default function proxy(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   // Fail closed. A missing password must never mean "open to the world".
   if (!configuredPassword()) {
     return new NextResponse("PANTRY_PASSWORD is not set.", {
@@ -42,16 +43,28 @@ export default function proxy(request: NextRequest) {
   // way, and keeps /claude's promise about what the key can reach honest.
   const isApi = request.nextUrl.pathname.startsWith("/api/");
 
-  const authenticated =
-    sessionValid(request.cookies.get(SESSION_COOKIE)?.value) ||
-    basicAuthValid(authorization) ||
-    (isApi && apiTokenValid(authorization));
+  // Session first, then the back door, and only then the database. Ordered by
+  // cost: the first two are arithmetic, the third is a network hop to Hetzner,
+  // and it only ever runs for an /api request that presented a bearer token.
+  let authenticated =
+    sessionUserId(request.cookies.get(SESSION_COOKIE)?.value) !== null ||
+    basicAuthValid(authorization);
 
-  const isLoginPage = request.nextUrl.pathname === "/login";
+  if (!authenticated && isApi) {
+    const token = bearerToken(authorization);
+    if (token) authenticated = (await getUserByApiToken(token)) !== null;
+  }
 
-  if (isLoginPage) {
-    if (!authenticated) return NextResponse.next();
-    // Already signed in - no reason to show the form again.
+  // The two routes a person without an account has to be able to reach. An
+  // invite link is useless if it demands the credentials it exists to hand out.
+  const path = request.nextUrl.pathname;
+  const isPublic = path === "/login" || path.startsWith("/invite/");
+
+  if (isPublic) {
+    // Already signed in and looking at the login form - nothing to do here.
+    // An invite link still opens, so someone can accept one from a device that
+    // is already signed in as somebody else.
+    if (!authenticated || path.startsWith("/invite/")) return NextResponse.next();
     return NextResponse.redirect(new URL("/pantry", request.url));
   }
 

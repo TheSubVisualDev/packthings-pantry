@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { RevealToken } from "@/components/reveal-token";
 import { SiteHeader } from "@/components/site-header";
+import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +37,12 @@ function Step({
   );
 }
 
-export default function ClaudePage() {
-  // Safe to read here: this page sits behind the same gate as the rest of the
-  // app, so anyone who can load it can already read the pantry.
-  const token = process.env.PANTRY_API_TOKEN ?? null;
+export default async function ClaudePage() {
+  // Each person's own key, so revoking one doesn't cut off everyone else.
+  // Safe to render: this page sits behind the same gate as the rest of the app,
+  // so anyone who can load it can already read the pantry.
+  const session = await requireUser();
+  const token = session.ok ? session.user.api_token : null;
 
   return (
     <>

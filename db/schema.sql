@@ -107,3 +107,34 @@ CREATE TABLE IF NOT EXISTS products (
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_item ON products(item_id);
+
+-- People. Invite-only: there is no self-serve signup, so no email is stored,
+-- nothing is verified, and a forgotten password is reset by whoever runs the
+-- pantry rather than by a mail round-trip.
+CREATE TABLE IF NOT EXISTS users (
+  id            INTEGER PRIMARY KEY,
+  handle        TEXT NOT NULL UNIQUE,   -- lowercase, what @mentions will use
+  display_name  TEXT NOT NULL,
+  password_hash TEXT NOT NULL,          -- scrypt, see lib/auth.ts
+  avatar_url    TEXT,
+  -- Per-user key for the Claude endpoint. Replacing a row's token revokes that
+  -- person's API access without touching anyone else's.
+  api_token     TEXT UNIQUE,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_api_token ON users(api_token);
+
+-- The only way in. A code is single-use: redeeming it stamps redeemed_by,
+-- which is also the audit trail of who let whom in.
+CREATE TABLE IF NOT EXISTS invites (
+  code        TEXT PRIMARY KEY,
+  created_by  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  note        TEXT,                     -- "for Sam", so a stale code is identifiable
+  redeemed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  redeemed_at TIMESTAMP,
+  expires_at  TIMESTAMP NOT NULL,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_invites_creator ON invites(created_by);

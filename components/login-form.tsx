@@ -23,7 +23,7 @@ export function LoginForm({ next }: { next: string }) {
           htmlFor="username"
           className="mb-1.5 block text-xs font-bold uppercase tracking-[0.08em] text-label"
         >
-          Username
+          Handle
         </label>
         <input
           id="username"
