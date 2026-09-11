@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS recipes (
   rating        INTEGER,          -- shared across the household, null until rated
   times_cooked  INTEGER DEFAULT 0,
   notes         TEXT,             -- what happened last time you made it
+  photo_url     TEXT,             -- hero shot, see lib/photos.ts
   updated_at    TIMESTAMP         -- set explicitly on write; no default, because
                                   -- ALTER TABLE ADD COLUMN can't take one
 );
@@ -51,6 +52,12 @@ CREATE TABLE IF NOT EXISTS recipe_ingredients (
   quantity  REAL NOT NULL,
   unit      TEXT NOT NULL,        -- as written in the recipe; converted at cook-time
   note      TEXT,                 -- "finely chopped", "at room temperature"
+  -- What one of `unit` actually amounts to, when the unit is a package rather
+  -- than a measure: 1 tin (400 g). Lets the same line work whether the pantry
+  -- counts tins or weighs the contents - see toCanonical's fallback at cook
+  -- time. Null for ordinary units, where the quantity already is the amount.
+  pack_size REAL,
+  pack_unit TEXT,
   optional  INTEGER NOT NULL DEFAULT 0,
   section   TEXT,                 -- "For the sauce"
   position  INTEGER NOT NULL DEFAULT 0
@@ -69,7 +76,8 @@ CREATE TABLE IF NOT EXISTS recipe_steps (
   position  INTEGER NOT NULL DEFAULT 0,
   section   TEXT,                 -- "Prep", "The stew"
   body      TEXT NOT NULL,
-  minutes   INTEGER
+  minutes   INTEGER,
+  photo_url TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_recipe_steps_recipe ON recipe_steps(recipe_id, position);
@@ -246,3 +254,7 @@ CREATE TABLE IF NOT EXISTS blocks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id);
+
+-- Photos live in Vercel Blob; these hold the URL it hands back. Nullable, and
+-- nothing depends on one being present - a recipe without a photo is still a
+-- recipe, and most of them won't have one.

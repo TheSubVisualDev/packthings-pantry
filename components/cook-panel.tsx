@@ -9,7 +9,12 @@ import {
   type UndoResult,
 } from "@/app/recipes/[id]/actions";
 import { RecipeMethod, type CookStep } from "@/components/recipe-method";
-import { formatQuantity, scaleQuantity, toCanonical } from "@/lib/units";
+import {
+  describeAmount,
+  formatQuantity,
+  resolveAmount,
+  scaleQuantity,
+} from "@/lib/units";
 import type { Dimension } from "@/lib/types";
 
 export interface CookLine {
@@ -17,6 +22,9 @@ export interface CookLine {
   item_name: string;
   quantity: number;
   unit: string;
+  /** "1 tin (400 g)": what one unit amounts to, when it's a package. */
+  pack_size: number | null;
+  pack_unit: string | null;
   note: string | null;
   optional: boolean;
   section: string | null;
@@ -48,7 +56,12 @@ function resolve(
   const scaled = scaleQuantity(line.quantity, base, servings);
   if (!line.item) return { status: { kind: "not-in-pantry" }, display: scaled };
 
-  const converted = toCanonical(scaled, line.unit, line.item.dimension);
+  const converted = resolveAmount(
+    scaled,
+    line.unit,
+    { size: line.pack_size, unit: line.pack_unit },
+    line.item.dimension,
+  );
 
   if (!converted.ok) {
     return {
@@ -170,7 +183,7 @@ export function CookPanel({
   const labels: Record<number, string> = {};
   for (const { line, display } of resolved) {
     labels[line.id] =
-      `${formatQuantity(display)}${line.unit === "count" ? "" : line.unit} ${line.item_name}`;
+      `${describeAmount(display, line.unit, { size: line.pack_size, unit: line.pack_unit })} ${line.item_name}`;
   }
 
   function onCook() {
@@ -271,8 +284,10 @@ export function CookPanel({
                       )}
                     </div>
                     <div className="text-sm font-semibold text-quantity">
-                      {formatQuantity(display)}
-                      {line.unit === "count" ? "" : ` ${line.unit}`}
+                      {describeAmount(display, line.unit, {
+                        size: line.pack_size,
+                        unit: line.pack_unit,
+                      })}
                       {line.note && (
                         <span className="font-medium text-muted-foreground">
                           {" "}

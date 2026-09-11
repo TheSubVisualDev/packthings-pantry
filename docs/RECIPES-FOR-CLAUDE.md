@@ -101,11 +101,16 @@ actually mean at one serving count and say what that count is. Do not try to
 pre-scale anything.
 
 **`unit`** must be one of `vocabulary.units`. At the time of writing:
-`kg`, `g`, `l`, `ml`, `tbsp`, `tsp`, `count`. **Read the endpoint rather than
-trusting this list.**
+`kg`, `g`, `l`, `ml`, `tbsp`, `tsp`, `count`, `tin`, `pack`, `jar`. **Read the
+endpoint rather than trusting this list.**
 
-There are no cups, no ounces, no "cloves", no "handful". `count` is the unit
-for whole things — two onions is `{"quantity": 2, "unit": "count"}`.
+There are no cups, no ounces, no "handful". `count` is the unit for whole
+things — two onions is `{"quantity": 2, "unit": "count"}`.
+
+`tin`, `pack` and `jar` are the same thing as `count`, there so a line can read
+like a recipe: `{"quantity": 1, "unit": "tin", "item_name": "Tinned tomatoes"}`.
+A tin is **not** 400g — tins aren't all 400g, and a unit whose size depended on
+the product would be unconvertible. If the size matters, put it in `note`.
 
 **`note`** is preparation, not quantity: `"finely chopped"`, `"at room
 temperature"`, `"drained"`. It never contains a number that matters.

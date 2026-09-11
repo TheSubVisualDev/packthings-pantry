@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db";
 import { requireKitchenRole, requireUser } from "@/lib/session";
 import { getRecipe } from "@/lib/queries";
 import { rate } from "@/lib/recipe-store";
-import { scaleQuantity, toCanonical } from "@/lib/units";
+import { resolveAmount, scaleQuantity } from "@/lib/units";
 import type {
   CookChange,
   CookEvent,
@@ -111,9 +111,10 @@ export async function cookRecipe(
         recipe.base_servings,
         servings,
       );
-      const converted = toCanonical(
+      const converted = resolveAmount(
         scaled,
         line.unit,
+        { size: line.pack_size, unit: line.pack_unit },
         item.dimension as Dimension,
       );
 

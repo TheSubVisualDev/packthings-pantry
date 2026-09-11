@@ -13,8 +13,15 @@ const FACTORS: Record<string, { dimension: Dimension; toCanonical: number }> = {
   ml: { dimension: "volume", toCanonical: 1 },
   tbsp: { dimension: "volume", toCanonical: 15 },
   tsp: { dimension: "volume", toCanonical: 5 },
-  // count has no conversion
+  // count has no conversion. tin, pack and jar are the same dimension with the
+  // same factor: they exist so a recipe can say "1 tin of tomatoes" and read
+  // like a recipe. A tin is deliberately not 400g - tins aren't all 400g, and a
+  // unit whose factor depends on the product would break the one rule this
+  // table has. The size, when it matters, goes in the ingredient's note.
   count: { dimension: "count", toCanonical: 1 },
+  tin: { dimension: "count", toCanonical: 1 },
+  pack: { dimension: "count", toCanonical: 1 },
+  jar: { dimension: "count", toCanonical: 1 },
 };
 
 export const CANONICAL_FOR: Record<Dimension, CanonicalUnit> = {
@@ -60,6 +67,46 @@ export function toCanonical(
 }
 
 /**
+ * How much of a stock item a recipe line asks for, trying the package size when
+ * the written unit can't reach the item's dimension.
+ *
+ * "1 tin" is a count, so against a pantry that counts tins it converts
+ * directly. Against one that weighs tomatoes in grams it doesn't - and that's
+ * what pack_size is for: one tin is 400g, so the line resolves to 400g rather
+ * than being flagged as unconvertible. The written unit is always tried first,
+ * so nothing changes for the ordinary case where there is no package at all.
+ */
+export function resolveAmount(
+  quantity: number,
+  unit: string,
+  pack: { size: number | null; unit: string | null },
+  targetDimension: Dimension,
+): ConversionResult {
+  const direct = toCanonical(quantity, unit, targetDimension);
+  if (direct.ok) return direct;
+
+  if (pack.size && pack.unit) {
+    const viaPack = toCanonical(quantity * pack.size, pack.unit, targetDimension);
+    if (viaPack.ok) return viaPack;
+  }
+
+  return direct;
+}
+
+/** "1 tin (400g)", or just "200g" when there's no package to mention. */
+export function describeAmount(
+  quantity: number,
+  unit: string,
+  pack: { size: number | null; unit: string | null },
+): string {
+  const head = `${formatQuantity(quantity)}${unit === "count" ? "" : ` ${unit}`}`;
+  if (!pack.size || !pack.unit) return head;
+
+  const total = quantity * pack.size;
+  return `${head} (${formatQuantity(total)}${pack.unit === "count" ? "" : pack.unit})`;
+}
+
+/**
  * Scales a base-servings quantity to the chosen serving count.
  * Display and decrement only - scaled values are never written back.
  */
@@ -91,6 +138,12 @@ export const UNITS_BY_DIMENSION: Record<Dimension, string[]> = Object.entries(
   },
   { mass: [], volume: [], count: [] } as Record<Dimension, string[]>,
 );
+
+/**
+ * Units that name a container rather than an amount. These are the ones worth
+ * asking "how much is in one?" about.
+ */
+export const PACKAGE_UNITS = ["tin", "pack", "jar", "count"];
 
 /** Every legal entry unit, in the order FACTORS declares them. */
 export const ENTRY_UNITS = Object.keys(FACTORS);

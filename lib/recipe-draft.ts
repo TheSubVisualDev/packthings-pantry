@@ -12,7 +12,16 @@ export function emptyDraft(): RecipeDraft {
     source: "",
     notes: "",
     ingredients: [
-      { item_name: "", quantity: "", unit: "g", note: "", optional: false, section: "" },
+      {
+        item_name: "",
+        quantity: "",
+        unit: "g",
+        pack_size: "",
+        pack_unit: "g",
+        note: "",
+        optional: false,
+        section: "",
+      },
     ],
     steps: [{ body: "", minutes: "", section: "", uses: [] }],
   };
@@ -38,6 +47,8 @@ export function draftFromRecipe(recipe: RecipeWithIngredients): RecipeDraft {
       item_name: line.item_name,
       quantity: String(line.quantity),
       unit: line.unit,
+      pack_size: line.pack_size ? String(line.pack_size) : "",
+      pack_unit: line.pack_unit ?? "g",
       note: line.note ?? "",
       optional: line.optional === 1,
       section: line.section ?? "",

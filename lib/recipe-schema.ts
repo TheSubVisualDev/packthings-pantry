@@ -28,6 +28,9 @@ export interface ParsedIngredient {
   item_name: string;
   quantity: number;
   unit: string;
+  /** "1 tin (400 g)": what one `unit` amounts to, for package units. */
+  pack_size: number | null;
+  pack_unit: string | null;
   note: string | null;
   optional: boolean;
   section: string | null;
@@ -172,6 +175,32 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
         return;
       }
 
+      // A package size, when the unit is a container rather than a measure.
+      // Accepted only as a pair: a size with no unit means nothing, and a unit
+      // with no size is just noise.
+      const rawPackSize =
+        typeof line.pack_size === "string" ? Number(line.pack_size) : line.pack_size;
+      const packUnit = asTrimmedString(line.pack_unit)?.toLowerCase() ?? null;
+
+      let packSize: number | null = null;
+      if (rawPackSize !== undefined && rawPackSize !== null) {
+        if (typeof rawPackSize !== "number" || !Number.isFinite(rawPackSize) || rawPackSize <= 0) {
+          problems.push({
+            path: `${path}.pack_size`,
+            message: "pack_size must be a number greater than zero.",
+          });
+          return;
+        }
+        if (!packUnit || !dimensionOf(packUnit)) {
+          problems.push({
+            path: `${path}.pack_unit`,
+            message: `pack_size needs a pack_unit this pantry uses. Legal units: ${legalUnits().join(", ")}.`,
+          });
+          return;
+        }
+        packSize = rawPackSize;
+      }
+
       const item = byName.get(itemName.toLowerCase()) ?? null;
 
       if (!item) {
@@ -179,10 +208,15 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
           path: `${path}.item_name`,
           message: `"${itemName}" isn't in the pantry. The line is kept and will show as not in stock.`,
         });
-      } else if (item.dimension !== dimension) {
+      } else if (
+        item.dimension !== dimension &&
+        !(packSize && packUnit && dimensionOf(packUnit) === item.dimension)
+      ) {
         // Caught here rather than at the stove: a tablespoon against a
         // gram-canonical item can't be decremented, and finding that out
-        // mid-cook is the worst time to find it out.
+        // mid-cook is the worst time to find it out. A package size that does
+        // reach the item's dimension rescues the line, which is the whole point
+        // of "1 tin (400 g)" against a pantry that weighs tomatoes.
         warnings.push({
           path: `${path}.unit`,
           message: `"${itemName}" is measured in ${item.canonical_unit}, so ${unit} can't be taken out of stock when you cook this.`,
@@ -194,6 +228,8 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
         item_name: itemName,
         quantity,
         unit,
+        pack_size: packSize,
+        pack_unit: packSize ? packUnit : null,
         note: asTrimmedString(line.note),
         optional: line.optional === true,
         section: asTrimmedString(line.section),
@@ -347,6 +383,17 @@ export function recipeJsonSchema() {
               enum: legalUnits(),
               description:
                 "Must be one of these. Conversion only happens within a dimension - grams never become millilitres.",
+            },
+            pack_size: {
+              type: "number",
+              exclusiveMinimum: 0,
+              description:
+                "What one of `unit` amounts to, when the unit is a package: 1 tin is 400 g. Lets the line work against a pantry that weighs the contents as well as one that counts tins.",
+            },
+            pack_unit: {
+              type: "string",
+              enum: legalUnits(),
+              description: "The unit pack_size is measured in. Required if pack_size is given.",
             },
             note: { type: "string", description: "\"finely chopped\", \"at room temperature\"." },
             optional: { type: "boolean", default: false },

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { SoftSelect } from "@/components/soft-select";
 import { saveRecipeDocument, type SaveRecipeResult } from "@/app/recipes/actions";
-import { UNITS_BY_DIMENSION } from "@/lib/units";
+import { PACKAGE_UNITS, UNITS_BY_DIMENSION } from "@/lib/units";
 import type { Dimension } from "@/lib/types";
 
 const FIELD =
@@ -25,6 +25,9 @@ interface DraftIngredient {
   item_name: string;
   quantity: string;
   unit: string;
+  /** "1 tin (400 g)": only asked for when the unit is a package. */
+  pack_size: string;
+  pack_unit: string;
   note: string;
   optional: boolean;
   section: string;
@@ -141,6 +144,15 @@ export function RecipeEditor({
         item_name: line.item_name,
         quantity: Number(line.quantity),
         unit: line.unit,
+        // Only meaningful for package units, and only when actually filled in.
+        pack_size:
+          PACKAGE_UNITS.includes(line.unit) && line.pack_size.trim()
+            ? Number(line.pack_size)
+            : undefined,
+        pack_unit:
+          PACKAGE_UNITS.includes(line.unit) && line.pack_size.trim()
+            ? line.pack_unit
+            : undefined,
         note: line.note || undefined,
         optional: line.optional,
         section: line.section || undefined,
@@ -356,6 +368,51 @@ export function RecipeEditor({
                 />
               </div>
 
+              {/* A tin is a container, not an amount. Saying how much is in one
+                  lets the line work against a pantry that weighs the contents
+                  as well as one that counts tins. */}
+              {PACKAGE_UNITS.includes(line.unit) && (
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-muted-foreground">
+                    each one is
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
+                    aria-label={`Size of one ${line.unit}`}
+                    placeholder="400"
+                    value={line.pack_size}
+                    onChange={(event) =>
+                      patchIngredient(index, { pack_size: event.target.value })
+                    }
+                    className={`${SMALL} w-24`}
+                  />
+                  <select
+                    aria-label="Pack size unit"
+                    value={line.pack_unit}
+                    onChange={(event) =>
+                      patchIngredient(index, { pack_unit: event.target.value })
+                    }
+                    className={`${SMALL} w-24`}
+                  >
+                    {(Object.keys(UNITS_BY_DIMENSION) as Dimension[]).map((dimension) => (
+                      <optgroup key={dimension} label={DIMENSION_LABEL[dimension]}>
+                        {UNITS_BY_DIMENSION[dimension].map((unit) => (
+                          <option key={unit} value={unit}>
+                            {unit}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    optional
+                  </span>
+                </div>
+              )}
+
               <div className="mt-2.5 flex flex-wrap items-center gap-3">
                 <input
                   aria-label="Section"
@@ -396,6 +453,8 @@ export function RecipeEditor({
                   key: makeKey(),
                   item_name: "",
                   quantity: "",
+                  pack_size: "",
+                  pack_unit: "g",
                   // Grams is the commonest thing to weigh; the picker is right
                   // there when it isn't.
                   unit: "g",

@@ -28,6 +28,7 @@ export interface Recipe {
   rating: number | null;
   times_cooked: number;
   notes: string | null;
+  photo_url: string | null;
   updated_at: string | null;
 }
 
@@ -39,6 +40,9 @@ export interface RecipeIngredient {
   item_name: string;
   quantity: number;
   unit: string;
+  /** "1 tin (400 g)": what one `unit` is worth, when it's a package. */
+  pack_size: number | null;
+  pack_unit: string | null;
   note: string | null;
   optional: number;
   section: string | null;
@@ -52,6 +56,7 @@ export interface RecipeStep {
   section: string | null;
   body: string;
   minutes: number | null;
+  photo_url: string | null;
 }
 
 /** A step with the ingredient lines it draws on, for the cooking view. */

@@ -75,6 +75,8 @@ export default async function RecipePage({
       item_name: line.item_name,
       quantity: line.quantity,
       unit: line.unit,
+      pack_size: line.pack_size,
+      pack_unit: line.pack_unit,
       note: line.note,
       optional: line.optional === 1,
       section: line.section,

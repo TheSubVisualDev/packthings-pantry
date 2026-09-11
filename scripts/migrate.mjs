@@ -60,6 +60,9 @@ const ADDED_COLUMNS = [
   { table: "recipe_ingredients", column: "optional", definition: "INTEGER NOT NULL DEFAULT 0" },
   { table: "recipe_ingredients", column: "section", definition: "TEXT" },
   { table: "recipe_ingredients", column: "position", definition: "INTEGER NOT NULL DEFAULT 0" },
+  // "1 tin (400g)" - what one of a package unit amounts to.
+  { table: "recipe_ingredients", column: "pack_size", definition: "REAL" },
+  { table: "recipe_ingredients", column: "pack_unit", definition: "TEXT" },
 
   // Stock belongs to a kitchen now. Nullable, because rows written before
   // kitchens existed have no answer yet - the app adopts them into the first
@@ -75,6 +78,10 @@ const ADDED_COLUMNS = [
   { table: "recipes", column: "author_id", definition: "INTEGER REFERENCES users(id) ON DELETE SET NULL" },
   { table: "recipes", column: "visibility", definition: "TEXT NOT NULL DEFAULT 'private'" },
   { table: "recipes", column: "forked_from_id", definition: "INTEGER REFERENCES recipes(id) ON DELETE SET NULL" },
+
+  // Photos, stored in Vercel Blob - these are just the URLs it returns.
+  { table: "recipes", column: "photo_url", definition: "TEXT" },
+  { table: "recipe_steps", column: "photo_url", definition: "TEXT" },
 ];
 
 for (const { table, column, definition } of ADDED_COLUMNS) {

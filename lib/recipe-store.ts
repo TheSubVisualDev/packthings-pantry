@@ -27,6 +27,9 @@ export async function saveRecipe(
 ): Promise<number> {
   const tx = await getDb().transaction("write");
 
+  /** Step photos, by position, carried over a delete-and-rewrite. */
+  const keptPhotos = new Map<number, string>();
+
   try {
     let recipeId: number;
 
@@ -50,6 +53,22 @@ export async function saveRecipe(
         ],
       });
       recipeId = existingId;
+
+      // Steps are about to be deleted and rewritten, which would take their
+      // photos with them. Photos aren't part of the document being saved -
+      // they're uploaded separately and belong to the step - so they're carried
+      // across by position, the one thing that survives the ids changing.
+      const existingPhotos = await tx.execute({
+        sql: `SELECT position, photo_url FROM recipe_steps
+              WHERE recipe_id = ? AND photo_url IS NOT NULL`,
+        args: [recipeId],
+      });
+      for (const row of existingPhotos.rows as unknown as {
+        position: number;
+        photo_url: string;
+      }[]) {
+        keptPhotos.set(row.position, row.photo_url);
+      }
 
       await tx.execute({
         sql: "DELETE FROM recipe_ingredients WHERE recipe_id = ?",
@@ -84,14 +103,17 @@ export async function saveRecipe(
     for (const line of parsed.ingredients) {
       const row = await tx.execute({
         sql: `INSERT INTO recipe_ingredients
-                (recipe_id, item_id, item_name, quantity, unit, note, optional, section, position)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+                (recipe_id, item_id, item_name, quantity, unit, pack_size, pack_unit,
+                 note, optional, section, position)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         args: [
           recipeId,
           line.item_id,
           line.item_name,
           line.quantity,
           line.unit,
+          line.pack_size,
+          line.pack_unit,
           line.note,
           line.optional ? 1 : 0,
           line.section,
@@ -103,9 +125,16 @@ export async function saveRecipe(
 
     for (const step of parsed.steps) {
       const row = await tx.execute({
-        sql: `INSERT INTO recipe_steps (recipe_id, position, section, body, minutes)
-              VALUES (?, ?, ?, ?, ?) RETURNING id`,
-        args: [recipeId, step.position, step.section, step.body, step.minutes],
+        sql: `INSERT INTO recipe_steps (recipe_id, position, section, body, minutes, photo_url)
+              VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+        args: [
+          recipeId,
+          step.position,
+          step.section,
+          step.body,
+          step.minutes,
+          keptPhotos.get(step.position) ?? null,
+        ],
       });
       const stepId = (row.rows[0] as unknown as { id: number }).id;
 
@@ -202,8 +231,10 @@ export async function forkRecipe(
     // portable half, and the cook flow resolves it against your own shelves.
     await tx.execute({
       sql: `INSERT INTO recipe_ingredients
-              (recipe_id, item_name, quantity, unit, note, optional, section, position)
-            SELECT ?, item_name, quantity, unit, note, optional, section, position
+              (recipe_id, item_name, quantity, unit, pack_size, pack_unit,
+               note, optional, section, position)
+            SELECT ?, item_name, quantity, unit, pack_size, pack_unit,
+                   note, optional, section, position
             FROM recipe_ingredients WHERE recipe_id = ?`,
       args: [newId, recipeId],
     });
@@ -219,11 +250,14 @@ export async function forkRecipe(
       section: string | null;
       body: string;
       minutes: number | null;
+      photo_url: string | null;
     }[]) {
       const copied = await tx.execute({
-        sql: `INSERT INTO recipe_steps (recipe_id, position, section, body, minutes)
-              VALUES (?, ?, ?, ?, ?) RETURNING id`,
-        args: [newId, row.position, row.section, row.body, row.minutes],
+        sql: `INSERT INTO recipe_steps (recipe_id, position, section, body, minutes, photo_url)
+              VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+        // The photo URL is shared rather than re-uploaded: both copies point at
+        // the same blob, and deleting one recipe's photo only clears its own row.
+        args: [newId, row.position, row.section, row.body, row.minutes, row.photo_url],
       });
       const newStepId = (copied.rows[0] as unknown as { id: number }).id;
 
