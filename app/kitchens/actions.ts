@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import {
   addMember,
   createKitchen,
+  deleteKitchen,
   getKitchenFor,
   removeMember,
   renameKitchen,
@@ -138,6 +139,33 @@ export async function removePerson(userId: number): Promise<KitchenResult> {
 
   revalidatePath("/kitchens");
   return { ok: true };
+}
+
+/**
+ * Deletes a kitchen, and everything that lives in it.
+ *
+ * Owner only, and the id has to match the one you're actually standing in -
+ * so a stale tab can't delete the kitchen you switched to since.
+ */
+export async function removeKitchen(kitchenId: number): Promise<KitchenResult> {
+  const access = await requireKitchenRole("owner");
+  if (!access.ok) return { ok: false, error: access.error };
+  if (access.kitchen.id !== kitchenId) {
+    return { ok: false, error: "That isn't the kitchen you have open." };
+  }
+
+  if (!(await deleteKitchen(kitchenId, access.user.id))) {
+    return { ok: false, error: "Couldn't delete that." };
+  }
+
+  // The cookie still points at what just went. currentKitchen re-checks
+  // membership on every read, so it falls through to another of yours or to
+  // none - but clearing it now avoids a pointless lookup on every request.
+  const store = await cookies();
+  store.delete(KITCHEN_COOKIE);
+
+  revalidatePath("/", "layout");
+  redirect("/kitchens");
 }
 
 /** Leaving is the one thing a viewer or editor can do to their own membership. */

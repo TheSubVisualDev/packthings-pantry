@@ -240,3 +240,51 @@ export async function removeMember(kitchenId: number, userId: number): Promise<v
     args: [kitchenId, userId],
   });
 }
+
+export interface KitchenContents {
+  items: number;
+  products: number;
+  cooks: number;
+  shopping: number;
+  members: number;
+}
+
+/**
+ * What a kitchen currently holds.
+ *
+ * Used to make the delete confirmation concrete. "This removes 34 items and 12
+ * cooks" is a sentence someone can weigh; "are you sure?" is not.
+ */
+export async function getContents(kitchenId: number): Promise<KitchenContents> {
+  const result = await getDb().execute({
+    sql: `SELECT
+            (SELECT COUNT(*) FROM items WHERE kitchen_id = ?) AS items,
+            (SELECT COUNT(*) FROM products WHERE kitchen_id = ?) AS products,
+            (SELECT COUNT(*) FROM cook_events WHERE kitchen_id = ?) AS cooks,
+            (SELECT COUNT(*) FROM shopping_list WHERE kitchen_id = ?) AS shopping,
+            (SELECT COUNT(*) FROM kitchen_members WHERE kitchen_id = ?) AS members`,
+    args: [kitchenId, kitchenId, kitchenId, kitchenId, kitchenId],
+  });
+  return result.rows[0] as unknown as KitchenContents;
+}
+
+/**
+ * Deletes a kitchen and everything in it.
+ *
+ * Stock, scanned barcodes, cooking history, the shopping list and everyone's
+ * membership all cascade away with it. Recipes do not: they belong to whoever
+ * wrote them, not to a set of shelves, so they survive intact and simply stop
+ * being matched against anything.
+ *
+ * The owner is in the WHERE clause, so this can only ever be your own.
+ */
+export async function deleteKitchen(
+  kitchenId: number,
+  ownerId: number,
+): Promise<boolean> {
+  const result = await getDb().execute({
+    sql: "DELETE FROM kitchens WHERE id = ? AND owner_id = ?",
+    args: [kitchenId, ownerId],
+  });
+  return result.rowsAffected > 0;
+}

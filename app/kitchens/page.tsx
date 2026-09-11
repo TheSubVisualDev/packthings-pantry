@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { DeleteKitchen } from "@/components/delete-kitchen";
 import { EditLocations, Members, RenameKitchen } from "@/components/kitchen-admin";
 import { NewKitchen } from "@/components/new-kitchen";
 import { SiteHeader } from "@/components/site-header";
-import { getKitchensFor, getLocations, getMembers } from "@/lib/kitchens";
+import { getContents, getKitchensFor, getLocations, getMembers } from "@/lib/kitchens";
 import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -76,9 +77,10 @@ export default async function KitchensPage({
     );
   }
 
-  const [members, locations] = await Promise.all([
+  const [members, locations, contents] = await Promise.all([
     getMembers(kitchen.id),
     getLocations(kitchen.id),
+    getContents(kitchen.id),
   ]);
 
   const youAreOwner = kitchen.role === "owner";
@@ -124,6 +126,17 @@ export default async function KitchensPage({
                 <h2 className={LABEL}>Rename</h2>
                 <div className="mt-3">
                   <RenameKitchen name={kitchen.name} />
+                </div>
+              </section>
+
+              <section className={CARD}>
+                <h2 className={LABEL}>Delete</h2>
+                <div className="mt-3">
+                  <DeleteKitchen
+                    kitchenId={kitchen.id}
+                    name={kitchen.name}
+                    contents={contents}
+                  />
                 </div>
               </section>
             </>
