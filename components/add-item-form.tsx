@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { addItem, type AddItemState } from "@/app/pantry/actions";
-import { TagPicker } from "@/components/tag-picker";
+import { ChipPicker } from "@/components/chip-picker";
 import { dimensionOf, UNITS_BY_DIMENSION } from "@/lib/units";
 import type { Dimension } from "@/lib/types";
 
@@ -38,6 +38,7 @@ export interface AddItemPrefill {
   sealed_count?: string;
   unit?: string;
   tags?: string;
+  shops?: string;
   location?: string;
   /** Set when the scanner sent us here; linked to the new item on submit. */
   barcode?: string;
@@ -46,11 +47,14 @@ export interface AddItemPrefill {
 export function AddItemForm({
   prefill,
   tags,
+  shops,
   locations,
 }: {
   prefill: AddItemPrefill;
   /** Tags already used in this kitchen, offered so the vocabulary converges. */
   tags: string[];
+  /** Shops this kitchen already buys from. */
+  shops: string[];
   /** This kitchen's own places, not a fixed list - see lib/kitchens.ts. */
   locations: string[];
 }) {
@@ -184,10 +188,38 @@ export function AddItemForm({
         </span>
         {/* The first tag is the one it gets filed under, which is why the
             picker marks it rather than explaining it. */}
-        <TagPicker
+        <ChipPicker
           name="tags"
           options={tags}
           defaultValue={prefill.tags ?? ""}
+          placeholder="Asian, sauce, soya…"
+          primaryNote={(first) => (
+            <>
+              Filed under <strong className="text-foreground">{first}</strong> — the
+              first one. Remove it to file under another.
+            </>
+          )}
+        />
+      </div>
+
+      <div>
+        <span className={LABEL}>
+          Bought from <span className="normal-case text-muted-foreground">optional</span>
+        </span>
+        {/* Several, because plenty of things are available in more than one
+            place. The first is where you usually go, which is what groups the
+            shopping list. */}
+        <ChipPicker
+          name="shops"
+          options={shops}
+          defaultValue={prefill.shops ?? ""}
+          placeholder="Tesco, the Asian supermarket…"
+          primaryNote={(first) => (
+            <>
+              Usually <strong className="text-foreground">{first}</strong> — the first
+              one. That is the trip it gets grouped into.
+            </>
+          )}
         />
       </div>
 

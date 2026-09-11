@@ -333,3 +333,26 @@ CREATE TABLE IF NOT EXISTS item_tags (
 -- Case-insensitive, so "Baking" and "baking" can't both exist in one kitchen.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_kitchen_name ON tags(kitchen_id, LOWER(name));
 CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON item_tags(tag_id);
+
+-- Where things get bought. Deliberately NOT tags: a tag describes what the
+-- ingredient is, a shop describes the errand, and mixing them would put
+-- "Tesco" next to "sauce" in every tag picker and every group-by menu.
+--
+-- Same shape as tags though, because the same two facts are needed - an item
+-- can be bought in several places, and one of them is where you usually get it.
+-- items.shop, the single text column this replaces, is left where it is.
+CREATE TABLE IF NOT EXISTS shops (
+  id         INTEGER PRIMARY KEY,
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS item_shops (
+  item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  shop_id INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+  PRIMARY KEY (item_id, shop_id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_shops_kitchen_name ON shops(kitchen_id, LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_item_shops_shop ON item_shops(shop_id);

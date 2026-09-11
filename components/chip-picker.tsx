@@ -4,8 +4,11 @@ import { useRef, useState } from "react";
 import { X } from "lucide-react";
 import { MAX_TAG_LENGTH, cleanTagName } from "@/lib/tags";
 
+/** Shops and tags normalise identically, so one limit covers both. */
+const MAX_LENGTH = MAX_TAG_LENGTH;
+
 /**
- * Picks several tags before the item exists.
+ * Picks a set of short names before the item exists - tags, or shops.
  *
  * Not SoftSelect: that holds one value and replaces it when you choose, which
  * on a comma-separated field meant picking a suggestion wiped what you had
@@ -13,19 +16,25 @@ import { MAX_TAG_LENGTH, cleanTagName } from "@/lib/tags";
  * because it was matching against the whole string. Tags are a set, so they get
  * a control that holds a set.
  *
- * Nothing here talks to the server - there is no item to tag yet. The chips are
- * posted as one comma-separated hidden field, which is what addItem reads.
+ * Nothing here talks to the server - there is no item to attach anything to
+ * yet. The chips post as one comma-separated hidden field, which is what addItem
+ * reads and splits back apart.
  */
-export function TagPicker({
+export function ChipPicker({
   name,
   options,
   defaultValue = "",
+  placeholder,
+  primaryNote,
 }: {
   name: string;
-  /** Tags already used in this kitchen. */
+  /** Names already used in this kitchen. */
   options: string[];
   /** Comma separated, as a barcode scan arrives with. */
   defaultValue?: string;
+  placeholder: string;
+  /** What being first means here, said once the set is worth explaining. */
+  primaryNote: (first: string) => React.ReactNode;
 }) {
   const [chosen, setChosen] = useState<string[]>(() =>
     [...new Set(defaultValue.split(",").map(cleanTagName).filter(Boolean))],
@@ -84,15 +93,14 @@ export function TagPicker({
 
       {chosen.length > 1 && (
         <p className="mb-2 text-xs font-semibold text-muted-foreground">
-          Filed under <strong className="text-foreground">{chosen[0]}</strong> — the
-          first one. Remove it to file under another.
+          {primaryNote(chosen[0])}
         </p>
       )}
 
       <input
         ref={field}
         value={draft}
-        maxLength={MAX_TAG_LENGTH}
+        maxLength={MAX_LENGTH}
         onChange={(event) => setDraft(event.target.value)}
         // Comma finishes a tag, matching how the field reads; Enter does too,
         // without submitting the form around it.
@@ -106,8 +114,8 @@ export function TagPicker({
           }
         }}
         onBlur={() => add(draft)}
-        placeholder={chosen.length === 0 ? "Asian, sauce, soya…" : "Add another"}
-        aria-label="Tags"
+        placeholder={chosen.length === 0 ? placeholder : "Add another"}
+        aria-label={name}
         className="w-full rounded-[14px] border border-border bg-background px-4 py-3 font-semibold outline-none focus:border-primary"
       />
 

@@ -118,6 +118,9 @@ const ADDED_COLUMNS = [
   // nullable would mean another table rebuild, so the honest answer is a flag
   // saying the number should not be read rather than a number pretending.
   { table: "items", column: "unspecified", definition: "INTEGER NOT NULL DEFAULT 0" },
+
+  // Where you usually buy it, of however many places sell it.
+  { table: "items", column: "preferred_shop_id", definition: "INTEGER REFERENCES shops(id) ON DELETE SET NULL" },
 ];
 
 for (const { table, column, definition } of ADDED_COLUMNS) {
@@ -214,3 +217,39 @@ const tables = await client.execute(
   "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
 );
 console.log("Tables:", tables.rows.map((r) => r.name).join(", "));
+
+/**
+ * Turns the old single `items.shop` string into rows in shops and item_shops.
+ *
+ * Same shape and same rules as the category-to-tag migration above: additive in
+ * both directions, `items.shop` left exactly where it is, and only items with
+ * no preferred shop yet are filled in - so a choice made by hand is never
+ * overwritten by the old column.
+ */
+const shopsMade = await client.execute(`
+  INSERT OR IGNORE INTO shops (kitchen_id, name)
+  SELECT DISTINCT kitchen_id, TRIM(shop) FROM items
+  WHERE kitchen_id IS NOT NULL AND shop IS NOT NULL AND TRIM(shop) <> ''
+`);
+console.log(`shops: ${shopsMade.rowsAffected} created from the old column`);
+
+const shopsLinked = await client.execute(`
+  INSERT OR IGNORE INTO item_shops (item_id, shop_id)
+  SELECT i.id, s.id
+  FROM items i
+  JOIN shops s ON s.kitchen_id = i.kitchen_id AND LOWER(s.name) = LOWER(TRIM(i.shop))
+  WHERE i.shop IS NOT NULL AND TRIM(i.shop) <> ''
+`);
+console.log(`item_shops: ${shopsLinked.rowsAffected} links made`);
+
+const preferred = await client.execute(`
+  UPDATE items SET preferred_shop_id = (
+    SELECT s.id FROM shops s
+    WHERE s.kitchen_id = items.kitchen_id AND LOWER(s.name) = LOWER(TRIM(items.shop))
+  )
+  WHERE preferred_shop_id IS NULL
+    AND kitchen_id IS NOT NULL
+    AND shop IS NOT NULL
+    AND TRIM(shop) <> ''
+`);
+console.log(`preferred: ${preferred.rowsAffected} items given a usual shop`);

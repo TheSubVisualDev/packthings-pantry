@@ -175,19 +175,6 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
             </>
           )}
 
-          <div className="mt-3">
-            <label htmlFor="shop" className={LABEL}>
-              Bought from{" "}
-              <span className="normal-case text-muted-foreground">optional</span>
-            </label>
-            <input
-              id="shop"
-              name="shop"
-              defaultValue={item.shop ?? ""}
-              placeholder="Tesco, the Asian supermarket…"
-              className={FIELD}
-            />
-          </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button

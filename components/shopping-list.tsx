@@ -14,7 +14,14 @@ import type { ShoppingLine } from "@/lib/shopping";
 const SMALL =
   "rounded-[12px] border border-border bg-card px-3 py-2.5 font-semibold outline-none focus:border-primary";
 
-export function ShoppingList({ lines }: { lines: ShoppingLine[] }) {
+export function ShoppingList({
+  lines,
+  filter,
+}: {
+  lines: ShoppingLine[];
+  /** The shop the list is narrowed to, if any. */
+  filter?: string | null;
+}) {
   const [state, formAction, pending] = useActionState<ListResult, FormData>(
     addItemToList,
     { ok: true },
@@ -31,7 +38,13 @@ export function ShoppingList({ lines }: { lines: ShoppingLine[] }) {
   const byShop = (() => {
     const groups = new Map<string, ShoppingLine[]>();
     for (const line of lines.filter((entry) => !entry.bought_at)) {
-      const key = line.shop ?? "Anywhere";
+      /**
+       * Under a filter, anything with a shop is here by definition - the query
+       * only kept lines this shop sells - so it groups under the shop you are
+       * standing in, not the one you usually use. Saying "Asian supermarket"
+       * over a line while you are in Tesco is just wrong.
+       */
+      const key = filter && line.shop ? filter : (line.shop ?? "Anywhere");
       const bucket = groups.get(key);
       if (bucket) bucket.push(line);
       else groups.set(key, [line]);

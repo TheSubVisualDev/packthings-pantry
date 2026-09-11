@@ -3,10 +3,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ItemDetail } from "@/components/item-detail";
 import { Packaging } from "@/components/packaging";
+import { ItemShops } from "@/components/item-shops";
 import { ItemTags } from "@/components/item-tags";
 import { SiteHeader } from "@/components/site-header";
 import { getLocations } from "@/lib/kitchens";
 import { getItem } from "@/lib/queries";
+import { getItemShops, getShops } from "@/lib/shops";
 import { getItemTags, getTags } from "@/lib/tags";
 import { currentKitchen } from "@/lib/session";
 
@@ -28,11 +30,13 @@ export default async function ItemPage({
   const itemId = Number((await params).id);
   if (!Number.isInteger(itemId)) notFound();
 
-  const [item, locations, tags, kitchenTags] = await Promise.all([
+  const [item, locations, tags, kitchenTags, shops, kitchenShops] = await Promise.all([
     getItem(context.kitchen.id, itemId),
     getLocations(context.kitchen.id),
     getItemTags(itemId),
     getTags(context.kitchen.id),
+    getItemShops(itemId),
+    getShops(context.kitchen.id),
   ]);
 
   // getItem scopes by kitchen, so an id from somebody else's shelves is
@@ -71,6 +75,16 @@ export default async function ItemPage({
               tags={tags}
               primaryTagId={item.primary_tag_id}
               suggestions={kitchenTags.map((tag) => tag.name)}
+              canEdit={canEdit}
+            />
+          </section>
+
+          <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+            <ItemShops
+              itemId={item.id}
+              shops={shops}
+              preferredShopId={item.preferred_shop_id}
+              suggestions={kitchenShops.map((shop) => shop.name)}
               canEdit={canEdit}
             />
           </section>

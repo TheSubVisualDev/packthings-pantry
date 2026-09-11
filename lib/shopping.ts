@@ -27,20 +27,48 @@ export interface ShoppingLine {
   added_by_handle: string | null;
 }
 
-export async function getList(kitchenId: number): Promise<ShoppingLine[]> {
+/**
+ * The list, optionally narrowed to one shop.
+ *
+ * Grouping and filtering ask different questions of the same data, so they use
+ * different columns. A line is GROUPED under the shop you usually buy it from,
+ * because that is where it belongs on a normal week. A line is KEPT by the
+ * filter if that shop sells it at all - standing in Tesco you want everything
+ * Tesco has, not only the things you usually buy there.
+ *
+ * Lines with no shop survive every filter. A free-text "kitchen roll", or stock
+ * nobody has said a shop for, can be got here as much as anywhere, and hiding it
+ * would mean walking out without it.
+ */
+export async function getList(
+  kitchenId: number,
+  shop?: string | null,
+): Promise<ShoppingLine[]> {
+  const filter = shop?.trim() || null;
+
   const result = await getDb().execute({
     sql: `SELECT s.id, s.item_id, s.item_name, s.quantity, s.unit, s.bought_at,
-                 u.handle AS added_by_handle, i.shop
+                 u.handle AS added_by_handle, ps.name AS shop
           FROM shopping_list s
           LEFT JOIN users u ON u.id = s.added_by
           LEFT JOIN items i ON i.id = s.item_id
+          LEFT JOIN shops ps ON ps.id = i.preferred_shop_id
           WHERE s.kitchen_id = ?
-          -- Shop first, so one trip is one run down the page. NULLS LAST keeps
-          -- the unassigned lines together at the end rather than at the top,
-          -- where they would read as the most important group.
-          ORDER BY (s.bought_at IS NOT NULL), i.shop IS NULL, i.shop COLLATE NOCASE,
+            AND (
+              ? IS NULL
+              OR NOT EXISTS (SELECT 1 FROM item_shops isx WHERE isx.item_id = i.id)
+              OR EXISTS (
+                SELECT 1 FROM item_shops isx
+                JOIN shops sh ON sh.id = isx.shop_id
+                WHERE isx.item_id = i.id AND LOWER(sh.name) = LOWER(?)
+              )
+            )
+          -- Shop first, so one trip is one run down the page. Unassigned lines
+          -- go last rather than first, where they would read as the most
+          -- important group.
+          ORDER BY (s.bought_at IS NOT NULL), ps.name IS NULL, ps.name COLLATE NOCASE,
                    s.created_at, s.id`,
-    args: [kitchenId],
+    args: [kitchenId, filter, filter],
   });
   return result.rows as unknown as ShoppingLine[];
 }
@@ -124,10 +152,11 @@ export async function getRestockSuggestions(
   kitchenId: number,
 ): Promise<RestockSuggestion[]> {
   const result = await getDb().execute({
-    sql: `SELECT i.id AS item_id, i.name, i.shop, i.pack_size, i.pack_unit,
+    sql: `SELECT i.id AS item_id, i.name, ps.name AS shop, i.pack_size, i.pack_unit,
                  i.canonical_unit,
                  i.restock_to - (i.sealed_count + (CASE WHEN i.quantity > 0 THEN 1 ELSE 0 END)) AS short
           FROM items i
+          LEFT JOIN shops ps ON ps.id = i.preferred_shop_id
           WHERE i.kitchen_id = ?
             AND i.restock_to IS NOT NULL
             AND i.unspecified = 0
@@ -138,7 +167,7 @@ export async function getRestockSuggestions(
                 AND s.bought_at IS NULL
                 AND LOWER(s.item_name) = LOWER(i.name)
             )
-          ORDER BY short DESC, i.shop IS NULL, i.shop COLLATE NOCASE, i.name COLLATE NOCASE`,
+          ORDER BY short DESC, ps.name IS NULL, ps.name COLLATE NOCASE, i.name COLLATE NOCASE`,
     args: [kitchenId],
   });
   return result.rows as unknown as RestockSuggestion[];

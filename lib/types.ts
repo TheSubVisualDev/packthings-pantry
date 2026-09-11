@@ -15,8 +15,13 @@ export interface Item {
   /** Which tag it is filed under, of however many it carries. */
   primary_tag_id: number | null;
   location: string | null;
-  /** Where you buy it. Its own field, not a tag: this describes the errand. */
+  /**
+   * The old single shop string. Superseded by the shops and item_shops tables
+   * and preferred_shop_id, kept until the column can be dropped.
+   */
   shop: string | null;
+  /** Where you usually buy it, of however many places sell it. */
+  preferred_shop_id: number | null;
   expiry_date: string | null;
   /** When it was opened, if it has been. */
   opened_at: string | null;

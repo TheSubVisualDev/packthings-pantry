@@ -10,6 +10,7 @@ import { isBarcode } from "@/lib/off";
 import { CANONICAL_FOR, dimensionOf, toCanonical } from "@/lib/units";
 import { ADJUST_SQL, PACK_SQL } from "@/lib/containers";
 import { cleanTagName, ensureTag, setPrimaryTag, tagItem, untagItem } from "@/lib/tags";
+import { cleanShopName, setPreferredShop, shopItem, unshopItem } from "@/lib/shops";
 
 export interface AddItemState {
   error?: string;
@@ -43,6 +44,10 @@ export async function addItem(
   const tags = String(formData.get("tags") ?? "")
     .split(",")
     .map(cleanTagName)
+    .filter(Boolean);
+  const shops = String(formData.get("shops") ?? "")
+    .split(",")
+    .map(cleanShopName)
     .filter(Boolean);
 
   // A scan knows what one pack holds, so an item can arrive already knowing
@@ -121,6 +126,12 @@ export async function addItem(
   // one becomes what the item is filed under, which tagItem handles.
   for (const tag of tags) {
     await tagItem(access.kitchen.id, itemId, tag);
+  }
+
+  // Same rule as tags: the first one becomes the usual place, which shopItem
+  // handles, so an item is never left in a shop group it does not belong to.
+  for (const shop of shops) {
+    await shopItem(access.kitchen.id, itemId, shop);
   }
 
   // Arrived from a scan: remember which item that barcode turned out to mean,
@@ -471,15 +482,15 @@ export async function setPackaging(
     return { ok: false, error: "Keep on hand has to be a whole number." };
   }
 
-  const shop = String(formData.get("shop") ?? "").trim();
 
   await getDb().execute({
     sql: `UPDATE items
           SET pack_size = ?,
               pack_unit = CASE WHEN ? IS NULL THEN NULL ELSE canonical_unit END,
               sealed_count = CASE WHEN ? IS NULL THEN 0 ELSE ? END,
+              -- shop is absent on purpose: a stock row can be bought in
+              -- several places now, which lives in item_shops instead.
               restock_to = ?,
-              shop = ?,
               unspecified = ?,
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ? AND kitchen_id = ?`,
@@ -489,7 +500,6 @@ export async function setPackaging(
       packSize,
       sealed,
       restockTo,
-      shop || null,
       unspecified,
       itemId,
       access.kitchen.id,
@@ -688,4 +698,63 @@ export async function bulkDelete(ids: number[]): Promise<BulkResult> {
   revalidatePath("/pantry");
   revalidatePath("/recipes");
   return { ok: true, changed: result.rowsAffected };
+}
+
+export interface ShopResult {
+  ok: boolean;
+  error?: string;
+  shop?: { id: number; name: string };
+}
+
+/** Says this item can be bought somewhere, creating the shop if it is new. */
+export async function addShop(itemId: number, name: string): Promise<ShopResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return { ok: false, error: "Unknown item" };
+  }
+
+  const clean = cleanShopName(name);
+  if (!clean) return { ok: false, error: "Give the shop a name." };
+
+  const shop = await shopItem(access.kitchen.id, itemId, clean);
+  if (!shop) return { ok: false, error: "Couldn't save that shop." };
+
+  revalidatePath(`/pantry/item/${itemId}`);
+  revalidatePath("/pantry/list");
+  return { ok: true, shop: { id: shop.id, name: shop.name } };
+}
+
+/** Stops this item being bought somewhere. The shop itself stays. */
+export async function removeShop(itemId: number, shopId: number): Promise<ShopResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  if (!Number.isInteger(itemId) || !Number.isInteger(shopId)) {
+    return { ok: false, error: "Unknown shop" };
+  }
+
+  await unshopItem(access.kitchen.id, itemId, shopId);
+
+  revalidatePath(`/pantry/item/${itemId}`);
+  revalidatePath("/pantry/list");
+  return { ok: true };
+}
+
+/** Marks one of an item's shops as where you usually get it. */
+export async function preferShop(itemId: number, shopId: number): Promise<ShopResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  if (!Number.isInteger(itemId) || !Number.isInteger(shopId)) {
+    return { ok: false, error: "Unknown shop" };
+  }
+
+  const changed = await setPreferredShop(access.kitchen.id, itemId, shopId);
+  if (!changed) return { ok: false, error: "You don't buy this there." };
+
+  revalidatePath(`/pantry/item/${itemId}`);
+  revalidatePath("/pantry/list");
+  return { ok: true };
 }

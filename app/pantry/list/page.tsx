@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ShopFilter } from "@/components/shop-filter";
 import { RestockPanel } from "@/components/restock-panel";
 import { ShoppingList } from "@/components/shopping-list";
 import { SiteHeader } from "@/components/site-header";
 import { currentKitchen } from "@/lib/session";
 import { getList, getRestockSuggestions } from "@/lib/shopping";
+import { getShops } from "@/lib/shops";
 
 export const dynamic = "force-dynamic";
 
@@ -13,14 +15,22 @@ export const metadata: Metadata = {
   title: "Shopping · Pantry",
 };
 
-export default async function ShoppingPage() {
+export default async function ShoppingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ shop?: string }>;
+}) {
   const context = await currentKitchen();
   if (!context.ok) redirect("/login?next=%2Fpantry%2Flist");
   if (!context.kitchen) redirect("/kitchens?need=stock");
 
-  const [lines, restock] = await Promise.all([
-    getList(context.kitchen.id),
+  const { shop } = await searchParams;
+  const filter = shop?.trim() || null;
+
+  const [lines, restock, shops] = await Promise.all([
+    getList(context.kitchen.id, filter),
     getRestockSuggestions(context.kitchen.id),
+    getShops(context.kitchen.id),
   ]);
   const todo = lines.filter((line) => !line.bought_at).length;
 
@@ -39,11 +49,14 @@ export default async function ShoppingPage() {
           Shopping
         </h1>
         <p className="mb-6 text-sm font-semibold text-muted-foreground">
-          Shared with everyone in {context.kitchen.name}.
+          {filter
+            ? `What ${filter} has, plus anything you can get anywhere.`
+            : `Shared with everyone in ${context.kitchen.name}.`}
         </p>
 
+        <ShopFilter shops={shops} active={filter} />
         <RestockPanel suggestions={restock} />
-        <ShoppingList lines={lines} />
+        <ShoppingList lines={lines} filter={filter} />
       </main>
     </>
   );

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { AddItemForm } from "@/components/add-item-form";
 import { SiteHeader } from "@/components/site-header";
 import { getTags } from "@/lib/tags";
+import { getShops } from "@/lib/shops";
 import { getLocations } from "@/lib/kitchens";
 import { currentKitchen } from "@/lib/session";
 
@@ -25,6 +26,7 @@ export default async function AddItemPage({
     quantity?: string;
     unit?: string;
     tags?: string;
+    shops?: string;
     pack_size?: string;
     sealed_count?: string;
     location?: string;
@@ -37,9 +39,10 @@ export default async function AddItemPage({
   if (!context.kitchen) redirect("/kitchens?need=stock");
   const { kitchen } = context;
 
-  const [prefill, tags, places] = await Promise.all([
+  const [prefill, tags, shops, places] = await Promise.all([
     searchParams,
     getTags(kitchen.id),
+    getShops(kitchen.id),
     getLocations(kitchen.id),
   ]);
 
@@ -58,7 +61,8 @@ export default async function AddItemPage({
         <h1 className="mt-2 mb-6 text-[26px] font-extrabold tracking-[-0.02em]">
           Add item
         </h1>
-        <AddItemForm prefill={prefill} tags={tagNames} locations={places} />
+        <AddItemForm prefill={prefill} tags={tagNames}
+          shops={shops.map((shop) => shop.name)} locations={places} />
       </main>
     </>
   );
