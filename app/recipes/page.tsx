@@ -40,6 +40,12 @@ export default async function RecipesPage({
           </h1>
           <div className="flex flex-wrap gap-2">
             <Link
+              href="/cooked"
+              className="rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
+            >
+              Cooked
+            </Link>
+            <Link
               href="/recipes/paste"
               className="rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
             >

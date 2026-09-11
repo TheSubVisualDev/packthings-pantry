@@ -183,7 +183,10 @@ export async function getStockedItemNames(
   if (kitchenId === null) return new Set();
 
   const result = await getDb().execute({
-    sql: "SELECT name FROM items WHERE kitchen_id = ? AND quantity > 0",
+    // sealed_count as well as quantity: an unopened tin is still in the
+    // cupboard, and 'quantity' has meant "what is in the OPEN one" since
+    // containers arrived. Without this, three sealed tins read as none.
+    sql: "SELECT name FROM items WHERE kitchen_id = ? AND (quantity > 0 OR sealed_count > 0)",
     args: [kitchenId],
   });
   return new Set(
@@ -414,7 +417,9 @@ export async function getExpiring(
                        COALESCE(expiry_date, '9999-12-31')) AS because_opened
           FROM items
           WHERE kitchen_id = ?
-            AND quantity > 0
+            -- An unopened pack goes off too, and quantity only counts the open
+            -- one, so three sealed tins would otherwise read as nothing there.
+            AND (quantity > 0 OR sealed_count > 0)
             AND ${USE_BY} < '9999-12-31'
             AND julianday(${USE_BY}) - julianday('now') <= ?
           ORDER BY use_by`,
@@ -432,4 +437,195 @@ export async function getItem(
     args: [itemId, kitchenId],
   });
   return (result.rows[0] as unknown as Item) ?? null;
+}
+
+export interface Rescue {
+  item: ExpiringItem;
+  /** Recipes that use it, the most makeable first. */
+  recipes: RecipeWithMatch[];
+}
+
+/**
+ * What to cook before it goes off.
+ *
+ * The stock page has always listed what is expiring, which tells you there is a
+ * problem without helping with it. This answers the next question: given that
+ * the coriander dies on Thursday, what can actually be made with it tonight.
+ *
+ * Ranked by how much of the rest of the recipe is already here, because a
+ * recipe needing five other things you do not have is not a rescue, it is a
+ * shopping trip. Ties go to whatever has been cooked most, on the grounds that
+ * a recipe you return to is a recipe that works.
+ *
+ * The deadline is whichever comes first of the date on the packet and
+ * `opened_at + shelf_life_days`, which getExpiring already works out - so this
+ * is a ranking problem rather than a second definition of "going off", and
+ * there is no way for the two to disagree.
+ */
+export async function getRescues(
+  kitchenId: number | null,
+  authorId: number,
+  withinDays = 7,
+): Promise<Rescue[]> {
+  if (kitchenId === null) return [];
+
+  const [expiring, recipes, stocked, ingredientRows] = await Promise.all([
+    getExpiring(kitchenId, withinDays),
+    getMyRecipes(authorId),
+    getStockedItemNames(kitchenId),
+    getDb().execute("SELECT recipe_id, item_name FROM recipe_ingredients"),
+  ]);
+  if (expiring.length === 0) return [];
+
+  const names = new Map<number, string[]>();
+  for (const row of ingredientRows.rows as unknown as RecipeIngredient[]) {
+    const bucket = names.get(row.recipe_id);
+    if (bucket) bucket.push(row.item_name);
+    else names.set(row.recipe_id, [row.item_name]);
+  }
+
+  const scored = recipes.map((recipe) => {
+    const lines = names.get(recipe.id) ?? [];
+    return {
+      recipe,
+      lines: lines.map((name) => name.toLowerCase()),
+      have: lines.filter((name) => stocked.has(name.toLowerCase())).length,
+      total: lines.length,
+    };
+  });
+
+  return expiring
+    .map((item) => {
+      const wanted = item.name.toLowerCase();
+      const uses = scored
+        .filter((entry) => entry.lines.includes(wanted))
+        .sort((a, b) => {
+          // Proportion rather than count: a recipe with three of four is a
+          // better bet than one with four of twelve.
+          const readiness = b.have / Math.max(1, b.total) - a.have / Math.max(1, a.total);
+          return readiness !== 0 ? readiness : b.recipe.times_cooked - a.recipe.times_cooked;
+        })
+        .slice(0, 2)
+        .map((entry) => ({ ...entry.recipe, have: entry.have, total: entry.total }));
+
+      return { item, recipes: uses };
+    })
+    // Items nothing can be made from still belong on the list - they are the
+    // ones about to be thrown away - so they are kept, not filtered out.
+    .sort((a, b) => a.item.days_left - b.item.days_left);
+}
+
+export interface CookedEntry {
+  id: number;
+  recipe_id: number;
+  recipe_name: string;
+  servings: number;
+  cooked_at: string;
+  cooked_by_handle: string | null;
+  cooked_by_name: string | null;
+}
+
+/**
+ * What this kitchen has cooked, most recent first.
+ *
+ * Names and days, which is what was asked for - no heatmap. The data behind it
+ * is richer than that, and stored rather than summarised, so a fuller view
+ * later needs a query and not a migration.
+ *
+ * Undone cooks are excluded rather than struck through: undoing one means it
+ * did not happen, and a log that shows things that did not happen is not a log.
+ */
+export async function getCookedLog(
+  kitchenId: number | null,
+  limit = 60,
+): Promise<CookedEntry[]> {
+  if (kitchenId === null) return [];
+
+  const result = await getDb().execute({
+    sql: `SELECT c.id, c.recipe_id, r.name AS recipe_name, c.servings, c.cooked_at,
+                 u.handle AS cooked_by_handle, u.display_name AS cooked_by_name
+          FROM cook_events c
+          JOIN recipes r ON r.id = c.recipe_id
+          LEFT JOIN users u ON u.id = c.cooked_by
+          WHERE c.kitchen_id = ? AND c.undone_at IS NULL
+          ORDER BY c.cooked_at DESC, c.id DESC
+          LIMIT ?`,
+    args: [kitchenId, limit],
+  });
+  return result.rows as unknown as CookedEntry[];
+}
+
+export interface Neglected {
+  id: number;
+  name: string;
+  /** Days since anything touched it. */
+  idle_days: number;
+  recipes: RecipeWithMatch[];
+}
+
+/**
+ * Things sitting untouched, and what they are good for.
+ *
+ * The opposite question to the restock one: not "what have I run out of" but
+ * "what did I buy and then never use". `updated_at` moves on every adjustment,
+ * cook and edit, so it is a fair proxy for when the jar was last thought about.
+ *
+ * Only things actually in stock, and only past a month, because a fortnight of
+ * quiet is not neglect - it is a cupboard working normally.
+ */
+export async function getNeglected(
+  kitchenId: number | null,
+  authorId: number,
+  idleDays = 30,
+): Promise<Neglected[]> {
+  if (kitchenId === null) return [];
+
+  const result = await getDb().execute({
+    sql: `SELECT id, name,
+                 CAST(julianday('now') - julianday(updated_at) AS INTEGER) AS idle_days
+          FROM items
+          WHERE kitchen_id = ?
+            AND (quantity > 0 OR sealed_count > 0)
+            AND updated_at IS NOT NULL
+            AND julianday('now') - julianday(updated_at) >= ?
+          ORDER BY idle_days DESC
+          LIMIT 8`,
+    args: [kitchenId, idleDays],
+  });
+
+  const idle = result.rows as unknown as Omit<Neglected, "recipes">[];
+  if (idle.length === 0) return [];
+
+  const [recipes, stocked, ingredientRows] = await Promise.all([
+    getMyRecipes(authorId),
+    getStockedItemNames(kitchenId),
+    getDb().execute("SELECT recipe_id, item_name FROM recipe_ingredients"),
+  ]);
+
+  const names = new Map<number, string[]>();
+  for (const row of ingredientRows.rows as unknown as RecipeIngredient[]) {
+    const bucket = names.get(row.recipe_id);
+    if (bucket) bucket.push(row.item_name);
+    else names.set(row.recipe_id, [row.item_name]);
+  }
+
+  return idle.map((item) => {
+    const wanted = item.name.toLowerCase();
+    const uses = recipes
+      .map((recipe) => {
+        const lines = names.get(recipe.id) ?? [];
+        return {
+          recipe,
+          lines: lines.map((name) => name.toLowerCase()),
+          have: lines.filter((name) => stocked.has(name.toLowerCase())).length,
+          total: lines.length,
+        };
+      })
+      .filter((entry) => entry.lines.includes(wanted))
+      .sort((a, b) => b.have / Math.max(1, b.total) - a.have / Math.max(1, a.total))
+      .slice(0, 2)
+      .map((entry) => ({ ...entry.recipe, have: entry.have, total: entry.total }));
+
+    return { ...item, recipes: uses };
+  });
 }

@@ -285,25 +285,32 @@ figures and sit in "Not known", last, because that is not a kind of food.
 existed: 12 of 18 had figures, one request each, a pause between them, and every
 answer stamped so a second run costs the catalogue nothing.
 
-### S7 · Suggestions and the cooked log — about 1.5 days
+### S7 · Suggestions and the cooked log — DONE 11 Sep 2026
 
-**Cook this before it goes off.** Added at Luna's request 11 Sep 2026. The stock
-page already lists what is expiring; this turns that list into recipes you could
-actually make tonight, ranked by how soon the ingredient dies and how much of the
-rest of the recipe is already on the shelf.
+**Cook this before it goes off.** The stock page always listed what was
+expiring, which tells you there is a problem without helping with it. Each item
+now carries the recipes that use it, ranked by how much of the rest is already
+in — a recipe needing five other things you do not have is not a rescue, it is a
+shopping trip. The proportion is shown rather than the shortfall: "5/6" says
+make-this-tonight in a way "1 missing" does not.
 
-The deadline is whichever comes first of two dates, which is the part worth
-getting right: the date printed on a sealed packet (`expiry_date`), and
-`opened_at + shelf_life_days` once it has been opened. `getExpiring()` already
-computes exactly that pair for the use-these-up panel, so this is a ranking
-problem rather than a new query — and containers make the open deadline sharper,
-since the app now knows when the open jar was actually opened and clears the
-stamp when it runs out.
+The deadline is still whichever comes first of the printed date and
+`opened_at + shelf_life_days`, computed once in `getExpiring`, so there is no
+second definition of "going off" to disagree with the first.
 
-Then the rest: restock suggestions from real consumption, "you haven't touched
-this in a while" pointing at recipes that use it, and the cooked log — names and
-days, read straight off `cook_events`, which already records who, what, when,
-servings and per kitchen. No new tables and no writes for that last one.
+Items nothing can be made from stay on the list. They are the ones actually
+about to be thrown away, which makes them the most worth seeing.
+
+**The cooked log** at `/cooked`: names and days, read straight off `cook_events`.
+No heatmap, as asked. Undone cooks are excluded rather than struck through —
+undoing one means it did not happen. Sharing the page is **not touched in a
+while**, the same question from the other end, with the recipes that would use
+the thing up.
+
+**Two container bugs fixed on the way through.** `getExpiring` and
+`getStockedItemNames` both tested `quantity > 0`, which has meant "what is in
+the OPEN one" since containers arrived — so three sealed tins read as nothing
+there, and an unopened pack could go off unmentioned.
 
 ### S8 · Remix — about 1 day
 
