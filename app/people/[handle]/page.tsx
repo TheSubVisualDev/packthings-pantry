@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Avatar } from "@/components/avatar";
 import { BlockButton } from "@/components/block-button";
 import { FollowButton } from "@/components/follow-button";
 import { RecipeBrowseCard } from "@/components/recipe-browse-card";
@@ -49,10 +50,18 @@ export default async function ProfilePage({
           ← People
         </Link>
 
-        <h1 className="mt-3 text-[28px] font-extrabold tracking-[-0.02em] break-words">
-          {person.display_name}
-        </h1>
-        <p className="mt-1 text-sm font-semibold text-muted-foreground">
+        <div className="mt-3 flex items-center gap-4">
+          <Avatar
+            handle={person.handle}
+            displayName={person.display_name}
+            url={person.avatar_url}
+            size={64}
+          />
+          <h1 className="min-w-0 text-[28px] font-extrabold tracking-[-0.02em] break-words">
+            {person.display_name}
+          </h1>
+        </div>
+        <p className="mt-2 text-sm font-semibold text-muted-foreground">
           @{person.handle} · {follows.followers}{" "}
           {follows.followers === 1 ? "follower" : "followers"} · following{" "}
           {follows.following}

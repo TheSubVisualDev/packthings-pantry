@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { Avatar } from "@/components/avatar";
 import { comment, removeComment, setLiked } from "@/app/social/actions";
 import type { Comment } from "@/lib/queries";
 
@@ -69,8 +70,14 @@ export function RecipeSocial({
         <ul className="mt-4 space-y-3">
           {comments.map((entry) => (
             <li key={entry.id} className="border-t border-border pt-3 first:border-0 first:pt-0">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+              <div className="flex items-start gap-3">
+                <Avatar
+                  handle={entry.handle}
+                  displayName={entry.display_name}
+                  url={entry.avatar_url}
+                  size={32}
+                />
+                <div className="min-w-0 flex-1">
                   <Link
                     href={`/people/${entry.handle}`}
                     className="text-sm font-bold hover:underline"

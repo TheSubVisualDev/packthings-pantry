@@ -8,6 +8,7 @@ import {
   revokeInvite,
   rotateApiToken,
   setPassword,
+  updateProfile,
 } from "@/lib/users";
 
 export interface ActionResult {
@@ -56,6 +57,26 @@ export async function newApiKey(): Promise<ActionResult> {
   revalidatePath("/settings");
   revalidatePath("/claude");
   return { ok: true, message: "New key issued. The old one stopped working." };
+}
+
+export async function saveProfile(
+  _previous: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await signedIn();
+  if (!user) return { ok: false, error: "Sign in first." };
+
+  const result = await updateProfile(user.id, {
+    displayName: String(formData.get("display_name") ?? ""),
+    handle: String(formData.get("handle") ?? ""),
+  });
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  // The handle is in the header, on every byline and in the URL of your own
+  // profile, so the whole tree is stale after this.
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Saved." };
 }
 
 /**

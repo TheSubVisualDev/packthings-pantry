@@ -315,6 +315,7 @@ export interface Comment {
   user_id: number;
   handle: string;
   display_name: string;
+  avatar_url: string | null;
 }
 
 /** Comments from people you haven't blocked, and who haven't blocked you. */
@@ -323,7 +324,7 @@ export async function getComments(
   viewerId: number,
 ): Promise<Comment[]> {
   const result = await getDb().execute({
-    sql: `SELECT c.id, c.body, c.created_at, c.user_id, u.handle, u.display_name
+    sql: `SELECT c.id, c.body, c.created_at, c.user_id, u.handle, u.display_name, u.avatar_url
           FROM recipe_comments c
           JOIN users u ON u.id = c.user_id
           WHERE c.recipe_id = ?

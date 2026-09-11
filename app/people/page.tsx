@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Avatar } from "@/components/avatar";
 import { SiteHeader } from "@/components/site-header";
 import { browsePeople } from "@/lib/social";
 import { currentKitchen } from "@/lib/session";
@@ -41,9 +42,14 @@ export default async function PeoplePage() {
               <li key={person.id}>
                 <Link
                   href={`/people/${person.handle}`}
-                  className="flex items-center justify-between gap-3 rounded-[20px] bg-card px-5 py-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)]"
+                  className="flex items-center gap-3 rounded-[20px] bg-card px-5 py-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)]"
                 >
-                  <span className="min-w-0">
+                  <Avatar
+                    handle={person.handle}
+                    displayName={person.display_name}
+                    url={person.avatar_url}
+                  />
+                  <span className="min-w-0 flex-1">
                     <span className="block font-bold break-words">
                       {person.display_name}
                     </span>

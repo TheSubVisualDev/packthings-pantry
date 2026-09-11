@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { InviteManager } from "@/components/invite-manager";
 import { PasswordChange } from "@/components/password-change";
+import { ProfileSettings } from "@/components/profile-settings";
 import { RevealToken } from "@/components/reveal-token";
 import { RotateTokenButton } from "@/components/rotate-token-button";
 import { SiteHeader } from "@/components/site-header";
@@ -47,6 +48,17 @@ export default async function SettingsPage() {
         </p>
 
         <div className="mt-7 space-y-3">
+          <section className={CARD}>
+            <h2 className={LABEL}>You</h2>
+            <div className="mt-3">
+              <ProfileSettings
+                displayName={user.display_name}
+                handle={user.handle}
+                avatarUrl={user.avatar_url}
+              />
+            </div>
+          </section>
+
           <section className={CARD}>
             <h2 className={LABEL}>Your Claude key</h2>
             <p className="mt-2 mb-3 text-sm font-medium text-muted-foreground">

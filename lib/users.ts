@@ -98,6 +98,52 @@ export async function createUser(
   return result.rows[0] as unknown as User;
 }
 
+export interface ProfileUpdate {
+  displayName: string;
+  handle: string;
+}
+
+export type ProfileResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Changes the name and handle on an account.
+ *
+ * Handles can change. Links to the old one break, which Luna decided was
+ * acceptable on a pantry this size - the alternative was remembering every
+ * handle anyone ever had, to keep a handful of URLs alive.
+ */
+export async function updateProfile(
+  userId: number,
+  update: ProfileUpdate,
+): Promise<ProfileResult> {
+  const handle = normaliseHandle(update.handle);
+
+  const problem = handleProblem(handle);
+  if (problem) return { ok: false, error: problem };
+
+  const taken = await getDb().execute({
+    sql: "SELECT 1 FROM users WHERE handle = ? AND id <> ?",
+    args: [handle, userId],
+  });
+  if (taken.rows.length > 0) {
+    return { ok: false, error: `@${handle} is taken.` };
+  }
+
+  await getDb().execute({
+    sql: "UPDATE users SET handle = ?, display_name = ? WHERE id = ?",
+    args: [handle, update.displayName.trim() || handle, userId],
+  });
+
+  return { ok: true };
+}
+
+export async function setAvatar(userId: number, url: string | null): Promise<void> {
+  await getDb().execute({
+    sql: "UPDATE users SET avatar_url = ? WHERE id = ?",
+    args: [url, userId],
+  });
+}
+
 export async function setPassword(userId: number, password: string): Promise<void> {
   await getDb().execute({
     sql: "UPDATE users SET password_hash = ? WHERE id = ?",
