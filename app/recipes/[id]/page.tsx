@@ -3,9 +3,16 @@ import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { RecipeVisibility } from "@/components/recipe-visibility";
 import { SaveRecipeButton } from "@/components/save-recipe-button";
+import { RecipeSocial } from "@/components/recipe-social";
 import { CookPanel, type CookLine } from "@/components/cook-panel";
 import type { CookStep } from "@/components/recipe-method";
-import { getRecipe, getRecipeAuthorHandle, getItems } from "@/lib/queries";
+import {
+  getComments,
+  getItems,
+  getRecipe,
+  getRecipeAuthorHandle,
+  getRecipeSocial,
+} from "@/lib/queries";
 import { currentKitchen } from "@/lib/session";
 import { myRating } from "@/lib/recipe-store";
 import { getUser } from "@/lib/users";
@@ -40,6 +47,11 @@ export default async function RecipePage({
     // survive the original being made private.
     recipe.forked_from_id ? getRecipeAuthorHandle(recipe.forked_from_id) : null,
     myRating(recipe.id, context.user.id),
+  ]);
+
+  const [social, comments] = await Promise.all([
+    getRecipeSocial(recipe.id, context.user.id),
+    getComments(recipe.id, context.user.id),
   ]);
 
   const forkedAuthor =
@@ -172,6 +184,15 @@ export default async function RecipePage({
             <SaveRecipeButton recipeId={recipe.id} />
           )}
         </div>
+
+        <RecipeSocial
+          recipeId={recipe.id}
+          likes={social.likes}
+          youLiked={social.youLiked}
+          comments={comments}
+          viewerId={context.user.id}
+          isAuthor={isAuthor}
+        />
 
         {recipe.notes && (
           <section className="mt-5">

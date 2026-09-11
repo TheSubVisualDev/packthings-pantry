@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { BlockButton } from "@/components/block-button";
 import { FollowButton } from "@/components/follow-button";
 import { RecipeBrowseCard } from "@/components/recipe-browse-card";
 import { SiteHeader } from "@/components/site-header";
@@ -64,6 +65,9 @@ export default async function ProfilePage({
               youFollow={follows.youFollow}
               followsYou={follows.followsYou}
             />
+            <div className="mt-3">
+              <BlockButton handle={person.handle} blocked={follows.youBlocked} />
+            </div>
           </div>
         )}
 

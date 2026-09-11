@@ -213,3 +213,36 @@ CREATE TABLE IF NOT EXISTS recipe_ratings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_recipe_ratings_recipe ON recipe_ratings(recipe_id);
+
+-- Likes. A lighter signal than a rating: "this looks good" rather than "I
+-- cooked it and here's how it went".
+CREATE TABLE IF NOT EXISTS recipe_likes (
+  recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (recipe_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_recipe_likes_recipe ON recipe_likes(recipe_id);
+
+CREATE TABLE IF NOT EXISTS recipe_comments (
+  id         INTEGER PRIMARY KEY,
+  recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body       TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_recipe_comments_recipe ON recipe_comments(recipe_id, created_at);
+
+-- Blocking, built in from the start rather than bolted on after someone needs
+-- it. It cuts both ways: a block hides their recipes from you and yours from
+-- them, because a one-directional block is a thing people discover by accident.
+CREATE TABLE IF NOT EXISTS blocks (
+  blocker_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  blocked_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (blocker_id, blocked_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id);

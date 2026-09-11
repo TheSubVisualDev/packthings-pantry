@@ -198,3 +198,136 @@ export async function getRecipesWithMatches(
     };
   });
 }
+
+/**
+ * Recipes from people you follow, newest first.
+ *
+ * A one-way follow is enough to see somebody in your feed - following is how
+ * you said you wanted to. Mutual is only needed to unlock friends-only
+ * recipes, and the visibility clause already handles that.
+ */
+export async function getFeed(
+  viewerId: number,
+  limit = 40,
+): Promise<RecipeWithAuthor[]> {
+  const result = await getDb().execute({
+    sql: `${RECIPE_WITH_AUTHOR}
+          WHERE ${VISIBLE_TO_VIEWER}
+            AND r.author_id <> ?
+            AND EXISTS (
+              SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.followee_id = r.author_id
+            )
+          ORDER BY r.id DESC
+          LIMIT ?`,
+    args: [...viewerArgs(viewerId), viewerId, viewerId, limit],
+  });
+  return result.rows as unknown as RecipeWithAuthor[];
+}
+
+/**
+ * Searches recipes you're allowed to see, by name, blurb or ingredient.
+ *
+ * LIKE rather than full-text: a pantry holds hundreds of recipes, not millions,
+ * and an FTS table is a second thing to keep in step with the first for a
+ * gain nobody would notice.
+ */
+export async function searchRecipes(
+  viewerId: number,
+  term: string,
+  limit = 40,
+): Promise<RecipeWithAuthor[]> {
+  const needle = `%${term.trim().toLowerCase()}%`;
+  if (needle.length <= 2) return [];
+
+  const result = await getDb().execute({
+    sql: `${RECIPE_WITH_AUTHOR}
+          WHERE ${VISIBLE_TO_VIEWER}
+            AND (
+              LOWER(r.name) LIKE ?
+              OR LOWER(COALESCE(r.description, '')) LIKE ?
+              OR EXISTS (
+                SELECT 1 FROM recipe_ingredients ri
+                WHERE ri.recipe_id = r.id AND LOWER(ri.item_name) LIKE ?
+              )
+            )
+          ORDER BY (LOWER(r.name) LIKE ?) DESC, r.id DESC
+          LIMIT ?`,
+    args: [...viewerArgs(viewerId), needle, needle, needle, needle, limit],
+  });
+  return result.rows as unknown as RecipeWithAuthor[];
+}
+
+export interface RecipeSocial {
+  likes: number;
+  youLiked: boolean;
+}
+
+export async function getRecipeSocial(
+  recipeId: number,
+  viewerId: number,
+): Promise<RecipeSocial> {
+  const result = await getDb().execute({
+    sql: `SELECT
+            (SELECT COUNT(*) FROM recipe_likes WHERE recipe_id = ?) AS likes,
+            EXISTS (SELECT 1 FROM recipe_likes WHERE recipe_id = ? AND user_id = ?) AS you_liked`,
+    args: [recipeId, recipeId, viewerId],
+  });
+
+  const row = result.rows[0] as unknown as { likes: number; you_liked: number };
+  return { likes: row.likes, youLiked: row.you_liked === 1 };
+}
+
+export interface Comment {
+  id: number;
+  body: string;
+  created_at: string | null;
+  user_id: number;
+  handle: string;
+  display_name: string;
+}
+
+/** Comments from people you haven't blocked, and who haven't blocked you. */
+export async function getComments(
+  recipeId: number,
+  viewerId: number,
+): Promise<Comment[]> {
+  const result = await getDb().execute({
+    sql: `SELECT c.id, c.body, c.created_at, c.user_id, u.handle, u.display_name
+          FROM recipe_comments c
+          JOIN users u ON u.id = c.user_id
+          WHERE c.recipe_id = ?
+            AND NOT EXISTS (
+              SELECT 1 FROM blocks b
+              WHERE (b.blocker_id = c.user_id AND b.blocked_id = ?)
+                 OR (b.blocker_id = ? AND b.blocked_id = c.user_id)
+            )
+          ORDER BY c.created_at, c.id`,
+    args: [recipeId, viewerId, viewerId],
+  });
+  return result.rows as unknown as Comment[];
+}
+
+export async function searchPeople(viewerId: number, term: string) {
+  const needle = `%${term.trim().toLowerCase()}%`;
+  if (needle.length <= 2) return [];
+
+  const result = await getDb().execute({
+    sql: `SELECT u.id, u.handle, u.display_name
+          FROM users u
+          WHERE u.id <> ?
+            AND (LOWER(u.handle) LIKE ? OR LOWER(u.display_name) LIKE ?)
+            AND NOT EXISTS (
+              SELECT 1 FROM blocks b
+              WHERE (b.blocker_id = u.id AND b.blocked_id = ?)
+                 OR (b.blocker_id = ? AND b.blocked_id = u.id)
+            )
+          ORDER BY u.handle
+          LIMIT 10`,
+    args: [viewerId, needle, needle, viewerId, viewerId],
+  });
+  return result.rows as unknown as {
+    id: number;
+    handle: string;
+    display_name: string;
+  }[];
+}

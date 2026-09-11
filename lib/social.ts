@@ -36,21 +36,78 @@ export const VISIBILITY_BLURB: Record<Visibility, string> = {
  *
  * Written once and pasted into every recipe query rather than filtered in JS
  * afterwards, because a visibility rule applied in the application layer is one
- * that some future query will forget. `?` is the viewer's id, three times.
+ * that some future query will forget. Every `?` is the viewer's id - see
+ * viewerArgs below, which is the only place that count is written down.
  */
 export const VISIBLE_TO_VIEWER = `(
-  r.author_id = ?
-  OR r.visibility = 'public'
-  OR (
-    r.visibility = 'friends'
-    AND EXISTS (SELECT 1 FROM follows f1 WHERE f1.follower_id = r.author_id AND f1.followee_id = ?)
-    AND EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_id = ? AND f2.followee_id = r.author_id)
+  (
+    r.author_id = ?
+    OR r.visibility = 'public'
+    OR (
+      r.visibility = 'friends'
+      AND EXISTS (SELECT 1 FROM follows f1 WHERE f1.follower_id = r.author_id AND f1.followee_id = ?)
+      AND EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_id = ? AND f2.followee_id = r.author_id)
+    )
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM blocks b
+    WHERE (b.blocker_id = r.author_id AND b.blocked_id = ?)
+       OR (b.blocker_id = ? AND b.blocked_id = r.author_id)
   )
 )`;
 
-/** The three bindings VISIBLE_TO_VIEWER expects, in order. */
+/**
+ * The five bindings VISIBLE_TO_VIEWER expects, in order.
+ *
+ * Kept as a function beside the SQL so the two can't drift: adding a clause
+ * means adding a binding here, in the same file, in the same edit.
+ */
 export function viewerArgs(viewerId: number): number[] {
-  return [viewerId, viewerId, viewerId];
+  return [viewerId, viewerId, viewerId, viewerId, viewerId];
+}
+
+export async function isBlockedEitherWay(a: number, b: number): Promise<boolean> {
+  const result = await getDb().execute({
+    sql: `SELECT 1 FROM blocks
+          WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)
+          LIMIT 1`,
+    args: [a, b, b, a],
+  });
+  return result.rows.length > 0;
+}
+
+/**
+ * Blocking drops the follow in both directions.
+ *
+ * Leaving a stale follow behind would mean unblocking silently restores a
+ * relationship the person had already walked away from.
+ */
+export async function block(blockerId: number, blockedId: number): Promise<void> {
+  if (blockerId === blockedId) return;
+
+  const tx = await getDb().transaction("write");
+  try {
+    await tx.execute({
+      sql: "INSERT INTO blocks (blocker_id, blocked_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+      args: [blockerId, blockedId],
+    });
+    await tx.execute({
+      sql: `DELETE FROM follows
+            WHERE (follower_id = ? AND followee_id = ?) OR (follower_id = ? AND followee_id = ?)`,
+      args: [blockerId, blockedId, blockedId, blockerId],
+    });
+    await tx.commit();
+  } catch (error) {
+    await tx.rollback();
+    throw error;
+  }
+}
+
+export async function unblock(blockerId: number, blockedId: number): Promise<void> {
+  await getDb().execute({
+    sql: "DELETE FROM blocks WHERE blocker_id = ? AND blocked_id = ?",
+    args: [blockerId, blockedId],
+  });
 }
 
 export async function follow(followerId: number, followeeId: number): Promise<void> {
@@ -75,6 +132,7 @@ export interface FollowState {
   followsYou: boolean;
   followers: number;
   following: number;
+  youBlocked: boolean;
 }
 
 export async function followState(
@@ -86,8 +144,9 @@ export async function followState(
             EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?) AS you_follow,
             EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?) AS follows_you,
             (SELECT COUNT(*) FROM follows WHERE followee_id = ?) AS followers,
-            (SELECT COUNT(*) FROM follows WHERE follower_id = ?) AS following`,
-    args: [viewerId, subjectId, subjectId, viewerId, subjectId, subjectId],
+            (SELECT COUNT(*) FROM follows WHERE follower_id = ?) AS following,
+            EXISTS (SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?) AS you_blocked`,
+    args: [viewerId, subjectId, subjectId, viewerId, subjectId, subjectId, viewerId, subjectId],
   });
 
   const row = result.rows[0] as unknown as {
@@ -95,6 +154,7 @@ export async function followState(
     follows_you: number;
     followers: number;
     following: number;
+    you_blocked: number;
   };
 
   return {
@@ -102,6 +162,7 @@ export async function followState(
     followsYou: row.follows_you === 1,
     followers: row.followers,
     following: row.following,
+    youBlocked: row.you_blocked === 1,
   };
 }
 
@@ -123,8 +184,13 @@ export async function browsePeople(viewerId: number): Promise<
               WHERE f.follower_id = ? AND f.followee_id = u.id) AS you_follow
           FROM users u
           WHERE u.id <> ?
+            AND NOT EXISTS (
+              SELECT 1 FROM blocks b
+              WHERE (b.blocker_id = u.id AND b.blocked_id = ?)
+                 OR (b.blocker_id = ? AND b.blocked_id = u.id)
+            )
           ORDER BY recipe_count DESC, u.handle`,
-    args: [viewerId, viewerId],
+    args: [viewerId, viewerId, viewerId, viewerId],
   });
 
   return result.rows as unknown as (PublicUser & {
