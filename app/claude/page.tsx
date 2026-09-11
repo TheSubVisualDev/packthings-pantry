@@ -141,15 +141,15 @@ export default async function ClaudePage() {
         <section className={`${CARD} mt-3`}>
           <h2 className={LABEL}>If the connector isn&apos;t available to you</h2>
           <p className="mt-2 text-[15px] leading-relaxed font-medium text-muted-foreground">
-            Recipes can also be pasted straight in — ask Claude for the recipe as
-            JSON and paste it into{" "}
+            Recipes can still come from Claude without it.{" "}
             <Link
-              href="/recipes/new"
+              href="/recipes/paste"
               className="font-bold text-primary underline underline-offset-2"
             >
-              a new recipe
-            </Link>
-            . Nothing needs connecting for that.
+              Paste one in
+            </Link>{" "}
+            — it hands you a briefing to copy into any chat, then takes what
+            Claude writes back. Nothing to set up, works on any device.
           </p>
         </section>
 

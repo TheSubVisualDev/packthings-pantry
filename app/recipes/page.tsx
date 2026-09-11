@@ -38,12 +38,20 @@ export default async function RecipesPage({
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
             Your recipes
           </h1>
-          <Link
-            href="/recipes/new"
-            className="rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
-          >
-            New recipe
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/recipes/paste"
+              className="rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
+            >
+              Paste from Claude
+            </Link>
+            <Link
+              href="/recipes/new"
+              className="rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
+            >
+              New recipe
+            </Link>
+          </div>
         </div>
 
         <Suspense>
