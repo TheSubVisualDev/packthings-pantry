@@ -16,6 +16,7 @@ import {
 import { KITCHEN_COOKIE, currentKitchen, requireKitchenRole } from "@/lib/session";
 import { requireUser } from "@/lib/session";
 import { getUserByHandle, normaliseHandle } from "@/lib/users";
+import { deleteTag, renameTag } from "@/lib/tags";
 
 export interface KitchenResult {
   ok: boolean;
@@ -188,4 +189,45 @@ export async function leaveKitchen(kitchenId: number): Promise<KitchenResult> {
 
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+/**
+ * Renames a tag everywhere at once.
+ *
+ * The point of a shared vocabulary is that fixing a word fixes it on every jar
+ * that carries it, which is the thing free-text categories could never do -
+ * renaming "Dairy" to "Fridge things" used to mean editing every item.
+ */
+export async function renameKitchenTag(
+  tagId: number,
+  name: string,
+): Promise<KitchenResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+  if (!Number.isInteger(tagId)) return { ok: false, error: "Unknown tag." };
+
+  const result = await renameTag(access.kitchen.id, tagId, name);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/kitchens");
+  revalidatePath("/pantry");
+  return { ok: true, message: "Renamed." };
+}
+
+/**
+ * Drops a tag from the kitchen and off every item carrying it.
+ *
+ * Anything filed under it falls back to another of its tags rather than
+ * disappearing out of the grouped view entirely.
+ */
+export async function removeKitchenTag(tagId: number): Promise<KitchenResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+  if (!Number.isInteger(tagId)) return { ok: false, error: "Unknown tag." };
+
+  await deleteTag(access.kitchen.id, tagId);
+
+  revalidatePath("/kitchens");
+  revalidatePath("/pantry");
+  return { ok: true, message: "Removed." };
 }

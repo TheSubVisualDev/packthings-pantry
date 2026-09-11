@@ -19,12 +19,10 @@ const CARD = "rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]";
 export function ItemDetail({
   item,
   locations,
-  categories,
   canEdit,
 }: {
   item: Item;
   locations: string[];
-  categories: string[];
   canEdit: boolean;
 }) {
   const [state, action, pending] = useActionState<ItemResult, FormData>(updateItem, {
@@ -169,24 +167,10 @@ export function ItemDetail({
               </div>
             </div>
 
+            {/* Category used to live here. Tags replaced it, and they are
+                edited above the form rather than inside it because adding one
+                saves immediately - there is nothing to Save afterwards. */}
             <div className="flex flex-wrap gap-3">
-              <div className="min-w-28 flex-1">
-                <label htmlFor="category" className={LABEL}>
-                  Category
-                </label>
-                <input
-                  id="category"
-                  name="category"
-                  list="known-categories"
-                  defaultValue={item.category ?? ""}
-                  className={FIELD}
-                />
-                <datalist id="known-categories">
-                  {categories.map((category) => (
-                    <option key={category} value={category} />
-                  ))}
-                </datalist>
-              </div>
               <div className="min-w-28 flex-1">
                 <label htmlFor="location" className={LABEL}>
                   Where

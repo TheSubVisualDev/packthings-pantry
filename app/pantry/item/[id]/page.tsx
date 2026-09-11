@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ItemDetail } from "@/components/item-detail";
+import { ItemTags } from "@/components/item-tags";
 import { SiteHeader } from "@/components/site-header";
 import { getLocations } from "@/lib/kitchens";
-import { getItem, getItems } from "@/lib/queries";
+import { getItem } from "@/lib/queries";
+import { getItemTags, getTags } from "@/lib/tags";
 import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -25,19 +27,18 @@ export default async function ItemPage({
   const itemId = Number((await params).id);
   if (!Number.isInteger(itemId)) notFound();
 
-  const [item, locations, all] = await Promise.all([
+  const [item, locations, tags, kitchenTags] = await Promise.all([
     getItem(context.kitchen.id, itemId),
     getLocations(context.kitchen.id),
-    getItems(context.kitchen.id),
+    getItemTags(itemId),
+    getTags(context.kitchen.id),
   ]);
 
   // getItem scopes by kitchen, so an id from somebody else's shelves is
   // indistinguishable from one that doesn't exist.
   if (!item) notFound();
 
-  const categories = [
-    ...new Set(all.map((entry) => entry.category).filter((c): c is string => !!c)),
-  ].sort();
+  const canEdit = context.kitchen.role !== "viewer";
 
   return (
     <>
@@ -51,13 +52,21 @@ export default async function ItemPage({
           ← Stock
         </Link>
 
-        <div className="mt-3">
-          <ItemDetail
-            item={item}
-            locations={locations}
-            categories={categories}
-            canEdit={context.kitchen.role !== "viewer"}
-          />
+        <div className="mt-3 space-y-3">
+          <ItemDetail item={item} locations={locations} canEdit={canEdit} />
+
+          {/* Its own card, above the edit form: a tag saves the moment you add
+              it, so putting it inside a form with a Save button would promise
+              something the form doesn't do. */}
+          <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+            <ItemTags
+              itemId={item.id}
+              tags={tags}
+              primaryTagId={item.primary_tag_id}
+              suggestions={kitchenTags.map((tag) => tag.name)}
+              canEdit={canEdit}
+            />
+          </section>
         </div>
       </main>
     </>

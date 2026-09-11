@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import { DeleteKitchen } from "@/components/delete-kitchen";
 import { EditLocations, Members, RenameKitchen } from "@/components/kitchen-admin";
 import { NewKitchen } from "@/components/new-kitchen";
+import { KitchenTags } from "@/components/kitchen-tags";
 import { SiteHeader } from "@/components/site-header";
 import { getContents, getKitchensFor, getLocations, getMembers } from "@/lib/kitchens";
+import { getTags } from "@/lib/tags";
 import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -77,10 +79,11 @@ export default async function KitchensPage({
     );
   }
 
-  const [members, locations, contents] = await Promise.all([
+  const [members, locations, contents, tags] = await Promise.all([
     getMembers(kitchen.id),
     getLocations(kitchen.id),
     getContents(kitchen.id),
+    getTags(kitchen.id),
   ]);
 
   const youAreOwner = kitchen.role === "owner";
@@ -110,6 +113,16 @@ export default async function KitchensPage({
                 youAreOwner={youAreOwner}
                 yourId={user.id}
               />
+            </div>
+          </section>
+
+          <section className={CARD}>
+            <h2 className={LABEL}>Tags</h2>
+            <p className="mt-1.5 text-sm font-semibold text-muted-foreground">
+              Every word this kitchen files stock under, and how much carries it.
+            </p>
+            <div className="mt-3">
+              <KitchenTags tags={tags} canEdit={kitchen.role !== "viewer"} />
             </div>
           </section>
 

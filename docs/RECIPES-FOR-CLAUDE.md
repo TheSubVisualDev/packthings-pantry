@@ -56,7 +56,7 @@ This is the only call you need before writing anything. It gives you:
 
 | | What it holds |
 |---|---|
-| items | Everything in stock: name, quantity, unit, dimension, category, location, expiry |
+| items | Everything in stock: name, quantity, unit, dimension, tags, location, expiry |
 | `legal_units` | **The only units you may use** |
 | locations | Where things live in this kitchen |
 

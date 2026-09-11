@@ -34,7 +34,7 @@ export interface AddItemPrefill {
   name?: string;
   quantity?: string;
   unit?: string;
-  category?: string;
+  tags?: string;
   location?: string;
   /** Set when the scanner sent us here; linked to the new item on submit. */
   barcode?: string;
@@ -42,11 +42,12 @@ export interface AddItemPrefill {
 
 export function AddItemForm({
   prefill,
-  categories,
+  tags,
   locations,
 }: {
   prefill: AddItemPrefill;
-  categories: string[];
+  /** Tags already used in this kitchen, offered so the vocabulary converges. */
+  tags: string[];
   /** This kitchen's own places, not a fixed list - see lib/kitchens.ts. */
   locations: string[];
 }) {
@@ -124,16 +125,17 @@ export function AddItemForm({
       </div>
 
       <div>
-        <label htmlFor="category" className={LABEL}>
-          Category <span className="normal-case text-muted-foreground">optional</span>
+        <label htmlFor="tags" className={LABEL}>
+          Tags <span className="normal-case text-muted-foreground">optional, comma separated</span>
         </label>
         {/* Offers what's already in use so the grouping doesn't fragment into
-            "Dairy", "dairy" and "Dairy products", without refusing a new one. */}
+            "Dairy", "dairy" and "Dairy products", without refusing a new one.
+            Several at once, because one jar is usually more than one thing. */}
         <SoftSelect
-          id="category"
-          name="category"
-          options={categories}
-          defaultValue={prefill.category ?? ""}
+          id="tags"
+          name="tags"
+          options={tags}
+          defaultValue={prefill.tags ?? ""}
           className={`${FIELD} pr-11`}
         />
       </div>

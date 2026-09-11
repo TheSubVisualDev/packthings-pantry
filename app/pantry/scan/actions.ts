@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { cleanProductName, rankItems, STRONG_MATCH } from "@/lib/match";
 import { isBarcode, lookupOpenFoodFacts, type PackSize } from "@/lib/off";
 import { getItems } from "@/lib/queries";
+import { getTags, getTagsByItem } from "@/lib/tags";
 import { requireKitchenRole } from "@/lib/session";
 import { toCanonical } from "@/lib/units";
 import type { Item } from "@/lib/types";
@@ -24,7 +25,8 @@ export interface ScanPrefill {
   name: string;
   quantity: string;
   unit: string;
-  category: string;
+  /** Comma separated, which is what the add form's tag field expects. */
+  tags: string;
   location: string;
 }
 
@@ -32,7 +34,8 @@ export interface ScanMatch {
   barcode: string;
   name: string | null;
   brand: string | null;
-  category: string | null;
+  /** What Open Food Facts calls it, general to specific. */
+  categories: string[];
   pack: PackSize | null;
   /** The item this barcode was previously linked to, if any. */
   linked: { id: number; name: string; quantity: number; unit: string } | null;
@@ -100,7 +103,7 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
         barcode: code,
         name: row.name,
         brand: row.brand,
-        category: null,
+        categories: [],
         pack:
           row.pack_size && row.pack_unit
             ? {
@@ -118,14 +121,16 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
         known: true,
         // A linked barcode has already had its question answered.
         suggestions: [],
-        prefill: { name: "", quantity: "", unit: "", category: "", location: "" },
+        prefill: { name: "", quantity: "", unit: "", tags: "", location: "" },
       },
     };
   }
 
-  const [product, items] = await Promise.all([
+  const [product, items, kitchenTags, tagsByItem] = await Promise.all([
     lookupOpenFoodFacts(code),
     getItems(access.kitchen.id),
+    getTags(access.kitchen.id),
+    getTagsByItem(access.kitchen.id),
   ]);
 
   const name = product?.name ?? row?.name ?? null;
@@ -135,13 +140,34 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
   const ranked = rankItems(name, brand, pack?.unit ?? null, items);
   const best = ranked[0]?.item;
 
+  /**
+   * Tags to arrive at the add form with.
+   *
+   * The nearest existing item first: this kitchen has already decided how it
+   * files things like this, and that decision beats a catalogue's. Then any
+   * Open Food Facts category, reusing the kitchen's own spelling when it has
+   * one - so a scan joins the "Sauces" that exists rather than starting a
+   * second "sauces" beside it.
+   */
+  const kitchenSpelling = new Map(
+    kitchenTags.map((tag) => [tag.name.toLowerCase(), tag.name]),
+  );
+  const suggestedTags = [
+    ...new Set([
+      ...(best ? (tagsByItem.get(best.id) ?? []).map((tag) => tag.name) : []),
+      ...(product?.categories ?? []).map(
+        (name) => kitchenSpelling.get(name.toLowerCase()) ?? name,
+      ),
+    ]),
+  ].slice(0, 4);
+
   return {
     ok: true,
     match: {
       barcode: code,
       name,
       brand,
-      category: product?.category ?? null,
+      categories: product?.categories ?? [],
       pack,
       linked: null,
       known: Boolean(product) || Boolean(row),
@@ -159,9 +185,9 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
         // No pack size on record, so fall back to how the nearest existing
         // item is measured rather than defaulting everything to grams.
         unit: pack?.unit ?? best?.canonical_unit ?? "",
-        // The pantry's own word for this beats the catalogue's, which runs to
+        // The pantry's own words for this beat the catalogue's, which runs to
         // things like "Confectionary based spreads".
-        category: best?.category ?? product?.category ?? "",
+        tags: suggestedTags.join(", "),
         // Nothing in a barcode says where it lives; the closest neighbour is
         // the only signal there is.
         location: best?.location ?? "",

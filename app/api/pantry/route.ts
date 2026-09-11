@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getLocations } from "@/lib/kitchens";
 import { getItems, getRecipes } from "@/lib/queries";
+import { getTagsByItem } from "@/lib/tags";
 import { apiContext } from "@/lib/session";
 import { recipeJsonSchema, RECIPE_SCHEMA_VERSION } from "@/lib/recipe-schema";
 import { UNITS_BY_DIMENSION } from "@/lib/units";
@@ -23,10 +24,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "No account for this request" }, { status: 401 });
   }
 
-  const [items, recipes, locations] = await Promise.all([
+  const [items, recipes, locations, tagsByItem] = await Promise.all([
     getItems(context.kitchen?.id ?? null),
     getRecipes(context.user.id),
     context.kitchen ? getLocations(context.kitchen.id) : Promise.resolve([]),
+    getTagsByItem(context.kitchen?.id ?? null),
   ]);
 
   return NextResponse.json(
@@ -56,7 +58,7 @@ export async function GET(request: Request) {
           // dimension so nothing downstream has to guess what a number means.
           unit: item.canonical_unit,
           dimension: item.dimension,
-          category: item.category,
+          tags: tagsByItem.get(item.id)?.map((tag) => tag.name) ?? [],
           location: item.location,
           expires: item.expiry_date,
         })),

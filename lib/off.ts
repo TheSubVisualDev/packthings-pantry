@@ -9,6 +9,16 @@ import { dimensionOf } from "./units";
  * user's IP.
  */
 
+/**
+ * Categories too broad to be worth filing under. Open Food Facts tags nearly
+ * everything edible as a Food, and a tag every jar carries sorts nothing.
+ */
+const TOO_BROAD = new Set([
+  "food", "foods", "plant based food", "plant based foods",
+  "plant based foods and beverages", "groceries", "beverages",
+  "food and beverages", "meals", "snacks",
+]);
+
 const ENDPOINT = "https://world.openfoodfacts.org/api/v2/product";
 const USER_AGENT = "PackthingsPantry/1.0 (personal pantry tracker)";
 
@@ -26,7 +36,14 @@ export interface PackSize {
 export interface OffProduct {
   name: string | null;
   brand: string | null;
+  /** The most specific trusted category, as before. */
   category: string | null;
+  /**
+   * Every trusted category, general to specific - "Condiments", "Sauces",
+   * "Soy sauces". One product is usually several things at once, which is the
+   * whole reason tags replaced a single category.
+   */
+  categories: string[];
   pack: PackSize | null;
 }
 
@@ -96,18 +113,27 @@ export async function lookupOpenFoodFacts(
   // carrying an "en:" prefix are routinely French ("en:Pates a tartiner"), so
   // only genuinely English-looking slugs - lowercase ASCII and hyphens - are
   // trusted, and a Nutella scan files under Spreads rather than Pates.
-  const tag =
-    product.categories_tags?.filter((candidate) => /^en:[a-z0-9-]+$/.test(candidate)).at(-1) ??
-    null;
+  // categories_tags run most general to most specific, so the last is the
+  // closest to how a person would file it. They're also unreliable: entries
+  // carrying an "en:" prefix are routinely French ("en:Pates a tartiner"), so
+  // only genuinely English-looking slugs - lowercase ASCII and hyphens - are
+  // trusted, and a Nutella scan files under Spreads rather than Pates.
+  const trusted = (product.categories_tags ?? [])
+    .filter((candidate) => /^en:[a-z0-9-]+$/.test(candidate))
+    .map((candidate) =>
+      candidate.slice(3).replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase()),
+    );
 
-  const category = tag
-    ? tag.slice(3).replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase())
-    : null;
+  // The broadest ones are noise on a shelf - almost everything is a "Food" or
+  // a "Plant based food" - so the general end is trimmed and the specific end
+  // kept. Three is about what fits on a chip row without becoming a paragraph.
+  const categories = trusted.filter((name) => !TOO_BROAD.has(name.toLowerCase())).slice(-3);
 
   return {
     name: product.product_name?.trim() || null,
     brand: product.brands?.split(",")[0]?.trim() || null,
-    category,
+    category: categories.at(-1) ?? null,
+    categories,
     pack: parsePackSize(product.quantity),
   };
 }

@@ -7,6 +7,7 @@ import { getItems, getRecipesWithMatches } from "@/lib/queries";
 import { formatQuantity } from "@/lib/units";
 import { UNPLACED } from "@/lib/locations";
 import { getLocations } from "@/lib/kitchens";
+import { getTags } from "@/lib/tags";
 import { getExpiring } from "@/lib/queries";
 import { getList } from "@/lib/shopping";
 import { currentKitchen } from "@/lib/session";
@@ -15,7 +16,7 @@ import type { Item } from "@/lib/types";
 // Live stock - never prerender against the database at build time.
 export const dynamic = "force-dynamic";
 
-type GroupBy = "category" | "location";
+type GroupBy = "tag" | "location";
 
 function quantityLabel(item: Item): string {
   const amount = formatQuantity(item.quantity);
@@ -25,20 +26,27 @@ function quantityLabel(item: Item): string {
 }
 
 /**
- * Groups stock for display. Category answers "what have I got"; location
- * answers "where does this go" when putting the shopping away, so locations
- * keep their kitchen order rather than sorting alphabetically.
+ * Groups stock for display. The tag it is filed under answers "what have I
+ * got"; location answers "where does this go" when putting the shopping away,
+ * so locations keep their kitchen order rather than sorting alphabetically.
+ *
+ * Only the primary tag groups. An item carrying three tags would otherwise
+ * appear in three places, and a list where the same jar is in three places is
+ * a list you have to read twice to count anything.
  */
 function group(
   items: Item[],
   by: GroupBy,
   placeOrder: readonly string[],
+  tagNames: Map<number, string>,
 ): [string, Item[]][] {
   const groups = new Map<string, Item[]>();
   for (const item of items) {
+    const filedUnder =
+      item.primary_tag_id === null ? null : tagNames.get(item.primary_tag_id) ?? null;
     const key =
-      (by === "location" ? item.location : item.category) ??
-      (by === "location" ? UNPLACED : "Uncategorised");
+      (by === "location" ? item.location : filedUnder) ??
+      (by === "location" ? UNPLACED : "Untagged");
     const bucket = groups.get(key);
     if (bucket) bucket.push(item);
     else groups.set(key, [item]);
@@ -58,7 +66,7 @@ function group(
 
 function GroupToggle({ active }: { active: GroupBy }) {
   const options: { key: GroupBy; label: string }[] = [
-    { key: "category", label: "Category" },
+    { key: "tag", label: "Tag" },
     { key: "location", label: "Location" },
   ];
   return (
@@ -87,7 +95,7 @@ export default async function PantryPage({
   searchParams: Promise<{ by?: string }>;
 }) {
   const { by } = await searchParams;
-  const groupBy: GroupBy = by === "location" ? "location" : "category";
+  const groupBy: GroupBy = by === "location" ? "location" : "tag";
 
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
@@ -95,24 +103,27 @@ export default async function PantryPage({
   if (!context.kitchen) redirect("/kitchens?need=stock");
   const { kitchen } = context;
 
-  const [items, recipes, places, expiring, list] = await Promise.all([
+  const [items, recipes, places, expiring, list, tags] = await Promise.all([
     getItems(kitchen.id),
     getRecipesWithMatches(kitchen.id, context.user.id),
     getLocations(kitchen.id),
     getExpiring(kitchen.id),
     getList(kitchen.id),
+    getTags(kitchen.id),
   ]);
+
+  const tagNames = new Map(tags.map((tag) => [tag.id, tag.name]));
 
   const toBuy = list.filter((line) => !line.bought_at).length;
 
-  const groups = group(items, groupBy, places);
+  const groups = group(items, groupBy, places, tagNames);
   const [topMatch, ...runnersUp] = recipes;
 
   return (
     <>
       <SiteHeader
         active="stock"
-        meta={`${items.length} items · ${groups.length} ${groupBy === "location" ? "places" : "categories"}`}
+        meta={`${items.length} items · ${groups.length} ${groupBy === "location" ? "places" : "tags"}`}
       />
 
       <div className="mx-auto grid w-full max-w-[1280px] sm:grid-cols-[360px_1fr]">

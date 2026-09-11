@@ -8,6 +8,7 @@ import { getLocations } from "@/lib/kitchens";
 import { requireKitchenRole } from "@/lib/session";
 import { isBarcode } from "@/lib/off";
 import { CANONICAL_FOR, dimensionOf, toCanonical } from "@/lib/units";
+import { cleanTagName, setPrimaryTag, tagItem, untagItem } from "@/lib/tags";
 
 export interface AddItemState {
   error?: string;
@@ -33,10 +34,15 @@ export async function addItem(
   const name = String(formData.get("name") ?? "").trim();
   const unit = String(formData.get("unit") ?? "").trim().toLowerCase();
   const quantityRaw = String(formData.get("quantity") ?? "").trim();
-  const category = String(formData.get("category") ?? "").trim();
   const location = String(formData.get("location") ?? "").trim();
   const expiry = String(formData.get("expiry_date") ?? "").trim();
   const barcode = String(formData.get("barcode") ?? "").trim();
+  // Comma separated, because the field is one text box rather than a widget -
+  // the add form is the one place speed matters more than ceremony.
+  const tags = String(formData.get("tags") ?? "")
+    .split(",")
+    .map(cleanTagName)
+    .filter(Boolean);
 
   if (!name) return { error: "Give it a name." };
   if (name.length > 80) return { error: "That name is too long." };
@@ -61,15 +67,14 @@ export async function addItem(
 
   try {
     const inserted = await getDb().execute({
-      sql: `INSERT INTO items (kitchen_id, name, quantity, canonical_unit, dimension, category, location, expiry_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      sql: `INSERT INTO items (kitchen_id, name, quantity, canonical_unit, dimension, location, expiry_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       args: [
         access.kitchen.id,
         name,
         converted.quantity,
         CANONICAL_FOR[dimension],
         dimension,
-        category || null,
         isKnownLocation(location, places) ? location : null,
         expiryDate,
       ],
@@ -82,6 +87,12 @@ export async function addItem(
       return { error: `"${name}" is already in stock. Use Quick adjust instead.` };
     }
     return { error: message || "Couldn't add that item." };
+  }
+
+  // After the insert, because a tag needs an item id to hang off. The first
+  // one becomes what the item is filed under, which tagItem handles.
+  for (const tag of tags) {
+    await tagItem(access.kitchen.id, itemId, tag);
   }
 
   // Arrived from a scan: remember which item that barcode turned out to mean,
@@ -190,7 +201,6 @@ export async function updateItem(
   const expiry = String(formData.get("expiry_date") ?? "").trim();
   const places = await getLocations(access.kitchen.id);
   const location = String(formData.get("location") ?? "").trim();
-  const category = String(formData.get("category") ?? "").trim();
 
   // The unit and dimension aren't editable: changing them would reinterpret a
   // number already on the shelf, and "800" meaning grams one minute and
@@ -198,13 +208,14 @@ export async function updateItem(
   // re-add is the honest way to change what something is measured in.
   try {
     await getDb().execute({
-      sql: `UPDATE items SET name = ?, quantity = ?, category = ?, location = ?,
+      // category is deliberately absent: tags replaced it, and leaving the old
+      // string where it is keeps the only way back if that turns out to be wrong.
+      sql: `UPDATE items SET name = ?, quantity = ?, location = ?,
               expiry_date = ?, shelf_life_days = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND kitchen_id = ?`,
       args: [
         name,
         quantity,
-        category || null,
         isKnownLocation(location, places) ? location : null,
         /^\d{4}-\d{2}-\d{2}$/.test(expiry) ? expiry : null,
         shelfLife,
@@ -262,4 +273,72 @@ export async function deleteItem(itemId: number): Promise<ItemResult> {
 
   revalidatePath("/pantry");
   redirect("/pantry");
+}
+
+export interface TagResult {
+  ok: boolean;
+  error?: string;
+  /** The tag as stored, so the caller can show the name it actually got. */
+  tag?: { id: number; name: string };
+}
+
+/**
+ * Puts a tag on an item, creating the tag in this kitchen if it is new.
+ *
+ * Free text rather than a fixed list, for the same reason categories were: you
+ * cannot file the first jar of something new if the vocabulary needs a code
+ * change first.
+ */
+export async function addTag(itemId: number, name: string): Promise<TagResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return { ok: false, error: "Unknown item" };
+  }
+
+  const clean = cleanTagName(name);
+  if (!clean) return { ok: false, error: "Give the tag a name." };
+
+  const tag = await tagItem(access.kitchen.id, itemId, clean);
+  if (!tag) return { ok: false, error: "Couldn't save that tag." };
+
+  revalidatePath(`/pantry/item/${itemId}`);
+  revalidatePath("/pantry");
+  revalidatePath("/kitchens");
+  return { ok: true, tag: { id: tag.id, name: tag.name } };
+}
+
+/** Takes a tag off one item. The tag itself stays in the kitchen. */
+export async function removeTag(itemId: number, tagId: number): Promise<TagResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  if (!Number.isInteger(itemId) || !Number.isInteger(tagId)) {
+    return { ok: false, error: "Unknown tag" };
+  }
+
+  await untagItem(access.kitchen.id, itemId, tagId);
+
+  revalidatePath(`/pantry/item/${itemId}`);
+  revalidatePath("/pantry");
+  revalidatePath("/kitchens");
+  return { ok: true };
+}
+
+/** Files an item under one of the tags it already carries. */
+export async function fileUnder(itemId: number, tagId: number): Promise<TagResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  if (!Number.isInteger(itemId) || !Number.isInteger(tagId)) {
+    return { ok: false, error: "Unknown tag" };
+  }
+
+  const changed = await setPrimaryTag(access.kitchen.id, itemId, tagId);
+  if (!changed) return { ok: false, error: "That tag isn't on this item." };
+
+  revalidatePath(`/pantry/item/${itemId}`);
+  revalidatePath("/pantry");
+  return { ok: true };
 }

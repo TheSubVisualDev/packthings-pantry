@@ -119,7 +119,7 @@ export default async function ClaudePage() {
           <ul className="mt-3 space-y-2 text-[15px] font-medium text-muted-foreground">
             <li>
               <strong className="font-bold text-foreground">See</strong> your
-              stock — quantities, categories, where things live, what&apos;s
+              stock — quantities, tags, where things live, what&apos;s
               going off.
             </li>
             <li>

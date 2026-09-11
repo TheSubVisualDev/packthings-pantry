@@ -314,7 +314,7 @@ export function ScanPanel({ items }: { items: Item[] }) {
                 name: match.prefill.name,
                 quantity: match.prefill.quantity,
                 unit: match.prefill.unit,
-                category: match.prefill.category,
+                tags: match.prefill.tags,
                 location: match.prefill.location,
               },
             }}

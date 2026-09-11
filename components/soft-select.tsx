@@ -5,9 +5,9 @@ import { useEffect, useId, useRef, useState } from "react";
 /**
  * A text field that also drops down what's already in use.
  *
- * Not a <select>: categories are free text, and a strict list would mean you
- * can't file the first jar of something new without a code change. Not a bare
- * datalist either - browsers only surface those while you type, so the
+ * Not a <select>: tags and places are free text, and a strict list would mean
+ * you can't file the first jar of something new without a code change. Not a
+ * bare datalist either - browsers only surface those while you type, so the
  * existing options stay invisible until you guess one. This shows them.
  */
 export function SoftSelect({
@@ -140,7 +140,7 @@ export function SoftSelect({
         >
           {matches.length === 0 ? (
             <li className="px-4 py-2.5 text-sm font-semibold text-muted-foreground">
-              New category &mdash; it&apos;ll be created.
+              Not used here yet &mdash; it&apos;ll be created.
             </li>
           ) : (
             matches.map((option, index) => (

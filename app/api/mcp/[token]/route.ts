@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getLocations } from "@/lib/kitchens";
 import { browseRecipes, getItems, getMyRecipes, getRecipe } from "@/lib/queries";
+import { getTagsByItem } from "@/lib/tags";
 import { parseRecipeDocument, recipeJsonSchema, legalUnits } from "@/lib/recipe-schema";
 import { saveRecipe } from "@/lib/recipe-store";
 import { currentKitchenFor } from "@/lib/kitchens";
@@ -63,7 +64,7 @@ const TOOLS = [
   {
     name: "get_pantry",
     description:
-      "What's in the kitchen right now: every item with its quantity, unit, category, location and use-by date, plus the units this pantry accepts. Read this before suggesting anything to cook.",
+      "What's in the kitchen right now: every item with its quantity, unit, tags, location and use-by date, plus the units this pantry accepts. Read this before suggesting anything to cook.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -110,9 +111,10 @@ async function run(
 ) {
   switch (name) {
     case "get_pantry": {
-      const [items, locations] = await Promise.all([
+      const [items, locations, tagsByItem] = await Promise.all([
         getItems(kitchen?.id ?? null),
         kitchen ? getLocations(kitchen.id) : Promise.resolve([]),
+        getTagsByItem(kitchen?.id ?? null),
       ]);
 
       return text({
@@ -125,7 +127,7 @@ async function run(
           quantity: item.quantity,
           unit: item.canonical_unit,
           dimension: item.dimension,
-          category: item.category,
+          tags: tagsByItem.get(item.id)?.map((tag) => tag.name) ?? [],
           location: item.location,
           expires: item.expiry_date,
           opened: item.opened_at ? true : undefined,
