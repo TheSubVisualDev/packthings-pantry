@@ -65,6 +65,7 @@ export function AddItemForm({
   const [unit, setUnit] = useState(prefill.unit ?? "g");
   // A scan arrives knowing the pack; typing it by hand is opt-in.
   const [packed, setPacked] = useState(Boolean(prefill.pack_size));
+  const [unspecified, setUnspecified] = useState(false);
 
   // An unrecognised prefill unit falls back to mass rather than blanking the
   // label; the action rejects it on submit either way.
@@ -133,6 +134,17 @@ export function AddItemForm({
         </div>
       </div>
 
+      <label className="flex items-center gap-2.5 text-sm font-bold">
+        <input
+          type="checkbox"
+          name="unspecified"
+          checked={unspecified}
+          onChange={(event) => setUnspecified(event.target.checked)}
+          className="h-4 w-4 accent-[var(--color-primary)]"
+        />
+        Don&apos;t track how much of this there is
+      </label>
+
       <div>
         <label className="flex items-center gap-2.5 text-sm font-bold">
           <input
@@ -180,6 +192,25 @@ export function AddItemForm({
             </div>
           </div>
         )}
+      </div>
+
+      <div>
+        <label htmlFor="restock_target" className={LABEL}>
+          Keep at least{" "}
+          <span className="normal-case text-muted-foreground">
+            optional, in {unit}
+          </span>
+        </label>
+        <input
+          id="restock_target"
+          name="restock_target"
+          type="number"
+          min="0"
+          step="any"
+          inputMode="decimal"
+          placeholder="any"
+          className={FIELD}
+        />
       </div>
 
       <div>
@@ -248,6 +279,33 @@ export function AddItemForm({
           </label>
           <input id="expiry_date" name="expiry_date" type="date" className={FIELD} />
         </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-36 flex-1">
+          <label htmlFor="shelf_life_days" className={LABEL}>
+            Keeps once open{" "}
+            <span className="normal-case text-muted-foreground">days</span>
+          </label>
+          <input
+            id="shelf_life_days"
+            name="shelf_life_days"
+            type="number"
+            min="1"
+            step="1"
+            inputMode="numeric"
+            placeholder="—"
+            className={FIELD}
+          />
+        </div>
+        <label className="flex min-w-36 flex-1 items-center gap-2.5 py-2.5 text-sm font-bold">
+          <input
+            type="checkbox"
+            name="opened"
+            className="h-4 w-4 accent-[var(--color-primary)]"
+          />
+          It&apos;s already open
+        </label>
+      </div>
       </div>
 
       {state.error && (

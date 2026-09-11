@@ -58,6 +58,15 @@ export async function addItem(
   const sealedRaw = String(formData.get("sealed_count") ?? "").trim();
   const sealed = sealedRaw ? Number(sealedRaw) : 0;
 
+  // Everything the item page can set, so adding something and then editing it
+  // are the same conversation rather than two different ones.
+  const shelfRaw = String(formData.get("shelf_life_days") ?? "").trim();
+  const shelfLife = shelfRaw ? Number(shelfRaw) : null;
+  const targetRaw = String(formData.get("restock_target") ?? "").trim();
+  const restockTarget = targetRaw ? Number(targetRaw) : null;
+  const unspecified = formData.get("unspecified") === "on" ? 1 : 0;
+  const alreadyOpen = formData.get("opened") === "on";
+
   if (!name) return { error: "Give it a name." };
   if (name.length > 80) return { error: "That name is too long." };
 
@@ -66,6 +75,13 @@ export async function addItem(
   }
   if (!Number.isInteger(sealed) || sealed < 0) {
     return { error: "Sealed packs has to be a whole number, zero or more." };
+  }
+
+  if (shelfLife !== null && (!Number.isInteger(shelfLife) || shelfLife <= 0)) {
+    return { error: "Shelf life should be a whole number of days." };
+  }
+  if (restockTarget !== null && (!Number.isFinite(restockTarget) || restockTarget < 0)) {
+    return { error: "Keep at least has to be a number, zero or more." };
   }
 
   const quantity = Number(quantityRaw);
@@ -87,6 +103,12 @@ export async function addItem(
     return { error: "That pack size couldn't be converted." };
   }
 
+  const convertedTarget =
+    restockTarget === null ? null : toCanonical(restockTarget, unit, dimension);
+  if (convertedTarget && !convertedTarget.ok) {
+    return { error: "That keep-at-least amount couldn't be converted." };
+  }
+
   // An empty date input posts "", which would otherwise be stored as a date.
   const expiryDate = /^\d{4}-\d{2}-\d{2}$/.test(expiry) ? expiry : null;
 
@@ -96,8 +118,12 @@ export async function addItem(
 
   try {
     const inserted = await getDb().execute({
-      sql: `INSERT INTO items (kitchen_id, name, quantity, canonical_unit, dimension, location, expiry_date, pack_size, pack_unit, sealed_count)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      sql: `INSERT INTO items (kitchen_id, name, quantity, canonical_unit, dimension, location, expiry_date, pack_size, pack_unit, sealed_count,
+              shelf_life_days, restock_target, unspecified, opened_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    -- Stamped now when the thing arrives already open, which is
+                    -- what "it's already open" on the form means.
+                    CASE WHEN ? THEN CURRENT_TIMESTAMP END) RETURNING id`,
       args: [
         access.kitchen.id,
         name,
@@ -111,6 +137,10 @@ export async function addItem(
         convertedPack && convertedPack.ok ? convertedPack.quantity : null,
         packSize === null ? null : CANONICAL_FOR[dimension],
         packSize === null ? 0 : sealed,
+        shelfLife,
+        convertedTarget && convertedTarget.ok ? convertedTarget.quantity : null,
+        unspecified,
+        alreadyOpen ? 1 : 0,
       ],
     });
     itemId = (inserted.rows[0] as unknown as { id: number }).id;
