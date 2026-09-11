@@ -371,6 +371,32 @@ closed form `ADJUST_SQL` uses. `lib/containers.ts` grew a narrow `StockLevel`
 type so a trimmed stock row can be asked "how much is there" without inventing
 twenty unrelated fields.
 
+## Parked
+
+### Nutrition facts from the scanner itself
+
+**Pinned 11 Sep 2026 at Luna's request — deliberately not built.** Reading the
+nutrition panel off a photograph of the back of a packet, the way the receipt
+scanner reads a till roll.
+
+Why it is parked rather than dismissed: most of the machinery already exists.
+`lib/scan-image.ts` prepares a photo in the browser, tesseract reads it, and
+`lib/receipt.ts` shows what parsing a small table of numbers looks like. A
+nutrition panel is a more regular thing than a receipt — the labels are fixed by
+law, in a known order, with known units.
+
+What makes it worth waiting on: the pantry now gets figures from two cheaper
+sources first. A barcode covers anything with one, and the generics table covers
+most of what has no barcode. Between them the real kitchen has 28 of 29 items
+with figures, so the panel scanner would be solving what is left of a problem
+that is mostly solved — and it is the hardest of the three to make reliable,
+because a curved plastic packet in kitchen light is a worse photograph than a
+receipt flat on a table.
+
+If it is picked up: it should write `nutrition_source = 'scan'`, since reading
+the packet is exactly what that means, and it should go through the same
+confirm-before-applying screen the receipt scanner uses.
+
 **Rough total: 9.5 to 10.5 days.** Wave A is the one that changes how the app feels, B is
 the one that changes whether the data stays true, and C is the one that makes it
 useful without being asked.

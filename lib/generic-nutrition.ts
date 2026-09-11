@@ -21,6 +21,15 @@ import type { Macros } from "./nutrition";
 export interface Generic extends Macros {
   /** What it is, for saying which guess was used. */
   label: string;
+  /**
+   * What one of them typically weighs, in grams, when the thing is counted.
+   *
+   * The bridge between "2 eggs" and figures stated per 100g. Approximate by
+   * nature - a large onion is twice a small one - but an approximate weight
+   * beats leaving every counted ingredient out of a recipe's total, which is
+   * what happened before this existed.
+   */
+  unitGrams?: number;
   /** Words that mean this thing. Matched whole, against the item's words. */
   words: string[];
 }
@@ -35,6 +44,7 @@ function food(
   fat: number,
   fibre: number | null = null,
   salt: number | null = null,
+  unitGrams?: number,
 ): Generic {
   return {
     label,
@@ -45,32 +55,33 @@ function food(
     fat_100: fat,
     fibre_100: fibre,
     salt_100: salt,
+    unitGrams,
   };
 }
 
 export const GENERICS: Generic[] = [
   // Vegetables, raw.
-  food("carrots", ["carrot", "carrots"], 41, 0.9, 9.6, 0.2, 2.8),
-  food("onion", ["onion", "onions"], 40, 1.1, 9.3, 0.1, 1.7),
-  food("spring onion", ["spring onion", "scallion", "scallions"], 32, 1.8, 7.3, 0.2, 2.6),
-  food("garlic", ["garlic"], 149, 6.4, 33, 0.5, 2.1),
-  food("potato", ["potato", "potatoes"], 77, 2, 17.5, 0.1, 2.2),
-  food("sweet potato", ["sweet potato", "sweet potatoes"], 86, 1.6, 20.1, 0.1, 3),
-  food("tomato", ["tomato", "tomatoes"], 18, 0.9, 3.9, 0.2, 1.2),
-  food("pepper", ["pepper", "peppers", "capsicum"], 31, 1, 6, 0.3, 2.1),
-  food("chilli", ["chilli", "chillies", "chili", "chilies"], 40, 1.9, 8.8, 0.4, 1.5),
-  food("mushroom", ["mushroom", "mushrooms"], 22, 3.1, 3.3, 0.3, 1),
-  food("courgette", ["courgette", "courgettes", "zucchini"], 17, 1.2, 3.1, 0.3, 1),
-  food("aubergine", ["aubergine", "aubergines", "eggplant"], 25, 1, 5.9, 0.2, 3),
-  food("broccoli", ["broccoli"], 34, 2.8, 6.6, 0.4, 2.6),
-  food("cauliflower", ["cauliflower"], 25, 1.9, 5, 0.3, 2),
+  food("carrots", ["carrot", "carrots"], 41, 0.9, 9.6, 0.2, 2.8, null, 60),
+  food("onion", ["onion", "onions"], 40, 1.1, 9.3, 0.1, 1.7, null, 150),
+  food("spring onion", ["spring onion", "scallion", "scallions"], 32, 1.8, 7.3, 0.2, 2.6, null, 15),
+  food("garlic", ["garlic"], 149, 6.4, 33, 0.5, 2.1, null, 3),
+  food("potato", ["potato", "potatoes"], 77, 2, 17.5, 0.1, 2.2, null, 150),
+  food("sweet potato", ["sweet potato", "sweet potatoes"], 86, 1.6, 20.1, 0.1, 3, null, 130),
+  food("tomato", ["tomato", "tomatoes"], 18, 0.9, 3.9, 0.2, 1.2, null, 120),
+  food("pepper", ["pepper", "peppers", "capsicum"], 31, 1, 6, 0.3, 2.1, null, 160),
+  food("chilli", ["chilli", "chillies", "chili", "chilies"], 40, 1.9, 8.8, 0.4, 1.5, null, 15),
+  food("mushroom", ["mushroom", "mushrooms"], 22, 3.1, 3.3, 0.3, 1, null, 20),
+  food("courgette", ["courgette", "courgettes", "zucchini"], 17, 1.2, 3.1, 0.3, 1, null, 200),
+  food("aubergine", ["aubergine", "aubergines", "eggplant"], 25, 1, 5.9, 0.2, 3, null, 250),
+  food("broccoli", ["broccoli"], 34, 2.8, 6.6, 0.4, 2.6, null, 300),
+  food("cauliflower", ["cauliflower"], 25, 1.9, 5, 0.3, 2, null, 600),
   food("cabbage", ["cabbage"], 25, 1.3, 5.8, 0.1, 2.5),
   food("kale", ["kale"], 49, 4.3, 8.8, 0.9, 3.6),
   food("spinach", ["spinach"], 23, 2.9, 3.6, 0.4, 2.2),
   food("lettuce", ["lettuce"], 15, 1.4, 2.9, 0.2, 1.3),
-  food("cucumber", ["cucumber"], 15, 0.7, 3.6, 0.1, 0.5),
-  food("celery", ["celery"], 16, 0.7, 3, 0.2, 1.6),
-  food("leek", ["leek", "leeks"], 61, 1.5, 14.2, 0.3, 1.8),
+  food("cucumber", ["cucumber"], 15, 0.7, 3.6, 0.1, 0.5, null, 300),
+  food("celery", ["celery"], 16, 0.7, 3, 0.2, 1.6, null, 40),
+  food("leek", ["leek", "leeks"], 61, 1.5, 14.2, 0.3, 1.8, null, 90),
   food("peas", ["pea", "peas"], 81, 5.4, 14.5, 0.4, 5.7),
   food("green beans", ["green bean", "green beans"], 31, 1.8, 7, 0.2, 2.7),
   food("sweetcorn", ["sweetcorn", "corn"], 86, 3.2, 19, 1.2, 2.7),
@@ -78,11 +89,11 @@ export const GENERICS: Generic[] = [
   food("ginger", ["ginger"], 80, 1.8, 17.8, 0.8, 2),
 
   // Fruit.
-  food("apple", ["apple", "apples"], 52, 0.3, 13.8, 0.2, 2.4),
-  food("banana", ["banana", "bananas"], 89, 1.1, 22.8, 0.3, 2.6),
-  food("lemon", ["lemon", "lemons"], 29, 1.1, 9.3, 0.3, 2.8),
-  food("lime", ["lime", "limes"], 30, 0.7, 10.5, 0.2, 2.8),
-  food("orange", ["orange", "oranges"], 47, 0.9, 11.8, 0.1, 2.4),
+  food("apple", ["apple", "apples"], 52, 0.3, 13.8, 0.2, 2.4, null, 150),
+  food("banana", ["banana", "bananas"], 89, 1.1, 22.8, 0.3, 2.6, null, 120),
+  food("lemon", ["lemon", "lemons"], 29, 1.1, 9.3, 0.3, 2.8, null, 85),
+  food("lime", ["lime", "limes"], 30, 0.7, 10.5, 0.2, 2.8, null, 60),
+  food("orange", ["orange", "oranges"], 47, 0.9, 11.8, 0.1, 2.4, null, 130),
 
   // Dairy and eggs.
   food("whole milk", ["whole milk", "full fat milk"], 61, 3.2, 4.8, 3.3),
@@ -98,7 +109,7 @@ export const GENERICS: Generic[] = [
   food("cheddar", ["cheddar", "cheese"], 403, 25, 1.3, 33, null, 1.8),
   food("double cream", ["double cream", "heavy cream"], 449, 1.7, 2.7, 48),
   food("yoghurt", ["yoghurt", "yogurt"], 61, 3.5, 4.7, 3.3),
-  food("eggs", ["egg", "eggs"], 143, 12.6, 0.7, 9.5),
+  food("eggs", ["egg", "eggs"], 143, 12.6, 0.7, 9.5, null, null, 50),
 
   // Grains and starches.
   food("plain flour", ["flour"], 364, 10, 76, 1, 2.7),
@@ -127,7 +138,7 @@ export const GENERICS: Generic[] = [
   // Dried herbs and spices. Startling numbers by weight - mostly fibre and
   // concentrated oils - but you use a gram, so they barely move a portion.
   // Worth having so a recipe stops reporting them as unknown.
-  food("cinnamon", ["cinnamon"], 247, 4, 81, 1.2, 53),
+  food("cinnamon", ["cinnamon"], 247, 4, 81, 1.2, 53, null, 2),
   food("cumin", ["cumin"], 375, 18, 44, 22, 11),
   food("oregano", ["oregano"], 265, 9, 69, 4.3, 42),
   food("paprika", ["paprika"], 282, 14, 54, 13, 35),
@@ -138,7 +149,7 @@ export const GENERICS: Generic[] = [
   food("ground ginger", ["ground ginger"], 335, 9, 72, 4.2, 14),
   food("coriander", ["coriander", "cilantro"], 298, 12, 55, 18, 42),
   food("mixed herbs", ["herbs", "thyme", "rosemary", "basil", "parsley"], 265, 9, 65, 4.3, 40),
-  food("bay leaves", ["bay leaf", "bay leaves"], 313, 8, 75, 8, 26),
+  food("bay leaves", ["bay leaf", "bay leaves"], 313, 8, 75, 8, 26, null, 0.2),
 
   // Pastes and condiments.
   food("gochujang", ["gochujang"], 120, 3, 25, 1, null, 5),
@@ -146,7 +157,7 @@ export const GENERICS: Generic[] = [
   food("tomato puree", ["tomato puree", "tomato paste"], 82, 4.3, 18.9, 0.5, 4),
   food("mustard", ["mustard"], 66, 4, 5, 3.3, null, 4),
   food("ketchup", ["ketchup"], 102, 1.3, 25, 0.1, null, 2.5),
-  food("stock cube", ["stock cube", "stock cubes", "bouillon"], 230, 11, 22, 11),
+  food("stock cube", ["stock cube", "stock cubes", "bouillon"], 230, 11, 22, 11, null, null, 10),
 
   // Store cupboard.
   food("olive oil", ["olive oil"], 884, 0, 0, 100),
@@ -162,16 +173,22 @@ export const GENERICS: Generic[] = [
 ];
 
 /**
- * Finds the generic that best describes an item's name.
+ * Finds the generic that best describes a name.
  *
- * The longest matching phrase wins, which is the whole trick. "Almond milk"
- * contains "milk", and cow's milk figures on almond milk would be four times
- * the calories - worse than not guessing. Matching "almond milk" as two words
- * beats matching "milk" as one, so the specific entry always takes precedence
- * over the general one without needing an ordering rule anyone has to maintain.
+ * Two rules, in order.
  *
- * Words are matched whole. Without that, "corn" finds itself inside "cornflour"
- * and "pea" inside "peanut butter".
+ * **Longest phrase wins.** "Almond milk" contains "milk", and cow's milk
+ * figures on almond milk would be four times the calories - worse than not
+ * guessing. Two words beat one, so the specific entry always takes precedence
+ * without an ordering rule anyone has to maintain.
+ *
+ * **Then the later word wins.** English compounds put the head noun last: rice
+ * vinegar is a vinegar, not a rice. Both are single words, so length cannot
+ * separate them, and taking the first match scored 45ml of rice vinegar as
+ * though it were dry rice - 164 calories instead of 9.
+ *
+ * Words are matched whole, or "corn" finds itself inside "cornflour" and "pea"
+ * inside "peanut butter".
  */
 export function estimateFor(name: string): Generic | null {
   const words = name
@@ -185,14 +202,18 @@ export function estimateFor(name: string): Generic | null {
 
   let best: Generic | null = null;
   let bestLength = 0;
+  let bestAt = -1;
 
   for (const generic of GENERICS) {
     for (const phrase of generic.words) {
-      if (!haystack.includes(` ${phrase} `)) continue;
+      const found = haystack.indexOf(` ${phrase} `);
+      if (found === -1) continue;
+
       const length = phrase.split(" ").length;
-      if (length > bestLength) {
+      if (length > bestLength || (length === bestLength && found > bestAt)) {
         best = generic;
         bestLength = length;
+        bestAt = found;
       }
     }
   }
