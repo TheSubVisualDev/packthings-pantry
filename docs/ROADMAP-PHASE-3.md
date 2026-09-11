@@ -80,20 +80,42 @@ there; it will not be cheaper later.
 
 Nothing new is worth building on top of an app that feels slow to touch.
 
-### S0 · Kill the lag — about half a day
+### S0 · Kill the lag — DONE 11 Sep 2026 (`7688a04`, and the protocol fix after it)
 
-No region is pinned anywhere in the repo, so the app is very likely running in a US
-Vercel region while `sqld` sits on Hetzner in Europe: every query a transatlantic
-round trip of roughly 100 ms, and a page issuing five in sequence feels like half a
-second of nothing.
+**The measurement changed the plan, which is why it came first.** The region was one
+cause and the smaller one. `npm run probe` against the real Nuremberg box, from a
+machine 32 ms away:
 
-1. Time one query from a deployed route to confirm the diagnosis before changing
-   anything — two minutes, and it decides whether the rest of this is worth doing.
-2. Pin functions to `fra1` (nearest to Hetzner's German sites; confirm which site the
-   box is actually in).
-3. Make the quantity steppers and mark-opened optimistic, so they do not wait on a
-   round trip at all.
-4. Batch the sequential queries on the pantry and recipe pages into `Promise.all`.
+| | over `https:` | over `wss:` |
+| --- | --- | --- |
+| one query | 67 ms | **38 ms** |
+| five, sequential | 370 ms | 195 ms |
+| five, `Promise.all` | 206 ms | **43 ms** |
+
+One query over `https:` cost two round trips, and five cost ten: `@libsql/client`
+opens a fresh TCP and TLS connection per `execute()` with no pooling whatsoever. sqld
+serves Hrana over a WebSocket on the same port, which holds one connection open and
+pipelines over it — so a single query drops to exactly one round trip and parallel
+queries collapse into one.
+
+**The consequence worth keeping:** every `Promise.all` call site in the app got about
+five times faster without being touched, so the batching refactor this milestone
+originally planned was not needed at all.
+
+Shipped:
+
+1. `lib/db.ts` upgrades an `https:` URL to `wss:`, with `LIBSQL_PROTOCOL=http` as a
+   one-variable rollback that needs no deploy.
+2. `vercel.json` pins functions to `fra1`. The box is in Nuremberg — confirmed, not
+   assumed: `db.packthings.fyi` resolves to a `your-server.de` host in Bavaria.
+3. The steppers and the opened toggle are optimistic. The toggle also used to flip
+   its label whether or not the write landed, so it could say something was open
+   when it wasn't.
+4. `currentUser` and `currentKitchen` are wrapped in React's `cache()` — the header
+   and the page body each asked separately, two queries apiece, on every render.
+5. `/api/health` reports region, protocol and three timings, so the next person to
+   say "it feels slow" has a number instead of a hypothesis. `npm run probe` is the
+   same measurement from a laptop.
 
 ### S1 · Tags replace categories — about 1.5 days
 
