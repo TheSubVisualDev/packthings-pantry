@@ -67,12 +67,27 @@ Three things this gets for free:
 deducted — which is the same case as an unmatched line, already handled by the cook
 flow.
 
-## Latent bug, fixed on the way through
+## The latent bug, fixed — DONE 11 Sep 2026
 
-`items.name` is `UNIQUE` **globally**, not per kitchen (`db/schema.sql`). The second
-kitchen to add "Milk" gets a constraint error. SQLite cannot drop a column constraint
-with `ALTER TABLE`, so this needs a table rebuild — which S1 is doing anyway. Do it
-there; it will not be cheaper later.
+`items.name` was `UNIQUE` **globally** rather than per kitchen, so the second
+kitchen to buy milk could not write it down. SQLite cannot drop a column
+constraint, so the table had to be rebuilt, and **sqld allows no pragma control at
+all**: `foreign_keys=OFF` is accepted and ignored, `defer_foreign_keys` likewise,
+and `legacy_alter_table` will not even parse. Every published recipe for this
+starts by turning foreign keys off, and none of them was available.
+
+`scripts/rebuild-items.mjs` does it instead by writing down what the drop would
+destroy and putting it back, all inside one transaction. Referencing tables are
+**discovered** through `PRAGMA foreign_key_list` rather than listed: the first
+version had a hand-written list of the three tables that null their link, missed
+`item_tags` because it cascades instead, and silently deleted all nineteen tag
+links on the clone it was rehearsed against. The rehearsal is why that is a
+sentence here rather than an incident.
+
+Verified on a clone before it touched anything: every row and link preserved,
+`item_tags` included, no item left filed under a tag it no longer carries, and
+the constraint proven both ways — two kitchens can now hold the same name, one
+kitchen still cannot hold it twice.
 
 ---
 

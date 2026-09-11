@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS items (
   id             INTEGER PRIMARY KEY,
   kitchen_id     INTEGER REFERENCES kitchens(id) ON DELETE CASCADE,
-  name           TEXT NOT NULL UNIQUE,
+  name           TEXT NOT NULL,
   quantity       REAL NOT NULL,
   canonical_unit TEXT NOT NULL,   -- 'g' | 'ml' | 'count'
   dimension      TEXT NOT NULL,   -- 'mass' | 'volume' | 'count'
@@ -17,7 +17,29 @@ CREATE TABLE IF NOT EXISTS items (
   -- of the two deadlines is the one that matters.
   opened_at      TIMESTAMP,
   shelf_life_days INTEGER,
-  updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  -- Which tag it is filed under, of however many it carries.
+  primary_tag_id INTEGER REFERENCES tags(id) ON DELETE SET NULL,
+  shop           TEXT,            -- where you buy it; groups the shopping list
+  -- Containers. An item is sealed_count full packs plus whatever is left in the
+  -- open one, which is what `quantity` above means. A null pack_size is a loose
+  -- amount, and sealed_count is then meaningless.
+  pack_size      REAL,
+  pack_unit      TEXT,
+  sealed_count   INTEGER NOT NULL DEFAULT 0,
+  restock_to     INTEGER,         -- how many packs to keep on hand
+  -- Per 100g or 100ml, as Open Food Facts reports it. Null until scanned.
+  kcal_100       REAL,
+  protein_100    REAL,
+  carbs_100      REAL,
+  fat_100        REAL,
+  fibre_100      REAL,
+  salt_100       REAL,
+  updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  -- Per kitchen, not global. A name unique across the whole database meant the
+  -- second household to buy milk could not write it down. Changing this on an
+  -- existing database needs scripts/rebuild-items.mjs: SQLite cannot drop a
+  -- constraint, and sqld will not let the foreign keys be switched off.
+  UNIQUE (kitchen_id, name)
 );
 
 -- A recipe is a document, not a list: a blurb, timings, where it came from,
