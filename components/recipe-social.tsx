@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Heart } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Avatar } from "@/components/avatar";
 import { comment, removeComment, setLiked } from "@/app/social/actions";
@@ -30,12 +31,26 @@ export function RecipeSocial({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  function postComment() {
+    if (draft.trim().length === 0 || pending) return;
+    startTransition(async () => {
+      const result = await comment(recipeId, draft);
+      if (result.ok) {
+        setDraft("");
+        setError(null);
+      } else {
+        setError(result.error ?? "Couldn't post that.");
+      }
+    });
+  }
+
   return (
     <section className={`${CARD} mt-5`}>
       <div className="flex items-center gap-3">
         <button
           type="button"
           aria-pressed={liked}
+          aria-label={liked ? "Unlike this recipe" : "Like this recipe"}
           disabled={pending}
           onClick={() =>
             startTransition(async () => {
@@ -44,14 +59,25 @@ export function RecipeSocial({
               if (result.ok) {
                 setLike(next);
                 setCount((c) => c + (next ? 1 : -1));
+                setError(null);
+              } else {
+                setError(result.error ?? "Couldn't save that.");
               }
             })
           }
-          className={`rounded-full px-4 py-2 text-sm font-bold ${
+          className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold ${
             liked ? "bg-primary text-primary-foreground" : "bg-chip text-muted-foreground"
           }`}
         >
-          ♥ {count > 0 ? count : ""} {liked ? "Liked" : "Like"}
+          <Heart
+            className="h-4 w-4"
+            // Filled only once you've liked it, so the state reads at a glance
+            // rather than from the word beside it.
+            fill={liked ? "currentColor" : "none"}
+            strokeWidth={2.5}
+          />
+          {liked ? "Liked" : "Like"}
+          {count > 0 && <span className="tabular-nums">{count}</span>}
         </button>
         <span className="text-sm font-semibold text-muted-foreground">
           {comments.length} {comments.length === 1 ? "comment" : "comments"}
@@ -87,6 +113,7 @@ export function RecipeSocial({
                 {(entry.user_id === viewerId || isAuthor) && (
                   <button
                     type="button"
+                    aria-label={`Delete ${entry.display_name}'s comment`}
                     onClick={() =>
                       startTransition(async () => {
                         await removeComment(entry.id);
@@ -107,7 +134,20 @@ export function RecipeSocial({
         <input
           value={draft}
           maxLength={1000}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            // A failure from the last attempt shouldn't still be shouting while
+            // you type the next one.
+            if (error) setError(null);
+          }}
+          // A one-line comment box that needs a mouse to send is a comment box
+          // people stop using.
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              postComment();
+            }
+          }}
           placeholder="Say something"
           aria-label="Add a comment"
           className="min-w-44 flex-1 rounded-[14px] border border-border bg-background px-4 py-3 font-semibold outline-none focus:border-primary"
@@ -115,17 +155,7 @@ export function RecipeSocial({
         <button
           type="button"
           disabled={pending || draft.trim().length === 0}
-          onClick={() =>
-            startTransition(async () => {
-              const result = await comment(recipeId, draft);
-              if (result.ok) {
-                setDraft("");
-                setError(null);
-              } else {
-                setError(result.error ?? "Couldn't post that.");
-              }
-            })
-          }
+          onClick={postComment}
           className="shrink-0 rounded-[14px] bg-primary px-5 py-3 text-sm font-extrabold text-primary-foreground disabled:opacity-40"
         >
           Post

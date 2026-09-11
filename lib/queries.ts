@@ -344,7 +344,7 @@ export async function searchPeople(viewerId: number, term: string) {
   if (needle.length <= 2) return [];
 
   const result = await getDb().execute({
-    sql: `SELECT u.id, u.handle, u.display_name
+    sql: `SELECT u.id, u.handle, u.display_name, u.avatar_url
           FROM users u
           WHERE u.id <> ?
             AND (LOWER(u.handle) LIKE ? OR LOWER(u.display_name) LIKE ?)
@@ -361,6 +361,7 @@ export async function searchPeople(viewerId: number, term: string) {
     id: number;
     handle: string;
     display_name: string;
+    avatar_url: string | null;
   }[];
 }
 

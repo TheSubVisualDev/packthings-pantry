@@ -38,6 +38,10 @@ export default async function ProfilePage({
     followState(context.user.id, person.id),
   ]);
 
+  // Blocking empties this list too, and "follow each other to see more" is the
+  // wrong thing to tell someone who chose not to see this person at all.
+  const blocked = !isYou && follows.youBlocked;
+
   return (
     <>
       <SiteHeader active="discover" />
@@ -69,28 +73,38 @@ export default async function ProfilePage({
 
         {!isYou && (
           <div className="mt-4">
-            <FollowButton
-              handle={person.handle}
-              youFollow={follows.youFollow}
-              followsYou={follows.followsYou}
-            />
-            <div className="mt-3">
+            {/* Blocked means there is nothing here to follow, so the follow
+                button would only be a way to half-undo the block. */}
+            {!blocked && (
+              <FollowButton
+                handle={person.handle}
+                youFollow={follows.youFollow}
+                followsYou={follows.followsYou}
+              />
+            )}
+            <div className={blocked ? undefined : "mt-3"}>
               <BlockButton handle={person.handle} blocked={follows.youBlocked} />
             </div>
           </div>
         )}
 
         <h2 className="mt-8 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-label">
-          {isYou ? "Everything you've written" : "What they've shared"}
+          {isYou
+            ? "Everything you've written"
+            : blocked
+              ? "Blocked"
+              : "What they've shared"}
         </h2>
 
         {recipes.length === 0 ? (
           <p className="rounded-[20px] bg-card p-6 text-sm font-semibold text-muted-foreground shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-            {isYou
-              ? "You haven't written any recipes yet."
-              : follows.youFollow && follows.followsYou
-                ? "Nothing shared yet."
-                : "Nothing public. Friends-only recipes appear once you follow each other."}
+            {blocked
+              ? `You've blocked @${person.handle}. Their recipes are hidden from you and yours from them.`
+              : isYou
+                ? "You haven't written any recipes yet."
+                : follows.youFollow && follows.followsYou
+                  ? "Nothing shared yet."
+                  : "Nothing public. Friends-only recipes appear once you follow each other."}
           </p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

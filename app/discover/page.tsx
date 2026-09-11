@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { PersonChip } from "@/components/person-chip";
 import { RecipeBrowseCard } from "@/components/recipe-browse-card";
 import { SiteHeader } from "@/components/site-header";
 import { SearchBox } from "@/components/search-box";
@@ -66,13 +67,12 @@ export default async function DiscoverPage({
               <h2 className={HEADING}>People</h2>
               <div className="flex flex-wrap gap-2">
                 {people.map((person) => (
-                  <Link
+                  <PersonChip
                     key={person.id}
-                    href={`/people/${person.handle}`}
-                    className="rounded-full bg-card px-4 py-2.5 text-sm font-bold shadow-[0_1px_3px_rgba(0,0,0,0.05)]"
-                  >
-                    @{person.handle}
-                  </Link>
+                    handle={person.handle}
+                    displayName={person.display_name}
+                    avatarUrl={person.avatar_url}
+                  />
                 ))}
               </div>
             </section>
@@ -163,16 +163,13 @@ export default async function DiscoverPage({
             </div>
             <div className="flex flex-wrap gap-2">
               {people.slice(0, 8).map((person) => (
-                <Link
+                <PersonChip
                   key={person.id}
-                  href={`/people/${person.handle}`}
-                  className="rounded-full bg-card px-4 py-2.5 text-sm font-bold shadow-[0_1px_3px_rgba(0,0,0,0.05)]"
-                >
-                  @{person.handle}
-                  <span className="ml-1.5 font-semibold text-muted-foreground">
-                    {person.recipe_count}
-                  </span>
-                </Link>
+                  handle={person.handle}
+                  displayName={person.display_name}
+                  avatarUrl={person.avatar_url}
+                  recipeCount={person.recipe_count}
+                />
               ))}
             </div>
           </section>

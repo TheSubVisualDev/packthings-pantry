@@ -17,6 +17,7 @@ export function FollowButton({
   followsYou: boolean;
 }) {
   const [following, setFollow] = useState(youFollow);
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   return (
@@ -28,7 +29,14 @@ export function FollowButton({
           startTransition(async () => {
             const next = !following;
             const result = await setFollowing(handle, next);
-            if (result.ok) setFollow(next);
+            // Without this the button just quietly refuses to change and you're
+            // left tapping it.
+            if (result.ok) {
+              setFollow(next);
+              setError(null);
+            } else {
+              setError(result.error ?? "Couldn't save that.");
+            }
           })
         }
         className={
@@ -47,6 +55,12 @@ export function FollowButton({
       )}
       {followsYou && following && (
         <span className="text-xs font-bold text-primary">friends</span>
+      )}
+
+      {error && (
+        <span role="alert" className="text-xs font-bold text-destructive">
+          {error}
+        </span>
       )}
     </div>
   );
