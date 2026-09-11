@@ -154,46 +154,36 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
                       className={FIELD}
                     />
                   </div>
-                  <div className="min-w-24 flex-1">
-                    <label htmlFor="restock_to" className={LABEL}>
-                      Keep
-                    </label>
-                    <input
-                      id="restock_to"
-                      name="restock_to"
-                      type="number"
-                      min="0"
-                      step="1"
-                      inputMode="numeric"
-                      placeholder="any"
-                      defaultValue={item.restock_to ?? ""}
-                      className={FIELD}
-                    />
-                  </div>
                 </div>
               )}
 
               {/* Not everything comes in countable packs, and you still want
                   a butter in reserve. Same idea as keeping three tins, said
                   in the unit the thing is actually measured in. */}
-              {!packed && (
-                <div className="mt-3">
-                  <label htmlFor="restock_min" className={LABEL}>
-                    Keep at least ({item.canonical_unit})
-                  </label>
-                  <input
-                    id="restock_min"
-                    name="restock_min"
-                    type="number"
-                    min="0"
-                    step="any"
-                    inputMode="decimal"
-                    placeholder="any"
-                    defaultValue={item.restock_min ?? ""}
-                    className={FIELD}
-                  />
-                </div>
-              )}
+              <div className="mt-4">
+                <label htmlFor="restock_target" className={LABEL}>
+                  Keep at least ({unitSuffix || item.canonical_unit})
+                </label>
+                <input
+                  id="restock_target"
+                  name="restock_target"
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputMode="decimal"
+                  placeholder="any"
+                  defaultValue={item.restock_target ?? ""}
+                  className={FIELD}
+                />
+                {/* Said in the thing, never in packaging: nobody thinks "keep
+                    two boxes of eggs". The shopping list works out how many
+                    packs that takes, rounding up. */}
+                <p className="mt-1.5 text-xs font-semibold text-muted-foreground">
+                  {packed && item.pack_size
+                    ? `How much to keep in, not how many packs — ${formatQuantity(item.pack_size)}${unitSuffix} per pack.`
+                    : "How much to keep in. The shopping list offers the difference."}
+                </p>
+              </div>
             </>
           )}
 

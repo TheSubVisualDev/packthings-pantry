@@ -188,6 +188,54 @@ of six lines confidently matched with brand names correctly ignored, and the one
 thing not stocked falling through to an offer to add it. `npm run check:receipt`
 keeps both halves honest without needing a database or a photograph.
 
+### S5b · Say what you want to keep, in the thing itself — DONE 11 Sep 2026
+
+**Reported 11 Sep 2026, and it is wrong behaviour rather than missing polish.**
+Setting "keep 6" on a box of six eggs, with one box already in, suggests buying
+**five more boxes — thirty eggs.** Reproduced exactly.
+
+The cause is that `restock_to` counts *packs* while a person counts *the thing*.
+Nobody thinks "keep two boxes of eggs"; they think "keep six eggs". The field
+does not say which it means, so both readings look right and only one is.
+
+The fix is to stop having two kinds of target. Today there are two columns —
+`restock_to` in packs for packaged things, `restock_min` in the item's own unit
+for loose ones — which is two rules to learn and a seam to fall down. Instead:
+
+1. **One target, always in the item's own unit.** Keep 6 eggs. Keep 500ml of soy
+   sauce. Keep 1kg of flour. The same sentence whether or not it comes in a pack.
+2. **Convert to packs only when buying**, rounding up to whole ones. Short 4 eggs
+   against a box of six buys one box, not four.
+3. **The field says its unit out loud** — "Keep at least ___ eggs" — so the
+   number cannot be misread in the first place.
+4. **Migrate the existing targets**: a `restock_to` of N packs becomes
+   `N × pack_size` in the item's unit, which preserves what people meant even
+   though it is not what they typed.
+
+Worth doing at the same time, since it is the same confusion: a part-used open
+container currently counts as a whole one you have. That is right for a bottle of
+soy sauce and wrong for a box with two eggs left in it, and counting the actual
+amount rather than the container makes the question disappear.
+
+**Done.** One column, `items.restock_target`, always in the item own quantity
+unit. Packs appear only when buying, where the shortfall rounds UP to whole ones -
+you cannot buy two thirds of a box. `restock_to` and `restock_min` are frozen as
+the way back.
+
+The five cases that matter, all verified against a clone:
+
+| | |
+| --- | --- |
+| box of 6, one box in, keep 6 | buy nothing *(was: 5 boxes)* |
+| box of 6, 2 eggs left, keep 6 | 1 box, 4 short |
+| 500ml bottles, 320ml left, keep 1L | 2 bottles, 680ml short |
+| loose, 250g in, keep 500g | 250g |
+| loose, 900g in, keep 500g | buy nothing |
+
+The part-used-container rule went with it. Comparing real totals rather than
+counting containers makes "does a box with two eggs in count as one I have"
+stop being a question.
+
 # Wave C — the pantry notices things
 
 ### S6 · Nutrition — about half a day

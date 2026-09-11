@@ -476,15 +476,9 @@ export async function setPackaging(
     return { ok: false, error: "Sealed packs has to be a whole number, zero or more." };
   }
 
-  const restockRaw = String(formData.get("restock_to") ?? "").trim();
-  const restockTo = restockRaw ? Number(restockRaw) : null;
-  if (restockTo !== null && (!Number.isInteger(restockTo) || restockTo < 0)) {
-    return { ok: false, error: "Keep on hand has to be a whole number." };
-  }
-
-  const minRaw = String(formData.get("restock_min") ?? "").trim();
-  const restockMin = minRaw ? Number(minRaw) : null;
-  if (restockMin !== null && (!Number.isFinite(restockMin) || restockMin < 0)) {
+  const targetRaw = String(formData.get("restock_target") ?? "").trim();
+  const restockTarget = targetRaw ? Number(targetRaw) : null;
+  if (restockTarget !== null && (!Number.isFinite(restockTarget) || restockTarget < 0)) {
     return { ok: false, error: "Keep at least has to be a number, zero or more." };
   }
 
@@ -496,11 +490,9 @@ export async function setPackaging(
               sealed_count = CASE WHEN ? IS NULL THEN 0 ELSE ? END,
               -- shop is absent on purpose: a stock row can be bought in
               -- several places now, which lives in item_shops instead.
-              restock_to = ?,
-              -- One or the other, never both: a packed item counts packs, a
-              -- loose one keeps an amount, and holding both would let them
-              -- disagree about what running low means.
-              restock_min = ?,
+              -- restock_to and restock_min are left alone on purpose: they
+              -- are the old packs/amount pair, frozen as the way back.
+              restock_target = ?,
               unspecified = ?,
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ? AND kitchen_id = ?`,
@@ -509,8 +501,7 @@ export async function setPackaging(
       packSize,
       packSize,
       sealed,
-      packSize === null ? null : restockTo,
-      packSize === null ? restockMin : null,
+      restockTarget,
       unspecified,
       itemId,
       access.kitchen.id,

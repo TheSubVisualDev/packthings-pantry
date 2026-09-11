@@ -206,11 +206,12 @@ export async function addRestock(): Promise<ListResult> {
   for (const suggestion of suggestions) {
     await addLine(access.kitchen.id, access.user.id, {
       name: suggestion.name,
-      // Packs go on as packs, amounts as amounts. A list saying "1000ml soy
-      // sauce" is arithmetic in an aisle; "2 packs" is something you can pick up.
-      quantity: suggestion.kind === "packs" ? suggestion.short : suggestion.short,
+      // Whole packs when it comes in packs, the amount when it does not.
+      // "1 pack" is something you pick up; "4 eggs" is something you count out
+      // of a box that only comes in sixes.
+      quantity: suggestion.packs ?? suggestion.short,
       unit:
-        suggestion.kind === "packs"
+        suggestion.packs !== null
           ? "pack"
           : suggestion.canonical_unit === "count"
             ? null

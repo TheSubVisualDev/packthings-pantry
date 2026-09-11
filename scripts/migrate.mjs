@@ -104,6 +104,10 @@ const ADDED_COLUMNS = [
   // least this much butter, in canonical units. Packs and amounts are separate
   // columns rather than one field meaning two things depending on context.
   { table: "items", column: "restock_min", definition: "REAL" },
+  // One target, in the item own unit, replacing both of the above. Keeping 6
+  // eggs is a sentence about eggs, not about boxes - and asking for the number
+  // in packs meant "keep 6" on a box of six read as thirty-six.
+  { table: "items", column: "restock_target", definition: "REAL" },
   // Where you buy it. Its own field rather than a tag: tags describe the
   // ingredient, this describes the errand, and the shopping list groups by it.
   { table: "items", column: "shop", definition: "TEXT" },
@@ -257,3 +261,26 @@ const preferred = await client.execute(`
     AND TRIM(shop) <> ''
 `);
 console.log(`preferred: ${preferred.rowsAffected} items given a usual shop`);
+
+/**
+ * Folds the two old restock columns into one target, in the item's own unit.
+ *
+ * `restock_to` counted packs, which is not how anyone says it: "keep 6" on a
+ * box of six eggs meant six boxes, and the shopping list duly offered thirty
+ * eggs. Multiplying by the pack size preserves what people meant rather than
+ * what they typed. `restock_min` was already in the right unit, so it copies
+ * straight across.
+ *
+ * Only fills nulls, so a target set since the change is never overwritten, and
+ * both old columns are left exactly where they are.
+ */
+const targeted = await client.execute(`
+  UPDATE items SET restock_target = CASE
+    WHEN pack_size IS NOT NULL AND pack_size > 0 AND restock_to IS NOT NULL
+      THEN restock_to * pack_size
+    ELSE restock_min
+  END
+  WHERE restock_target IS NULL
+    AND (restock_to IS NOT NULL OR restock_min IS NOT NULL)
+`);
+console.log(`restock_target: ${targeted.rowsAffected} targets carried over`);

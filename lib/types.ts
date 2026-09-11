@@ -37,10 +37,15 @@ export interface Item {
   pack_size: number | null;
   pack_unit: string | null;
   sealed_count: number;
-  /** How many packs to keep on hand. Null means nobody has said. */
+  /** Superseded by restock_target; kept until the columns can be dropped. */
   restock_to: number | null;
-  /** Or, for loose things, the least you want on the shelf. Canonical units. */
   restock_min: number | null;
+  /**
+   * How much to keep on the shelf, in this item quantity unit - six eggs, not
+   * one box. Packs only come into it when buying, where the shortfall rounds up
+   * to whole ones. Null means nobody has said.
+   */
+  restock_target: number | null;
   /**
    * "Some, I do not know how much." quantity carries no meaning when this is
    * set - a recipe line against it simply cannot be deducted, which is the same

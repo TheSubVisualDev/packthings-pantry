@@ -130,29 +130,31 @@ export interface RestockSuggestion {
   item_id: number;
   name: string;
   shop: string | null;
-  /**
-   * "packs" for things that come in containers, "amount" for things that do
-   * not. Butter kept in reserve is an amount; tins of tomatoes are packs, and
-   * a shopping list that said "2" for both would be ambiguous in the aisle.
-   */
-  kind: "packs" | "amount";
-  /** Packs to buy, or the amount to make up, in canonical units. */
+  /** How much short of the target, in the item's own unit. */
   short: number;
+  /** Whole packs that covers, rounded up. Null when it is not packaged. */
+  packs: number | null;
   pack_size: number | null;
   pack_unit: string | null;
   canonical_unit: string;
 }
 
 /**
- * Things below the number of containers you said to keep.
+ * Things that have fallen below what you said to keep.
  *
- * A part-used open container counts as one you have - nobody buys a replacement
- * bottle because the one in the door is half empty - so the sum is sealed, plus
- * one if anything is open, against restock_to.
+ * The target is an amount of the thing, never a count of packaging: "keep 6
+ * eggs", not "keep one box". Packs only come into it when buying, where the
+ * shortfall is rounded UP to whole ones - you cannot buy two thirds of a box,
+ * and rounding down would leave you short of the number you asked for.
  *
- * Anything already on the list is excluded by name rather than by item_id,
- * because a line typed by hand as "olive oil" is the same errand as the one the
- * pantry would add, and suggesting it again is how a list grows duplicates.
+ * What is on hand is the real total, sealed packs plus what is in the open one.
+ * An earlier version counted a part-used container as a whole one you have,
+ * which reads fine for a bottle of soy sauce and badly for a box with two eggs
+ * left in it. Comparing actual amounts makes the question disappear.
+ *
+ * Anything already on the list is excluded by name rather than by item_id: a
+ * line typed by hand as "olive oil" is the same errand as the one the pantry
+ * would add, and suggesting it again is how a list grows duplicates.
  */
 export async function getRestockSuggestions(
   kitchenId: number,
@@ -160,25 +162,14 @@ export async function getRestockSuggestions(
   const result = await getDb().execute({
     sql: `SELECT i.id AS item_id, i.name, ps.name AS shop, i.pack_size, i.pack_unit,
                  i.canonical_unit,
-                 CASE WHEN i.pack_size IS NOT NULL AND i.pack_size > 0
-                      THEN 'packs' ELSE 'amount' END AS kind,
-                 CASE
-                   -- Packs: a part-used open one still counts as one you have,
-                   -- because nobody replaces a bottle over the half-full one in
-                   -- the door.
-                   WHEN i.pack_size IS NOT NULL AND i.pack_size > 0
-                     THEN i.restock_to - (i.sealed_count + (CASE WHEN i.quantity > 0 THEN 1 ELSE 0 END))
-                   -- Loose: simply how far under the minimum it has fallen.
-                   ELSE i.restock_min - i.quantity
-                 END AS short
+                 i.restock_target
+                   - (COALESCE(i.sealed_count, 0) * COALESCE(i.pack_size, 0) + i.quantity)
+                   AS short
           FROM items i
           LEFT JOIN shops ps ON ps.id = i.preferred_shop_id
           WHERE i.kitchen_id = ?
             AND i.unspecified = 0
-            AND (
-              (i.pack_size IS NOT NULL AND i.pack_size > 0 AND i.restock_to IS NOT NULL)
-              OR ((i.pack_size IS NULL OR i.pack_size <= 0) AND i.restock_min IS NOT NULL)
-            )
+            AND i.restock_target IS NOT NULL
             AND short > 0
             AND NOT EXISTS (
               SELECT 1 FROM shopping_list s
@@ -189,5 +180,15 @@ export async function getRestockSuggestions(
           ORDER BY ps.name IS NULL, ps.name COLLATE NOCASE, i.name COLLATE NOCASE`,
     args: [kitchenId],
   });
-  return result.rows as unknown as RestockSuggestion[];
+
+  return (result.rows as unknown as Omit<RestockSuggestion, "packs">[]).map(
+    (row) => ({
+      ...row,
+      // Rounded up, because half a box is not something a shop sells.
+      packs:
+        row.pack_size !== null && row.pack_size > 0
+          ? Math.ceil(row.short / row.pack_size)
+          : null,
+    }),
+  );
 }
