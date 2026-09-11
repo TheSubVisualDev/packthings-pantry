@@ -9,6 +9,8 @@ import {
   type CookResult,
   type UndoResult,
 } from "@/app/recipes/[id]/actions";
+import { totalOnHand } from "@/lib/containers";
+import { NewPackDates } from "@/components/new-pack-dates";
 import { AddShortfallButton } from "@/components/add-shortfall-button";
 import { RecipeMethod, type CookStep } from "@/components/recipe-method";
 import {
@@ -17,7 +19,7 @@ import {
   resolveAmount,
   scaleQuantity,
 } from "@/lib/units";
-import type { Dimension } from "@/lib/types";
+import type { Item } from "@/lib/types";
 
 export interface CookLine {
   id: number;
@@ -30,11 +32,22 @@ export interface CookLine {
   note: string | null;
   optional: boolean;
   section: string | null;
-  item: {
-    quantity: number;
-    dimension: Dimension;
-    canonical_unit: string;
-  } | null;
+  /**
+   * The stock row this line resolves to, carrying its containers.
+   *
+   * Not just `quantity`: that is what is in the OPEN one, and judging a
+   * recipe against it called things short with sealed packs behind them.
+   */
+  item: Pick<
+    Item,
+    | "quantity"
+    | "dimension"
+    | "canonical_unit"
+    | "sealed_count"
+    | "pack_size"
+    | "pack_unit"
+    | "unspecified"
+  > | null;
 }
 
 /** How long the undo stays the loud button. It never stops being possible. */
@@ -83,11 +96,21 @@ function resolve(
   const display =
     line.item.dimension === "count" ? converted.quantity : scaled;
 
-  if (converted.quantity > line.item.quantity) {
+  /**
+   * Everything on the shelf, not just the open container.
+   *
+   * `quantity` has meant "what is in the open one" since containers arrived,
+   * so comparing against it called a recipe short while two sealed bottles sat
+   * behind the nearly-empty one. Unspecified items have no number to compare,
+   * and are taken at their word.
+   */
+  const onHand = totalOnHand(line.item);
+
+  if (onHand !== null && converted.quantity > onHand) {
     return {
       status: {
         kind: "short",
-        detail: `need ${formatQuantity(converted.quantity)}${line.item.canonical_unit}, have ${formatQuantity(line.item.quantity)}${line.item.canonical_unit}`,
+        detail: `need ${formatQuantity(converted.quantity)}${line.item.canonical_unit}, have ${formatQuantity(onHand)}${line.item.canonical_unit}`,
       },
       display,
     };
@@ -390,6 +413,10 @@ export function CookPanel({
                   ))}
                 </ul>
               )}
+              {/* Before the shortfalls: a packet in your hand is a question
+                  with a short shelf life, and it should not be below a list. */}
+              <NewPackDates opened={result.opened} />
+
               {result.flagged.length > 0 && (
                 <div className="mt-4">
                   <div className="mb-3">

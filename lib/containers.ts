@@ -2,6 +2,23 @@ import { formatQuantity } from "./units";
 import type { Item } from "./types";
 
 /**
+ * Just the fields that say how much of something there is.
+ *
+ * Narrower than Item on purpose: the cook panel carries a trimmed stock row,
+ * and making it invent twenty unrelated fields to ask "how much is there"
+ * would be a worse answer than widening the question.
+ */
+export type StockLevel = Pick<
+  Item,
+  | "quantity"
+  | "canonical_unit"
+  | "sealed_count"
+  | "pack_size"
+  | "pack_unit"
+  | "unspecified"
+>;
+
+/**
  * Stock as containers rather than a running total.
  *
  * A row is `sealed_count` unopened packs plus whatever is left in the open one,
@@ -15,13 +32,13 @@ import type { Item } from "./types";
  */
 
 /** What one container holds, when the item is packaged at all. */
-export function packOf(item: Item): { size: number; unit: string } | null {
+export function packOf(item: StockLevel): { size: number; unit: string } | null {
   if (item.pack_size === null || item.pack_size <= 0) return null;
   return { size: item.pack_size, unit: item.pack_unit ?? item.canonical_unit };
 }
 
 /** Everything on the shelf. Null when nobody has said how much there is. */
-export function totalOnHand(item: Item): number | null {
+export function totalOnHand(item: StockLevel): number | null {
   if (item.unspecified) return null;
   const pack = packOf(item);
   if (!pack) return item.quantity;
@@ -29,7 +46,7 @@ export function totalOnHand(item: Item): number | null {
 }
 
 /** Whether there is anything at all, which is a different question from how much. */
-export function inStock(item: Item): boolean {
+export function inStock(item: StockLevel): boolean {
   if (item.unspecified) return true;
   const total = totalOnHand(item);
   return total !== null && total > 0;
@@ -41,14 +58,14 @@ export function inStock(item: Item): boolean {
  * Null when there is no container to be a fraction of - a loose amount has
  * nothing to fill.
  */
-export function openFraction(item: Item): number | null {
+export function openFraction(item: StockLevel): number | null {
   const pack = packOf(item);
   if (!pack || item.unspecified) return null;
   return Math.max(0, Math.min(1, item.quantity / pack.size));
 }
 
 /** The unit to print after a number. Counts read as bare numbers. */
-function unitLabel(item: Item): string {
+function unitLabel(item: StockLevel): string {
   return item.canonical_unit === "count" ? "" : item.canonical_unit;
 }
 
@@ -58,7 +75,7 @@ function unitLabel(item: Item): string {
  * Deliberately says the same thing the bar shows rather than a total: "2 sealed
  * + 320ml open" is what you would say out loud, and "1320ml" is not.
  */
-export function describeStock(item: Item): string {
+export function describeStock(item: StockLevel): string {
   if (item.unspecified) return "some";
 
   const pack = packOf(item);
@@ -74,14 +91,6 @@ export function describeStock(item: Item): string {
   return item.quantity > 0 ? `${sealed} + ${open}` : sealed;
 }
 
-/** How many whole containers are still to buy, against the target. */
-export function shortfall(item: Item): number {
-  if (item.restock_to === null || item.unspecified) return 0;
-  // A part-used open container still counts as one you have: nobody buys a
-  // replacement bottle because the one in the door is half empty.
-  const have = item.sealed_count + (item.quantity > 0 ? 1 : 0);
-  return Math.max(0, item.restock_to - have);
-}
 
 /**
  * Takes from, or adds to, an item's stock - cascading across containers.
@@ -142,6 +151,15 @@ SET quantity = (SELECT new_open FROM split),
       WHEN (SELECT new_sealed FROM split) < (SELECT was_sealed FROM split)
       THEN CURRENT_TIMESTAMP
       ELSE opened_at
+    END,
+    -- The date printed on a packet you have finished says nothing about the one
+    -- you just opened, and it is usually earlier - so keeping it would nag about
+    -- something already eaten. Cleared here, asked for where you are holding the
+    -- new packet.
+    expiry_date = CASE
+      WHEN (SELECT new_sealed FROM split) < (SELECT was_sealed FROM split)
+      THEN NULL
+      ELSE expiry_date
     END,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = (SELECT id FROM split)
@@ -206,7 +224,7 @@ function round6(value: number): number {
  * and that the clock is running - so the badge is suppressed rather than the
  * label shortened, and this is the single place that decides.
  */
-export function labelSaysOpen(item: Item): boolean {
+export function labelSaysOpen(item: StockLevel): boolean {
   if (item.unspecified) return false;
   return packOf(item) !== null && item.quantity > 0;
 }

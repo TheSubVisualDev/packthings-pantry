@@ -91,6 +91,12 @@ export default async function RecipePage({
             quantity: item.quantity,
             dimension: item.dimension,
             canonical_unit: item.canonical_unit,
+            // The containers too: judging a line against the open one alone
+            // called recipes short with sealed packs sitting behind it.
+            sealed_count: item.sealed_count,
+            pack_size: item.pack_size,
+            pack_unit: item.pack_unit,
+            unspecified: item.unspecified,
           }
         : null,
     };

@@ -30,7 +30,8 @@ const db = createClient({ url: `file:${file}` });
 await db.execute(`CREATE TABLE items (
   id INTEGER PRIMARY KEY, kitchen_id INTEGER, quantity REAL NOT NULL,
   sealed_count INTEGER NOT NULL DEFAULT 0, pack_size REAL, pack_unit TEXT,
-  unspecified INTEGER NOT NULL DEFAULT 0, opened_at TIMESTAMP, updated_at TIMESTAMP)`);
+  unspecified INTEGER NOT NULL DEFAULT 0, opened_at TIMESTAMP, updated_at TIMESTAMP,
+  expiry_date DATE)`);
 
 const cases = [];
 for (const packSize of [null, 500, 400, 1]) {

@@ -26,7 +26,18 @@ export interface CookLineResult {
   detail?: string;
 }
 
+export interface OpenedPack {
+  item_id: number;
+  item_name: string;
+}
+
 export interface CookResult {
+  /**
+   * Items where cooking finished the open container and broke into a sealed
+   * one. Their old expiry date has been cleared - it belonged to a packet that
+   * no longer exists - so these are the ones worth asking about.
+   */
+  opened: OpenedPack[];
   ok: boolean;
   error?: string;
   applied: CookLineResult[];
@@ -53,16 +64,16 @@ export async function cookRecipe(
   servings: number,
 ): Promise<CookResult> {
   if (!Number.isInteger(recipeId) || recipeId <= 0) {
-    return { ok: false, error: "Invalid recipe", applied: [], flagged: [] };
+    return { ok: false, error: "Invalid recipe", opened: [], applied: [], flagged: [] };
   }
   if (!Number.isFinite(servings) || servings <= 0 || servings > 100) {
-    return { ok: false, error: "Invalid serving count", applied: [], flagged: [] };
+    return { ok: false, error: "Invalid serving count", opened: [], applied: [], flagged: [] };
   }
 
   // Cooking spends stock, so it needs a kitchen you're allowed to change.
   const access = await requireKitchenRole("editor");
   if (!access.ok) {
-    return { ok: false, error: access.error, applied: [], flagged: [] };
+    return { ok: false, error: access.error, opened: [], applied: [], flagged: [] };
   }
 
   const tx = await getDb().transaction("write");
@@ -75,7 +86,7 @@ export async function cookRecipe(
     const recipe = recipeResult.rows[0] as unknown as Recipe | undefined;
     if (!recipe) {
       await tx.rollback();
-      return { ok: false, error: "Recipe not found", applied: [], flagged: [] };
+      return { ok: false, error: "Recipe not found", opened: [], applied: [], flagged: [] };
     }
 
     const ingredientResult = await tx.execute({
@@ -98,6 +109,7 @@ export async function cookRecipe(
     const applied: CookLineResult[] = [];
     const flagged: CookLineResult[] = [];
     const changes: CookChange[] = [];
+    const opened: OpenedPack[] = [];
 
     for (const line of lines) {
       const item = itemsByName.get(line.item_name.toLowerCase());
@@ -133,20 +145,53 @@ export async function cookRecipe(
         continue;
       }
 
+      /**
+       * What is actually on the shelf, not just what is in the open one.
+       *
+       * `quantity` has meant "the open container" since containers arrived, so
+       * cooking used to cap a take at it: two sealed bottles and 100ml open
+       * would give a recipe 100ml and report a shortfall, with a litre in the
+       * cupboard. The total is sealed packs plus the open one.
+       */
+      const pack = item.pack_size !== null && item.pack_size > 0 ? item.pack_size : null;
+      const onHand = (pack === null ? 0 : item.sealed_count * pack) + item.quantity;
+
       // Stock never goes negative - take what's there and flag the shortfall.
-      const take = Math.min(converted.quantity, item.quantity);
-      const remaining = item.quantity - take;
+      const take = Math.min(converted.quantity, onHand);
+      const left = onHand - take;
+
+      // Split back into containers, the same closed form ADJUST_SQL uses:
+      // finishing the open one opens the next.
+      const sealedLeft = pack === null ? item.sealed_count : Math.floor(left / pack);
+      const openLeft = pack === null ? left : Math.round((left - sealedLeft * pack) * 1e6) / 1e6;
+      const brokeSeal = sealedLeft < item.sealed_count;
 
       await tx.execute({
-        sql: "UPDATE items SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-        args: [remaining, item.id],
+        sql: `UPDATE items SET quantity = ?, sealed_count = ?, updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?`,
+        args: [openLeft, sealedLeft, item.id],
       });
 
-      // Taking some of something is opening it. Only stamped when there isn't
-      // a date already: an open jar doesn't become fresher for being used
-      // again, and re-stamping would keep pushing back a deadline that has
-      // already started running.
-      if (take > 0) {
+      if (brokeSeal) {
+        /**
+         * A different packet is open now, so the old one's dates do not apply.
+         *
+         * expiry_date is cleared rather than carried forward: it is the date
+         * printed on a packet that has been finished, and keeping it would nag
+         * about something already eaten. The cook result says which items
+         * these were, so you can put the new dates in while holding them.
+         */
+        opened.push({ item_id: item.id, item_name: item.name });
+        await tx.execute({
+          sql: `UPDATE items SET opened_at = CURRENT_TIMESTAMP, expiry_date = NULL
+                WHERE id = ?`,
+          args: [item.id],
+        });
+      } else if (take > 0) {
+        // Taking some of something is opening it. Only stamped when there is no
+        // date already: an open jar does not become fresher for being used
+        // again, and re-stamping would keep pushing back a deadline that has
+        // already started running.
         await tx.execute({
           sql: `UPDATE items SET opened_at = CURRENT_TIMESTAMP
                 WHERE id = ? AND opened_at IS NULL`,
@@ -163,14 +208,14 @@ export async function cookRecipe(
         item_name: line.item_name,
         decremented: take,
         unit: item.canonical_unit,
-        remaining,
+        remaining: openLeft,
       };
 
       if (take < converted.quantity) {
         flagged.push({
           ...result,
           issue: "short",
-          detail: `needed ${converted.quantity}${item.canonical_unit}, only ${item.quantity}${item.canonical_unit} in stock`,
+          detail: `needed ${converted.quantity}${item.canonical_unit}, only ${onHand}${item.canonical_unit} in stock`,
         });
       } else {
         applied.push(result);
@@ -204,6 +249,7 @@ export async function cookRecipe(
 
     return {
       ok: true,
+      opened,
       applied,
       flagged,
       eventId: event.lastInsertRowid ? Number(event.lastInsertRowid) : undefined,
@@ -213,6 +259,8 @@ export async function cookRecipe(
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Cook failed",
+      // The transaction rolled back, so nothing was opened after all.
+      opened: [],
       applied: [],
       flagged: [],
     };

@@ -765,3 +765,38 @@ export async function preferShop(itemId: number, shopId: number): Promise<ShopRe
   revalidatePath("/pantry/list");
   return { ok: true };
 }
+
+/**
+ * Records the date printed on a packet.
+ *
+ * Its own action because the moment it is wanted is not the moment you are
+ * editing an item: a pack gets opened while you are cooking, and that is when
+ * the date is in your hand. An empty string clears it, which is a real answer -
+ * plenty of things have no date on them at all.
+ */
+export async function setExpiry(
+  itemId: number,
+  date: string,
+): Promise<ItemResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return { ok: false, error: "Unknown item" };
+  }
+
+  const clean = date.trim();
+  if (clean && !/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    return { ok: false, error: "That isn't a date." };
+  }
+
+  await getDb().execute({
+    sql: `UPDATE items SET expiry_date = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND kitchen_id = ?`,
+    args: [clean || null, itemId, access.kitchen.id],
+  });
+
+  revalidatePath("/pantry");
+  revalidatePath(`/pantry/item/${itemId}`);
+  return { ok: true, message: "Saved." };
+}

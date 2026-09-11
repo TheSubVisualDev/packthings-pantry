@@ -344,6 +344,33 @@ accident.
 
 ---
 
+### S9 · Expiry across containers — DONE 11 Sep 2026
+
+**Luna's question: per-instance dates, or prompt when a pack rolls over?** She
+chose prompt, and the choice made itself once the code was read — the cascade
+restamped `opened_at` when a seal broke but never touched `expiry_date`, so
+finishing a bottle left the *finished* bottle's printed date in place. Usually
+earlier, so the app would nag about something already eaten and rank it wrongly
+in "use these up".
+
+So the stale date is cleared when a seal breaks, and you are asked for the new
+one **immediately after cooking**, because that is the only moment the packet is
+in your hand. Days later it is in the bin. Blank is a real answer and needs no
+button — plenty of things have nothing printed on them.
+
+**A much worse bug surfaced while checking which paths could roll over:
+cooking bypassed the container model entirely.** It capped a take at
+`item.quantity` — which has meant *the open container* since containers
+arrived — so two sealed bottles behind a nearly-empty one were invisible. A
+recipe wanting 300ml from 2 sealed + 100ml open took 100ml and reported a
+shortfall, with a litre in the cupboard. The cook panel's own badges had the
+same fault, so it showed "short" before you even pressed Cook.
+
+Both now work on the real total and split it back into containers with the same
+closed form `ADJUST_SQL` uses. `lib/containers.ts` grew a narrow `StockLevel`
+type so a trimmed stock row can be asked "how much is there" without inventing
+twenty unrelated fields.
+
 **Rough total: 9.5 to 10.5 days.** Wave A is the one that changes how the app feels, B is
 the one that changes whether the data stays true, and C is the one that makes it
 useful without being asked.
