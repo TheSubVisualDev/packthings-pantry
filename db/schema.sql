@@ -258,3 +258,20 @@ CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id);
 -- Photos live in Vercel Blob; these hold the URL it hands back. Nullable, and
 -- nothing depends on one being present - a recipe without a photo is still a
 -- recipe, and most of them won't have one.
+
+-- What to buy. Per kitchen, because the list is about a particular set of
+-- shelves. Quantity and unit are optional: half of what goes on a shopping list
+-- is "bread", with no number attached.
+CREATE TABLE IF NOT EXISTS shopping_list (
+  id         INTEGER PRIMARY KEY,
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  item_id    INTEGER REFERENCES items(id) ON DELETE SET NULL,
+  item_name  TEXT NOT NULL,
+  quantity   REAL,
+  unit       TEXT,
+  added_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  bought_at  TIMESTAMP,          -- null until it's in the trolley
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_shopping_list_kitchen ON shopping_list(kitchen_id, bought_at);

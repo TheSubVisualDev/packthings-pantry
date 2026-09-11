@@ -24,6 +24,7 @@ const actions = [
   { key: "add", label: "Add item", icon: "+", href: "/pantry/add" },
   { key: "recipe", label: "New recipe", icon: "✎", href: "/recipes/new" },
   { key: "adjust", label: "Quick adjust", icon: "↕", href: "/pantry/adjust" },
+  { key: "list", label: "Shopping list", icon: "≡", href: "/pantry/list" },
 ] as const;
 
 /**

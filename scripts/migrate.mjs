@@ -82,6 +82,7 @@ const ADDED_COLUMNS = [
   // Photos, stored in Vercel Blob - these are just the URLs it returns.
   { table: "recipes", column: "photo_url", definition: "TEXT" },
   { table: "recipe_steps", column: "photo_url", definition: "TEXT" },
+  // shopping_list and its index arrive as whole-table creates from schema.sql.
 ];
 
 for (const { table, column, definition } of ADDED_COLUMNS) {

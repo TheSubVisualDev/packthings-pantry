@@ -8,6 +8,7 @@ import {
   type CookResult,
   type UndoResult,
 } from "@/app/recipes/[id]/actions";
+import { AddShortfallButton } from "@/components/add-shortfall-button";
 import { RecipeMethod, type CookStep } from "@/components/recipe-method";
 import {
   describeAmount,
@@ -316,10 +317,13 @@ export function CookPanel({
       <RecipeMethod steps={steps} labels={labels} />
 
       {blockers.length > 0 && !result && (
-        <p className="text-center text-xs font-semibold text-muted-foreground">
-          {blockers.length} {blockers.length === 1 ? "line" : "lines"} won&apos;t
-          decrement cleanly &mdash; they&apos;ll be listed after cooking.
-        </p>
+        <div className="space-y-2">
+          <p className="text-center text-xs font-semibold text-muted-foreground">
+            {blockers.length} {blockers.length === 1 ? "line" : "lines"} won&apos;t
+            decrement cleanly &mdash; they&apos;ll be listed after cooking.
+          </p>
+          <AddShortfallButton recipeId={recipeId} servings={servings} />
+        </div>
       )}
 
       {result && (
@@ -367,6 +371,9 @@ export function CookPanel({
               )}
               {result.flagged.length > 0 && (
                 <div className="mt-4">
+                  <div className="mb-3">
+                    <AddShortfallButton recipeId={recipeId} servings={servings} />
+                  </div>
                   <h4 className="text-sm font-extrabold text-destructive">
                     Needs manual handling
                   </h4>

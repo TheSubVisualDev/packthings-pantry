@@ -7,6 +7,8 @@ import { getItems, getRecipesWithMatches } from "@/lib/queries";
 import { formatQuantity } from "@/lib/units";
 import { UNPLACED } from "@/lib/locations";
 import { getLocations } from "@/lib/kitchens";
+import { getExpiring } from "@/lib/queries";
+import { getList } from "@/lib/shopping";
 import { currentKitchen } from "@/lib/session";
 import type { Item } from "@/lib/types";
 
@@ -91,11 +93,15 @@ export default async function PantryPage({
   if (!context.ok) redirect("/login");
   const { kitchen } = context;
 
-  const [items, recipes, places] = await Promise.all([
+  const [items, recipes, places, expiring, list] = await Promise.all([
     getItems(kitchen.id),
     getRecipesWithMatches(kitchen.id, context.user.id),
     getLocations(kitchen.id),
+    getExpiring(kitchen.id),
+    getList(kitchen.id),
   ]);
+
+  const toBuy = list.filter((line) => !line.bought_at).length;
 
   const groups = group(items, groupBy, places);
   const [topMatch, ...runnersUp] = recipes;
@@ -110,8 +116,45 @@ export default async function PantryPage({
       <div className="mx-auto grid w-full max-w-[1280px] sm:grid-cols-[360px_1fr]">
         {/* Cook suggestions: full panel on desktop, top match only on mobile */}
         <aside className="px-5 pt-5 sm:border-r sm:border-border sm:bg-surface-raised sm:px-7 sm:py-7">
-          <div className="mb-3 hidden text-xs font-bold uppercase tracking-[0.1em] text-label sm:block">
-            Cook with what you have
+          {expiring.length > 0 && (
+            <section className="mb-5 rounded-[20px] bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:p-5">
+              <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-label">
+                Use these up
+              </h2>
+              <ul className="mt-2.5 space-y-1.5">
+                {expiring.slice(0, 5).map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex items-baseline justify-between gap-3 text-sm font-semibold"
+                  >
+                    <span className="min-w-0 break-words">{item.name}</span>
+                    <span
+                      className={`shrink-0 text-xs font-bold ${
+                        item.days_left < 0 ? "text-destructive" : "text-muted-foreground"
+                      }`}
+                    >
+                      {item.days_left < 0
+                        ? `${Math.abs(item.days_left)}d ago`
+                        : item.days_left === 0
+                          ? "today"
+                          : `${item.days_left}d`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <span className="hidden text-xs font-bold uppercase tracking-[0.1em] text-label sm:block">
+              Cook with what you have
+            </span>
+            <Link
+              href="/pantry/list"
+              className="ml-auto rounded-full bg-chip px-3 py-1.5 text-xs font-bold hover:bg-border"
+            >
+              Shopping{toBuy > 0 ? ` · ${toBuy}` : ""}
+            </Link>
           </div>
           <div className="mb-1 text-[13px] font-bold text-muted-foreground sm:hidden">
             {items.length} items · cook something?

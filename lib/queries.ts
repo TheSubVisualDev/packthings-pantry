@@ -355,3 +355,31 @@ export async function searchPeople(viewerId: number, term: string) {
     display_name: string;
   }[];
 }
+
+export interface ExpiringItem extends Item {
+  days_left: number;
+}
+
+/**
+ * What's about to go off, soonest first.
+ *
+ * items.expiry_date has existed since the first schema and nothing has ever
+ * read it. Anything already past is included with a negative count, because
+ * "this went off on Tuesday" is more useful than silence.
+ */
+export async function getExpiring(
+  kitchenId: number,
+  withinDays = 7,
+): Promise<ExpiringItem[]> {
+  const result = await getDb().execute({
+    sql: `SELECT *, CAST(julianday(expiry_date) - julianday('now') AS INTEGER) AS days_left
+          FROM items
+          WHERE kitchen_id = ?
+            AND expiry_date IS NOT NULL
+            AND quantity > 0
+            AND julianday(expiry_date) - julianday('now') <= ?
+          ORDER BY expiry_date`,
+    args: [kitchenId, withinDays],
+  });
+  return result.rows as unknown as ExpiringItem[];
+}
