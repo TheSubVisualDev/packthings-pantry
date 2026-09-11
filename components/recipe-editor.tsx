@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { PhotoPicker } from "@/components/photo-picker";
 import { SoftSelect } from "@/components/soft-select";
 import { saveRecipeDocument, type SaveRecipeResult } from "@/app/recipes/actions";
 import { PACKAGE_UNITS, UNITS_BY_DIMENSION } from "@/lib/units";
@@ -40,6 +41,15 @@ interface DraftStep {
   section: string;
   /** item_name values, matching how the document references ingredients. */
   uses: string[];
+}
+
+/** Photos already attached, keyed so the editor can show them without owning them. */
+export interface RecipePhotos {
+  hero: string | null;
+  /** Step id to URL. Steps only have ids once the recipe has been saved. */
+  steps: Record<number, string | null>;
+  /** Step ids in position order, so a draft row can find the saved step it is. */
+  stepIds: number[];
 }
 
 export interface RecipeDraft {
@@ -81,9 +91,12 @@ export function RecipeEditor({
   recipeId,
   pantryNames,
   sections,
+  photos,
 }: {
   initial: RecipeDraft;
   recipeId?: number;
+  /** Absent for a recipe that hasn't been saved yet - there's nothing to attach to. */
+  photos?: RecipePhotos;
   /** Existing item names, offered as suggestions but never enforced. */
   pantryNames: string[];
   /** Section names already used across the pantry's recipes. */
@@ -179,6 +192,23 @@ export function RecipeEditor({
   return (
     <div className="space-y-6">
       <section className="space-y-4">
+        {recipeId && photos ? (
+          <div>
+            <span className={LABEL}>Photo</span>
+            <PhotoPicker
+              recipeId={recipeId}
+              kind="hero"
+              current={photos.hero}
+              label="+ Add a photo"
+              aspect="aspect-[2/1]"
+            />
+          </div>
+        ) : (
+          <p className="rounded-[14px] bg-chip px-4 py-3 text-sm font-semibold text-muted-foreground">
+            Save the recipe first and you can add photos to it and to each step.
+          </p>
+        )}
+
         <div>
           <label htmlFor="name" className={LABEL}>
             Name
@@ -551,6 +581,20 @@ export function RecipeEditor({
                   list="known-sections"
                 />
               </div>
+
+              {recipeId && photos?.stepIds[index] !== undefined && (
+                <div className="mt-3">
+                  <span className={LABEL}>Step photo</span>
+                  <PhotoPicker
+                    recipeId={recipeId}
+                    stepId={photos.stepIds[index]}
+                    kind="step"
+                    current={photos.steps[photos.stepIds[index]] ?? null}
+                    label="+ Add a photo of this step"
+                    aspect="aspect-[16/7]"
+                  />
+                </div>
+              )}
 
               {ingredientNames.length > 0 && (
                 <div className="mt-3">

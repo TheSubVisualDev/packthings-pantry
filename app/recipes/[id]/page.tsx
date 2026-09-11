@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
@@ -95,6 +96,7 @@ export default async function RecipePage({
     section: step.section,
     body: step.body,
     minutes: step.minutes,
+    photo_url: step.photo_url,
     uses: step.uses.map((line) => line.id),
   }));
 
@@ -115,10 +117,37 @@ export default async function RecipePage({
           &larr; Recipes
         </Link>
 
+        {recipe.photo_url && (
+          <div className="relative mt-3 aspect-[16/10] overflow-hidden rounded-[20px] sm:aspect-[2/1]">
+            <Image
+              src={recipe.photo_url}
+              alt=""
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, 760px"
+              className="object-cover"
+            />
+            {/* A scrim rather than a flat overlay: the title needs contrast at
+                the bottom and the photo deserves to be seen at the top. */}
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-5 pt-16">
+              <h1 className="text-[26px] font-extrabold tracking-[-0.02em] break-words text-white sm:text-[32px]">
+                {recipe.name}
+              </h1>
+              {recipe.description && (
+                <p className="mt-1 text-sm leading-relaxed font-medium text-white/85">
+                  {recipe.description}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
-          <h1 className="text-[28px] font-extrabold tracking-[-0.02em] break-words sm:text-[32px]">
-            {recipe.name}
-          </h1>
+          {!recipe.photo_url && (
+            <h1 className="text-[28px] font-extrabold tracking-[-0.02em] break-words sm:text-[32px]">
+              {recipe.name}
+            </h1>
+          )}
           {isAuthor && (
             <Link
               href={`/recipes/${recipe.id}/edit`}
@@ -129,7 +158,7 @@ export default async function RecipePage({
           )}
         </div>
 
-        {recipe.description && (
+        {recipe.description && !recipe.photo_url && (
           <p className="mt-2 text-[15px] leading-relaxed font-medium text-muted-foreground">
             {recipe.description}
           </p>

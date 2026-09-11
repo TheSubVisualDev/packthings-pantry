@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 
 export interface CookStep {
@@ -7,6 +8,7 @@ export interface CookStep {
   section: string | null;
   body: string;
   minutes: number | null;
+  photo_url: string | null;
   /** recipe_ingredients ids this step draws on. */
   uses: number[];
 }
@@ -89,6 +91,18 @@ export function RecipeMethod({
                   >
                     {step.body}
                   </span>
+
+                  {step.photo_url && (
+                    <span className="relative mt-3 block aspect-[16/10] w-full overflow-hidden rounded-[14px]">
+                      <Image
+                        src={step.photo_url}
+                        alt=""
+                        fill
+                        sizes="(max-width: 768px) 100vw, 620px"
+                        className="object-cover"
+                      />
+                    </span>
+                  )}
 
                   {(step.uses.length > 0 || step.minutes) && (
                     <span className="mt-2.5 flex flex-wrap items-center gap-1.5">

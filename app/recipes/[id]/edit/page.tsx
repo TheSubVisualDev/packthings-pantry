@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { RecipeEditor } from "@/components/recipe-editor";
+import type { RecipePhotos } from "@/components/recipe-editor";
 import { SiteHeader } from "@/components/site-header";
 import { DeleteRecipeButton } from "@/components/delete-recipe-button";
 import { getItems, getRecipe } from "@/lib/queries";
@@ -34,6 +35,14 @@ export default async function EditRecipePage({
   ]);
   if (!recipe) notFound();
 
+  // Photos belong to saved rows, not to the draft: the editor shows them and
+  // the upload route owns them, so a save can't accidentally drop one.
+  const photos: RecipePhotos = {
+    hero: recipe.photo_url,
+    steps: Object.fromEntries(recipe.steps.map((step) => [step.id, step.photo_url])),
+    stepIds: recipe.steps.map((step) => step.id),
+  };
+
   return (
     <>
       <SiteHeader active="recipes" />
@@ -51,6 +60,7 @@ export default async function EditRecipePage({
         <RecipeEditor
           initial={draftFromRecipe(recipe)}
           recipeId={recipe.id}
+          photos={photos}
           pantryNames={items.map((item) => item.name)}
           sections={sections}
         />

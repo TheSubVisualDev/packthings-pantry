@@ -11,6 +11,13 @@ const nextConfig: NextConfig = {
 
   // Minor version disclosure, flagged in the phase 1 pen test.
   poweredByHeader: false,
+
+  images: {
+    // Photos live in Vercel Blob, which serves them from a per-store subdomain.
+    remotePatterns: [
+      { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
+    ],
+  },
 };
 
 export default nextConfig;

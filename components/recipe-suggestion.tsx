@@ -34,7 +34,7 @@ export function TopMatchCard({ recipe }: { recipe: RecipeWithMatch }) {
         {recipe.name}
       </div>
       <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold opacity-90 sm:gap-2.5 sm:text-sm">
-        <Stars rating={recipe.rating} />
+        <Stars rating={recipe.avg_rating} />
         <span>
           {recipe.have}/{recipe.total} in stock
         </span>
@@ -56,7 +56,7 @@ export function SuggestionCard({ recipe }: { recipe: RecipeWithMatch }) {
         {recipe.name}
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-[13px] font-semibold text-muted-foreground">
-        <Stars rating={recipe.rating} />
+        <Stars rating={recipe.avg_rating} />
         {missing > 0 ? (
           <span className="text-destructive">{missing} missing</span>
         ) : (

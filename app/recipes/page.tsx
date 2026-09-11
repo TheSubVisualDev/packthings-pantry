@@ -4,10 +4,7 @@ import { Suspense } from "react";
 import { SearchBox } from "@/components/search-box";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import {
-  SuggestionCard,
-  TopMatchCard,
-} from "@/components/recipe-suggestion";
+import { RecipeBrowseCard } from "@/components/recipe-browse-card";
 import { getRecipesWithMatches } from "@/lib/queries";
 import { currentKitchen } from "@/lib/session";
 
@@ -26,7 +23,6 @@ export default async function RecipesPage({
   const term = q?.trim() ?? "";
 
   const recipes = await getRecipesWithMatches(kitchen.id, context.user.id, term);
-  const [topMatch, ...rest] = recipes;
 
   return (
     <>
@@ -72,9 +68,13 @@ export default async function RecipesPage({
                 : "Cook with what you have"}
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <TopMatchCard recipe={topMatch} />
-              {rest.map((recipe) => (
-                <SuggestionCard key={recipe.id} recipe={recipe} />
+              {recipes.map((recipe) => (
+                <RecipeBrowseCard
+                  key={recipe.id}
+                  recipe={recipe}
+                  showAuthor={false}
+                  match={{ have: recipe.have, total: recipe.total }}
+                />
               ))}
             </div>
           </>
