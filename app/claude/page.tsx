@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { RevealToken } from "@/components/reveal-token";
 import { SiteHeader } from "@/components/site-header";
 import { requireUser } from "@/lib/session";
@@ -38,11 +40,18 @@ function Step({
 }
 
 export default async function ClaudePage() {
-  // Each person's own key, so revoking one doesn't cut off everyone else.
-  // Safe to render: this page sits behind the same gate as the rest of the app,
-  // so anyone who can load it can already read the pantry.
   const session = await requireUser();
-  const token = session.ok ? session.user.api_token : null;
+
+  // The connector link is per-account, so there has to be an account. Arriving
+  // through the Basic-auth back door has none.
+  if (!session.ok) redirect("/login?next=%2Fclaude");
+
+  const headerList = await headers();
+  const host = headerList.get("host") ?? "";
+  const protocol = host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https";
+  const connector = session.user.api_token
+    ? `${protocol}://${host}/api/mcp/${session.user.api_token}`
+    : null;
 
   return (
     <>
@@ -54,66 +63,45 @@ export default async function ClaudePage() {
           Connect Claude to your pantry
         </h1>
         <p className="mt-3 text-[16px] leading-relaxed font-medium text-muted-foreground">
-          Give a Claude session the key below and it can see what&apos;s actually
-          in your kitchen — then suggest something to cook from it, and write the
-          recipe straight back in. Takes about five minutes to set up, once.
+          Add one link to Claude and it gets tools for your kitchen: it can see
+          what&apos;s on your shelves, suggest something to cook from it, and
+          write the recipe back in. Takes a couple of minutes, once.
         </p>
 
         <ol className="mt-8 space-y-3">
-          <Step number={1} title="Download the guide">
+          <Step number={1} title="Copy your connector link">
             <p>
-              A single markdown file telling Claude how your pantry works: the
-              units it accepts, how to name ingredients so they match your stock,
-              and how to post a recipe back.
+              This link <em>is</em> the key — anyone who has it can read your
+              pantry and write recipes into it. Don&apos;t paste it into a chat.
             </p>
-            <a
-              href="/api/claude-guide"
-              className="inline-block rounded-[14px] bg-ink px-5 py-3 text-sm font-extrabold text-background"
-            >
-              ↓ pantry-for-claude.md
-            </a>
+            <RevealToken
+              token={connector}
+              empty="This account has no key yet — make one in settings and come back."
+            />
           </Step>
 
-          <Step number={2} title="Make a Claude Project">
+          <Step number={2} title="Add it to Claude">
             <p>
-              Go to{" "}
-              <a
-                href="https://claude.ai/projects"
-                target="_blank"
-                rel="noreferrer noopener"
-                className="font-bold text-primary underline underline-offset-2"
-              >
-                claude.ai/projects
-              </a>
-              , create one called something like <em>Pantry</em>, and add the file
-              you just downloaded to its project knowledge.
+              In Claude, open <strong className="text-foreground">Settings →
+              Connectors</strong> and choose{" "}
+              <strong className="text-foreground">Add custom connector</strong>.
+              Paste the link and save. Leave the advanced OAuth fields empty —
+              the link already identifies you.
             </p>
-            <p>
-              A Project rather than a one-off chat, so every conversation starts
-              already knowing the rules and you never paste the file again.
-            </p>
-          </Step>
-
-          <Step number={3} title="Give it your key">
-            <p>
-              Paste this into the project&apos;s custom instructions, or into the
-              chat when Claude asks for it.
-            </p>
-            <RevealToken token={token} />
             <p className="text-sm">
-              This key is read <em>and write</em> access to your kitchen. Treat it
-              like the password — anyone holding it can change your stock.
+              Connectors are set up on Claude on the web or desktop. Once added,
+              they follow your account.
             </p>
           </Step>
 
-          <Step number={4} title="Ask it something">
-            <p>Try one of these:</p>
+          <Step number={3} title="Ask it something">
+            <p>Claude will ask to use the pantry tools the first time.</p>
             <ul className="space-y-1.5">
               {[
                 "What can I make tonight with what's in the pantry?",
                 "I've got tofu going off on Thursday. Ideas?",
                 "Write me a recipe for doenjang-jjigae and add it to my pantry.",
-                "Halve the chilli in my jjigae recipe.",
+                "What have I got in the fridge?",
               ].map((prompt) => (
                 <li
                   key={prompt}
@@ -127,31 +115,60 @@ export default async function ClaudePage() {
         </ol>
 
         <section className={`${CARD} mt-8`}>
-          <h2 className={LABEL}>What it can reach</h2>
+          <h2 className={LABEL}>What it can do</h2>
           <ul className="mt-3 space-y-2 text-[15px] font-medium text-muted-foreground">
             <li>
-              <strong className="font-bold text-foreground">Reads</strong> your
-              stock, with quantities, categories, locations and expiry dates.
+              <strong className="font-bold text-foreground">See</strong> your
+              stock — quantities, categories, where things live, what&apos;s
+              going off.
             </li>
             <li>
-              <strong className="font-bold text-foreground">Reads</strong> your
-              recipes, in full.
+              <strong className="font-bold text-foreground">Read</strong> your
+              recipes, and search them.
             </li>
             <li>
-              <strong className="font-bold text-foreground">Writes</strong> new
-              recipes, and edits or deletes existing ones.
+              <strong className="font-bold text-foreground">Write</strong> new
+              recipes, saved private until you share them.
             </li>
             <li>
               It <strong className="font-bold text-foreground">cannot</strong>{" "}
-              change your stock levels, cook anything, or read your password.
+              change your stock levels, cook anything, delete a recipe, or read
+              your password.
             </li>
           </ul>
         </section>
 
+        <section className={`${CARD} mt-3`}>
+          <h2 className={LABEL}>If the connector isn&apos;t available to you</h2>
+          <p className="mt-2 text-[15px] leading-relaxed font-medium text-muted-foreground">
+            Recipes can also be pasted straight in — ask Claude for the recipe as
+            JSON and paste it into{" "}
+            <Link
+              href="/recipes/new"
+              className="font-bold text-primary underline underline-offset-2"
+            >
+              a new recipe
+            </Link>
+            . Nothing needs connecting for that.
+          </p>
+        </section>
+
         <p className="mt-6 text-sm font-semibold text-muted-foreground">
-          <Link href="/pantry" className="underline underline-offset-2">
-            ← Back to the pantry
-          </Link>
+          Driving this from Claude Code or a terminal instead?{" "}
+          <a
+            href="/api/claude-guide"
+            className="font-bold text-primary underline underline-offset-2"
+          >
+            The HTTP guide
+          </a>{" "}
+          covers the REST API and the recipe format.
+        </p>
+
+        <p className="mt-3 text-sm font-semibold text-muted-foreground">
+          <Link href="/settings" className="underline underline-offset-2">
+            Rotate the key in settings
+          </Link>{" "}
+          if the link ever gets out — it stops the connector working immediately.
         </p>
       </main>
     </>

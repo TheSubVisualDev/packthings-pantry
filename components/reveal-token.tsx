@@ -3,22 +3,28 @@
 import { useState } from "react";
 
 /**
- * Shows the API token, masked until asked for, with a copy button.
+ * Shows a secret - an API key, or the connector URL that contains one - masked
+ * until asked for, with a copy button.
  *
- * The token reaches the browser because the page it sits on is behind the same
+ * The secret reaches the browser because the page it sits on is behind the same
  * auth gate as the rest of the app - anyone who can read it can already read
  * the pantry. Masking is for shoulders and screen shares, not for secrecy from
  * the person looking at it.
  */
-export function RevealToken({ token }: { token: string | null }) {
+export function RevealToken({
+  token,
+  empty = "There's no key on this account yet.",
+}: {
+  token: string | null;
+  empty?: string;
+}) {
   const [shown, setShown] = useState(false);
   const [copied, setCopied] = useState(false);
 
   if (!token) {
     return (
       <p className="rounded-[14px] bg-[oklch(0.96_0.03_40)] px-4 py-3 text-sm font-bold text-destructive">
-        No PANTRY_API_TOKEN is set on this deployment, so the API can&apos;t be
-        used yet.
+        {empty}
       </p>
     );
   }

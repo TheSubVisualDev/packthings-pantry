@@ -1,61 +1,80 @@
 # Writing recipes into the pantry
 
-This is for a Claude session — desktop, mobile, or another Claude Code — that
+This is for a Claude session — the app, the web, or another Claude Code — that
 has been asked to read someone's kitchen stock and put a recipe into it.
 
-You do not need this repository. Everything here is reachable over HTTP with a
-token.
+You do not need this repository.
 
 ---
 
 ## 1. Getting in
 
-Every request needs a bearer token:
+There are two ways in, and **which one you have decides everything below.**
+
+### The connector (the Claude apps)
+
+The pantry is a remote MCP server. Once its owner has added it under
+**Settings → Connectors**, you get tools directly:
+
+| Tool | What it does |
+|---|---|
+| `get_pantry` | Everything in stock, plus the units and locations this kitchen uses |
+| `list_recipes` | The recipes this account has written |
+| `search_recipes` | Search what this account can see, by name or description |
+| `get_recipe` | One recipe in full — ingredients and method |
+| `create_recipe` | Write a new recipe in. Saves private. |
+
+If you have these tools, **use them and ignore the HTTP sections.** You cannot
+make authenticated HTTP calls from a chat session — there is no tool for it —
+so the REST API below is not an alternative you can fall back on.
+
+### The HTTP API (Claude Code, or a terminal)
+
+Only reachable where something can actually make the request. Every call needs:
 
 ```
-Authorization: Bearer <PANTRY_API_TOKEN>
+Authorization: Bearer <token>
 ```
 
 Ask the pantry's owner for the token. It is not in this file and should never
 be pasted into a chat you don't control. A wrong or missing token gets a plain
 `401` with no detail — that is the gate doing its job, not a bug to work around.
 
-The base URL is wherever the pantry is deployed. Everything below is relative
-to it.
+The base URL is wherever the pantry is deployed.
 
 > **If you are ever unsure whether you are allowed to write**, ask the person
-> first. Reads are safe and repeatable. `POST`, `PUT` and `DELETE` change a real
-> kitchen that someone is going to cook from tonight.
+> first. Reads are safe and repeatable. Writes change a real kitchen that
+> someone is going to cook from tonight.
 
 ---
 
 ## 2. Read the kitchen first
 
-```
-GET /api/pantry
-```
+`get_pantry` — or `GET /api/pantry` over HTTP.
 
-This is the only call you need before writing anything. It returns:
+This is the only call you need before writing anything. It gives you:
 
-| Key | What it holds |
+| | What it holds |
 |---|---|
-| `pantry.items` | Everything in stock: name, quantity, unit, dimension, category, location, expiry |
-| `recipes` | What already exists, with a `url` for each |
-| `vocabulary.units` | **The only units you may use**, grouped by dimension |
-| `vocabulary.locations` | Where things live in this kitchen |
-| `writing_recipes.schema` | The full JSON Schema for the document you send back |
+| items | Everything in stock: name, quantity, unit, dimension, category, location, expiry |
+| `legal_units` | **The only units you may use** |
+| locations | Where things live in this kitchen |
 
-The endpoint is self-describing on purpose. If this file and
-`writing_recipes.schema` ever disagree, **the endpoint is right** — it ships
-with the running code, and this file is a copy.
+Both are self-describing on purpose. If this file and what the pantry tells you
+ever disagree, **the pantry is right** — it ships with the running code, and
+this file is a copy.
 
 Read it before composing. Suggesting a recipe around 400g of tofu when there
 are 80g left is the single most common way to be unhelpful here.
+
+An account can have no kitchen at all. That is a normal state, not an error:
+recipes can still be written, there is simply no stock to check them against.
 
 ---
 
 ## 3. The recipe document
 
+The same document either way: the arguments to `create_recipe`, or the body of
 `POST /api/recipes` with `Content-Type: application/json`.
 
 ```json
@@ -173,13 +192,18 @@ weighs and the system deliberately doesn't guess.
 
 ## 6. What comes back
 
-**`201 Created`**
+**Saved.** `create_recipe` returns the id, the url and any warnings; over HTTP
+it is a `201`:
 
 ```json
 { "id": 7, "url": "/recipes/7", "warnings": [] }
 ```
 
-**`422 Unprocessable`** — the document is not a recipe. Nothing was written.
+Recipes save **private**. Only the owner can share them, from the recipe page —
+so don't tell someone their recipe is public, and don't try to make it so.
+
+**Rejected.** The document is not a recipe, and nothing was written. The tool
+returns an error listing every problem; over HTTP it is a `422`:
 
 ```json
 {
@@ -193,7 +217,7 @@ weighs and the system deliberately doesn't guess.
 Every problem carries the path of the thing that caused it. Fix and resend —
 do not retry the same body.
 
-**Warnings on a `201` mean it saved and something wants a human eye.** Report
+**Warnings on a save mean it saved and something wants a human eye.** Report
 them to the person; don't silently swallow them, and don't try to "fix" them by
 renaming their ingredients to whatever happens to be in the cupboard.
 
@@ -207,6 +231,13 @@ The two you'll see most:
 ---
 
 ## 7. Changing a recipe that already exists
+
+**Over the connector you can read but not change.** `get_recipe` shows you one;
+there is no edit and no delete tool, deliberately. Talk the person through the
+change and let them make it on the recipe page, or hand them the corrected
+document to paste in.
+
+Over HTTP:
 
 ```
 GET  /api/recipes/{id}     → the document
@@ -251,18 +282,19 @@ remember where a dish came from a year later.
 **Put honest advice in `notes`.** It's for what happened last time — "tofu
 struggled to absorb the sauce" is exactly the kind of thing that belongs there.
 
-**Never post the same recipe twice to check it worked.** Read `recipes` from
-`/api/pantry` first; duplicates are tedious to clean up by hand.
+**Never write the same recipe twice to check it worked.** Check `list_recipes`
+first; duplicates are tedious to clean up by hand.
 
 ---
 
 ## 9. Worked flow
 
-1. `GET /api/pantry`.
-2. Read `vocabulary.units` and `pantry.items`. Note which items are stored in
-   which dimension.
+1. `get_pantry` (or `GET /api/pantry`).
+2. Read the legal units and the items. Note which items are stored in which
+   dimension.
 3. Compose. Copy item names verbatim where you mean the pantry's item. Convert
    your units to that item's dimension.
-4. `POST /api/recipes`.
-5. On `422`, fix the paths listed and resend once.
-6. On `201`, tell the person the recipe's `url` and read them any warnings.
+4. `create_recipe` (or `POST /api/recipes`).
+5. If it's rejected, fix the paths listed and send once more.
+6. When it saves, tell the person the recipe's url, say it saved privately, and
+   read them any warnings.

@@ -43,6 +43,15 @@ export default async function proxy(request: NextRequest) {
   // way, and keeps /claude's promise about what the key can reach honest.
   const isApi = request.nextUrl.pathname.startsWith("/api/");
 
+  // The MCP endpoint carries its credential in the path, because a claude.ai
+  // custom connector can only be added as a bare URL - there is nowhere to put
+  // a header. The route resolves that token to a user itself and refuses
+  // anything it doesn't recognise, so the gate here would only be checking a
+  // credential that isn't in the request.
+  if (request.nextUrl.pathname.startsWith("/api/mcp/")) {
+    return NextResponse.next();
+  }
+
   // Session first, then the back door, and only then the database. Ordered by
   // cost: the first two are arithmetic, the third is a network hop to Hetzner,
   // and it only ever runs for an /api request that presented a bearer token.
