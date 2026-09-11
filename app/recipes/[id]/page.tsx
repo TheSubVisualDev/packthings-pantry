@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
+import { RecipeVisibility } from "@/components/recipe-visibility";
+import { SaveRecipeButton } from "@/components/save-recipe-button";
 import { CookPanel, type CookLine } from "@/components/cook-panel";
 import type { CookStep } from "@/components/recipe-method";
-import { getRecipe, getItems } from "@/lib/queries";
+import { getRecipe, getRecipeAuthorHandle, getItems } from "@/lib/queries";
 import { currentKitchen } from "@/lib/session";
+import { myRating } from "@/lib/recipe-store";
+import { getUser } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +26,24 @@ export default async function RecipePage({
   const { kitchen } = context;
 
   const [recipe, items] = await Promise.all([
-    getRecipe(recipeId),
+    getRecipe(recipeId, context.user.id),
     getItems(kitchen.id),
   ]);
   if (!recipe) notFound();
+
+  const isAuthor = recipe.author_id === context.user.id;
+
+  // Who wrote it, and what this recipe was copied from, if anything.
+  const [author, forkedFrom, yourRating] = await Promise.all([
+    recipe.author_id ? getUser(recipe.author_id) : null,
+    // Looked up without a visibility check on purpose: the credit has to
+    // survive the original being made private.
+    recipe.forked_from_id ? getRecipeAuthorHandle(recipe.forked_from_id) : null,
+    myRating(recipe.id, context.user.id),
+  ]);
+
+  const forkedAuthor =
+    forkedFrom && forkedFrom.id !== recipe.author_id ? forkedFrom : null;
 
   const itemsByName = new Map(
     items.map((item) => [item.name.toLowerCase(), item]),
@@ -87,17 +105,46 @@ export default async function RecipePage({
           <h1 className="text-[28px] font-extrabold tracking-[-0.02em] break-words sm:text-[32px]">
             {recipe.name}
           </h1>
-          <Link
-            href={`/recipes/${recipe.id}/edit`}
-            className="mt-1.5 shrink-0 rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
-          >
-            Edit
-          </Link>
+          {isAuthor && (
+            <Link
+              href={`/recipes/${recipe.id}/edit`}
+              className="mt-1.5 shrink-0 rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
+            >
+              Edit
+            </Link>
+          )}
         </div>
 
         {recipe.description && (
           <p className="mt-2 text-[15px] leading-relaxed font-medium text-muted-foreground">
             {recipe.description}
+          </p>
+        )}
+
+        {(author || forkedAuthor) && (
+          <p className="mt-2 text-sm font-semibold text-muted-foreground">
+            {author && (
+              <>
+                by{" "}
+                <Link
+                  href={`/people/${author.handle}`}
+                  className="font-bold text-foreground underline underline-offset-2"
+                >
+                  @{author.handle}
+                </Link>
+              </>
+            )}
+            {forkedAuthor && (
+              <>
+                {author ? " · " : ""}adapted from{" "}
+                <Link
+                  href={`/people/${forkedAuthor.handle}`}
+                  className="font-bold text-foreground underline underline-offset-2"
+                >
+                  @{forkedAuthor.handle}
+                </Link>
+              </>
+            )}
           </p>
         )}
 
@@ -113,10 +160,18 @@ export default async function RecipePage({
         <CookPanel
           recipeId={recipe.id}
           baseServings={recipe.base_servings}
-          rating={recipe.rating}
+          rating={yourRating}
           lines={lines}
           steps={steps}
         />
+
+        <div className="mt-5">
+          {isAuthor ? (
+            <RecipeVisibility recipeId={recipe.id} current={recipe.visibility} />
+          ) : (
+            <SaveRecipeButton recipeId={recipe.id} />
+          )}
+        </div>
 
         {recipe.notes && (
           <section className="mt-5">

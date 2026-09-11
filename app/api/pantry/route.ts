@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 
   const [items, recipes, locations] = await Promise.all([
     getItems(context.kitchen.id),
-    getRecipes(),
+    getRecipes(context.user.id),
     getLocations(context.kitchen.id),
   ]);
 

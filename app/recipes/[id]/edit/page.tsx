@@ -28,7 +28,7 @@ export default async function EditRecipePage({
   const { kitchen } = context;
 
   const [recipe, items, sections] = await Promise.all([
-    getRecipe(recipeId),
+    getRecipe(recipeId, context.user.id),
     getItems(kitchen.id),
     getSectionNames(),
   ]);

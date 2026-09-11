@@ -37,7 +37,7 @@ export async function saveRecipeDocument(
     return { ok: false, problems: parsed.problems, warnings: parsed.warnings };
   }
 
-  const id = await saveRecipe(parsed.recipe, existingId);
+  const id = await saveRecipe(parsed.recipe, existingId, context.user.id);
 
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${id}`);

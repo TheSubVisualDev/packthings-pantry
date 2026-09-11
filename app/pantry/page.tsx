@@ -93,7 +93,7 @@ export default async function PantryPage({
 
   const [items, recipes, places] = await Promise.all([
     getItems(kitchen.id),
-    getRecipesWithMatches(kitchen.id),
+    getRecipesWithMatches(kitchen.id, context.user.id),
     getLocations(kitchen.id),
   ]);
 

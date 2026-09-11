@@ -15,6 +15,10 @@ export interface Item {
 
 export interface Recipe {
   id: number;
+  /** Null only for recipes written before authorship existed. */
+  author_id: number | null;
+  visibility: "private" | "friends" | "public";
+  forked_from_id: number | null;
   name: string;
   description: string | null;
   base_servings: number;
@@ -53,6 +57,15 @@ export interface RecipeStep {
 /** A step with the ingredient lines it draws on, for the cooking view. */
 export interface RecipeStepWithIngredients extends RecipeStep {
   uses: RecipeIngredient[];
+}
+
+/** A recipe row carrying who wrote it, for lists and bylines. */
+export interface RecipeWithAuthor extends Recipe {
+  author_handle: string | null;
+  author_name: string | null;
+  /** Averaged across everyone who rated it, not one shared number. */
+  avg_rating: number | null;
+  rating_count: number;
 }
 
 export interface RecipeWithIngredients extends Recipe {

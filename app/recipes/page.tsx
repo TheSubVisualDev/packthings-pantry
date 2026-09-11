@@ -16,7 +16,7 @@ export default async function RecipesPage() {
   if (!context.ok) redirect("/login");
   const { kitchen } = context;
 
-  const recipes = await getRecipesWithMatches(kitchen.id);
+  const recipes = await getRecipesWithMatches(kitchen.id, context.user.id);
   const [topMatch, ...rest] = recipes;
 
   return (

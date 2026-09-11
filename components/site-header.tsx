@@ -8,6 +8,7 @@ import { currentKitchen } from "@/lib/session";
 const tabs = [
   { href: "/pantry", key: "stock", label: "Stock" },
   { href: "/recipes", key: "recipes", label: "Recipes" },
+  { href: "/discover", key: "discover", label: "Discover" },
 ] as const;
 
 /**
@@ -19,7 +20,7 @@ export async function SiteHeader({
   active,
   meta,
 }: {
-  active: "stock" | "recipes";
+  active: "stock" | "recipes" | "discover";
   meta?: string;
 }) {
   // Reached through the Basic-auth back door there is no account and so no
@@ -37,7 +38,7 @@ export async function SiteHeader({
             <PantryMark className="h-[26px] w-[23px] text-primary" />
             Pantry
           </Link>
-          <nav className="flex gap-1.5 rounded-full bg-[oklch(0.93_0.02_60)] p-1 text-[13px] font-bold sm:gap-1 sm:bg-transparent sm:p-0 sm:text-[15px] sm:font-semibold">
+          <nav className="flex gap-1 rounded-full bg-[oklch(0.93_0.02_60)] p-1 text-[12.5px] font-bold sm:gap-1 sm:bg-transparent sm:p-0 sm:text-[15px] sm:font-semibold">
             {tabs.map((tab) => {
               const isActive = tab.key === active;
               return (
@@ -47,8 +48,8 @@ export async function SiteHeader({
                   aria-current={isActive ? "page" : undefined}
                   className={
                     isActive
-                      ? "rounded-full bg-white px-3.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] sm:bg-ink sm:px-4 sm:py-[7px] sm:text-background sm:shadow-none"
-                      : "rounded-full px-3.5 py-1.5 text-muted-foreground sm:px-4 sm:py-[7px]"
+                      ? "rounded-full bg-white px-3 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] sm:bg-ink sm:px-4 sm:py-[7px] sm:text-background sm:shadow-none"
+                      : "rounded-full px-3 py-1.5 text-muted-foreground sm:px-4 sm:py-[7px]"
                   }
                 >
                   {tab.label}

@@ -1,5 +1,6 @@
 import { getDb } from "./db";
 import type { ParsedRecipe } from "./recipe-schema";
+import type { Visibility } from "./social";
 
 /**
  * Writing a parsed recipe to the database.
@@ -22,6 +23,7 @@ import type { ParsedRecipe } from "./recipe-schema";
 export async function saveRecipe(
   parsed: ParsedRecipe,
   existingId?: number,
+  authorId?: number,
 ): Promise<number> {
   const tx = await getDb().transaction("write");
 
@@ -60,10 +62,12 @@ export async function saveRecipe(
       });
     } else {
       const inserted = await tx.execute({
-        sql: `INSERT INTO recipes (name, description, base_servings, prep_minutes,
-                cook_minutes, source, notes, times_cooked, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP) RETURNING id`,
+        sql: `INSERT INTO recipes (author_id, visibility, name, description, base_servings,
+                prep_minutes, cook_minutes, source, notes, times_cooked, updated_at)
+              VALUES (?, 'private', ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP) RETURNING id`,
         args: [
+          // New recipes start private. Publishing is a decision, not a default.
+          authorId ?? null,
           parsed.name,
           parsed.description,
           parsed.base_servings,
@@ -132,6 +136,154 @@ export async function deleteRecipe(id: number): Promise<boolean> {
   const result = await getDb().execute({
     sql: "DELETE FROM recipes WHERE id = ?",
     args: [id],
+  });
+  return result.rowsAffected > 0;
+}
+
+/**
+ * Copies a recipe into someone else's collection.
+ *
+ * Everything is duplicated rather than shared, because the copy is now theirs
+ * to change - halve the chilli, swap the tofu - without editing the original.
+ * forked_from_id keeps the trail back, so "adapted from @someone" survives
+ * however much the copy drifts.
+ *
+ * The new copy is private and uncooked: the history belongs to whoever cooked
+ * it, not to whoever pressed save.
+ */
+export async function forkRecipe(
+  recipeId: number,
+  newAuthorId: number,
+): Promise<number | null> {
+  const tx = await getDb().transaction("write");
+
+  try {
+    const source = await tx.execute({
+      sql: "SELECT * FROM recipes WHERE id = ?",
+      args: [recipeId],
+    });
+    const recipe = source.rows[0] as unknown as
+      | {
+          name: string;
+          description: string | null;
+          base_servings: number;
+          prep_minutes: number | null;
+          cook_minutes: number | null;
+          source: string | null;
+          notes: string | null;
+        }
+      | undefined;
+
+    if (!recipe) {
+      await tx.rollback();
+      return null;
+    }
+
+    const created = await tx.execute({
+      sql: `INSERT INTO recipes (author_id, visibility, forked_from_id, name, description,
+              base_servings, prep_minutes, cook_minutes, source, notes, times_cooked, updated_at)
+            VALUES (?, 'private', ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP) RETURNING id`,
+      args: [
+        newAuthorId,
+        recipeId,
+        recipe.name,
+        recipe.description,
+        recipe.base_servings,
+        recipe.prep_minutes,
+        recipe.cook_minutes,
+        recipe.source,
+        recipe.notes,
+      ],
+    });
+    const newId = (created.rows[0] as unknown as { id: number }).id;
+
+    // item_id is deliberately not copied. It points at stock in the original
+    // author's kitchen, which means nothing in anyone else's - the name is the
+    // portable half, and the cook flow resolves it against your own shelves.
+    await tx.execute({
+      sql: `INSERT INTO recipe_ingredients
+              (recipe_id, item_name, quantity, unit, note, optional, section, position)
+            SELECT ?, item_name, quantity, unit, note, optional, section, position
+            FROM recipe_ingredients WHERE recipe_id = ?`,
+      args: [newId, recipeId],
+    });
+
+    const steps = await tx.execute({
+      sql: "SELECT * FROM recipe_steps WHERE recipe_id = ? ORDER BY position, id",
+      args: [recipeId],
+    });
+
+    for (const row of steps.rows as unknown as {
+      id: number;
+      position: number;
+      section: string | null;
+      body: string;
+      minutes: number | null;
+    }[]) {
+      const copied = await tx.execute({
+        sql: `INSERT INTO recipe_steps (recipe_id, position, section, body, minutes)
+              VALUES (?, ?, ?, ?, ?) RETURNING id`,
+        args: [newId, row.position, row.section, row.body, row.minutes],
+      });
+      const newStepId = (copied.rows[0] as unknown as { id: number }).id;
+
+      // Re-point the step's ingredient links at the copied lines, matched by
+      // position - the one thing that survives the ids changing.
+      await tx.execute({
+        sql: `INSERT INTO recipe_step_ingredients (step_id, ingredient_id)
+              SELECT ?, mine.id
+              FROM recipe_step_ingredients si
+              JOIN recipe_ingredients theirs ON theirs.id = si.ingredient_id
+              JOIN recipe_ingredients mine
+                ON mine.recipe_id = ? AND mine.position = theirs.position
+              WHERE si.step_id = ?`,
+        args: [newStepId, newId, row.id],
+      });
+    }
+
+    await tx.commit();
+    return newId;
+  } catch (error) {
+    await tx.rollback();
+    throw error;
+  }
+}
+
+/** One rating per person. Re-rating replaces your own, nobody else's. */
+export async function rate(
+  recipeId: number,
+  userId: number,
+  rating: number,
+): Promise<void> {
+  await getDb().execute({
+    sql: `INSERT INTO recipe_ratings (recipe_id, user_id, rating, rated_at)
+          VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(recipe_id, user_id) DO UPDATE SET
+            rating = excluded.rating, rated_at = CURRENT_TIMESTAMP`,
+    args: [recipeId, userId, rating],
+  });
+}
+
+export async function myRating(
+  recipeId: number,
+  userId: number,
+): Promise<number | null> {
+  const result = await getDb().execute({
+    sql: "SELECT rating FROM recipe_ratings WHERE recipe_id = ? AND user_id = ?",
+    args: [recipeId, userId],
+  });
+  return (result.rows[0] as unknown as { rating: number })?.rating ?? null;
+}
+
+export async function setVisibility(
+  recipeId: number,
+  authorId: number,
+  visibility: Visibility,
+): Promise<boolean> {
+  // The author is in the WHERE clause, so this can only ever change your own.
+  const result = await getDb().execute({
+    sql: "UPDATE recipes SET visibility = ? WHERE id = ? AND author_id = ?",
+    args: [visibility, recipeId, authorId],
   });
   return result.rowsAffected > 0;
 }

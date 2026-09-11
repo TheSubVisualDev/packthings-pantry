@@ -68,6 +68,13 @@ const ADDED_COLUMNS = [
   { table: "products", column: "kitchen_id", definition: "INTEGER REFERENCES kitchens(id) ON DELETE CASCADE" },
   { table: "cook_events", column: "kitchen_id", definition: "INTEGER REFERENCES kitchens(id) ON DELETE CASCADE" },
   { table: "cook_events", column: "cooked_by", definition: "INTEGER REFERENCES users(id) ON DELETE SET NULL" },
+
+  // Recipes became things somebody wrote, with a say in who sees them.
+  // Nullable author for the same reason as kitchen_id: the app adopts these
+  // on first sign-in rather than this script picking a name out of the air.
+  { table: "recipes", column: "author_id", definition: "INTEGER REFERENCES users(id) ON DELETE SET NULL" },
+  { table: "recipes", column: "visibility", definition: "TEXT NOT NULL DEFAULT 'private'" },
+  { table: "recipes", column: "forked_from_id", definition: "INTEGER REFERENCES recipes(id) ON DELETE SET NULL" },
 ];
 
 for (const { table, column, definition } of ADDED_COLUMNS) {

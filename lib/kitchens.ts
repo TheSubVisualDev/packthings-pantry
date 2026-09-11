@@ -136,6 +136,14 @@ export async function createKitchen(
           args: [kitchen.id],
         });
       }
+
+      // Recipes aren't kitchen-scoped, but they were written by someone and
+      // the rows predating authorship have nobody. Same condition, same
+      // moment: the first person through the door wrote what was already here.
+      await tx.execute({
+        sql: "UPDATE recipes SET author_id = ? WHERE author_id IS NULL",
+        args: [ownerId],
+      });
     }
 
     await tx.commit();

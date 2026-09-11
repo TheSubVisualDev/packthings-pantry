@@ -406,7 +406,7 @@ export function CookPanel({
 
       <section>
         <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-label">
-          Rating
+          What you thought
         </h2>
         <div className="flex items-center gap-1">
           {[1, 2, 3, 4, 5].map((star) => (
@@ -430,7 +430,7 @@ export function CookPanel({
             </button>
           ))}
           <span className="ml-2 text-sm font-semibold text-muted-foreground">
-            {rating === null ? "Unrated" : `${rating}/5`}
+            {rating === null ? "Not rated yet" : `${rating}/5`}
           </span>
         </div>
       </section>

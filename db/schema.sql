@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS items (
 -- servings; scaling a cook doesn't scale the simmer.
 CREATE TABLE IF NOT EXISTS recipes (
   id            INTEGER PRIMARY KEY,
+  author_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  -- private: only the author. friends: mutual follows. public: anyone signed in.
+  visibility    TEXT NOT NULL DEFAULT 'private',
+  -- Where a copy came from, so "adapted from @someone" survives editing.
+  forked_from_id INTEGER REFERENCES recipes(id) ON DELETE SET NULL,
   name          TEXT NOT NULL,
   description   TEXT,             -- a line or two, shown above the ingredients
   base_servings INTEGER NOT NULL,
@@ -51,6 +56,8 @@ CREATE TABLE IF NOT EXISTS recipe_ingredients (
   position  INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE INDEX IF NOT EXISTS idx_recipes_author ON recipes(author_id);
+CREATE INDEX IF NOT EXISTS idx_recipes_visibility ON recipes(visibility, id DESC);
 CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_recipe ON recipe_ingredients(recipe_id, position);
 CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_item ON recipe_ingredients(item_id);
 
@@ -182,3 +189,27 @@ CREATE TABLE IF NOT EXISTS kitchen_locations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_kitchen_locations ON kitchen_locations(kitchen_id, position);
+
+-- Who follows whom. Mutual follows are what "friends" means for visibility:
+-- both people opted in, which is the only definition that doesn't surprise
+-- somebody. A one-way follow is just reading.
+CREATE TABLE IF NOT EXISTS follows (
+  follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  followee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (follower_id, followee_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee_id);
+
+-- One rating per person per recipe. This replaces the single shared number on
+-- recipes, which couldn't survive more than one household having an opinion.
+CREATE TABLE IF NOT EXISTS recipe_ratings (
+  recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+  user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating    INTEGER NOT NULL,
+  rated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (recipe_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_recipe_ratings_recipe ON recipe_ratings(recipe_id);

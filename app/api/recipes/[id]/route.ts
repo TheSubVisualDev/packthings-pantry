@@ -15,10 +15,17 @@ export const dynamic = "force-dynamic";
  * chilli" without anyone retyping the document.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const recipe = await getRecipe(Number((await params).id));
+  const context = await apiContext(request);
+  if (!context.ok) {
+    return NextResponse.json({ error: "No account for this request" }, { status: 401 });
+  }
+
+  // A recipe you may not see is reported as missing rather than forbidden, so
+  // the endpoint doesn't confirm that someone else's private recipe exists.
+  const recipe = await getRecipe(Number((await params).id), context.user.id);
   if (!recipe) return NextResponse.json({ error: "No such recipe" }, { status: 404 });
 
   const byId = new Map(recipe.ingredients.map((line) => [line.id, line.item_name]));
@@ -69,13 +76,13 @@ export async function PUT(
     return NextResponse.json({ error: "Bad id" }, { status: 400 });
   }
 
-  const existing = await getRecipe(id);
-  if (!existing) return NextResponse.json({ error: "No such recipe" }, { status: 404 });
-
   const context = await apiContext(request);
   if (!context.ok) {
     return NextResponse.json({ error: "No account for this request" }, { status: 401 });
   }
+
+  const existing = await getRecipe(id, context.user.id);
+  if (!existing) return NextResponse.json({ error: "No such recipe" }, { status: 404 });
 
   let body: unknown;
   try {

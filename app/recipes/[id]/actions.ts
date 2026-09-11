@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
-import { requireKitchenRole } from "@/lib/session";
+import { requireKitchenRole, requireUser } from "@/lib/session";
+import { getRecipe } from "@/lib/queries";
+import { rate } from "@/lib/recipe-store";
 import { scaleQuantity, toCanonical } from "@/lib/units";
 import type {
   CookChange,
@@ -204,7 +206,13 @@ export async function cookRecipe(
   }
 }
 
-/** Sets the shared household rating. One rating per recipe, no users table. */
+/**
+ * Your own rating, not the household's.
+ *
+ * A single shared number couldn't survive more than one person having an
+ * opinion, so ratings moved to their own table keyed by who left them. The
+ * average across everyone is what a listing shows.
+ */
 export async function rateRecipe(
   recipeId: number,
   rating: number,
@@ -213,12 +221,18 @@ export async function rateRecipe(
     return { ok: false, error: "Rating must be 1-5" };
   }
 
-  await getDb().execute({
-    sql: "UPDATE recipes SET rating = ? WHERE id = ?",
-    args: [rating, recipeId],
-  });
+  const session = await requireUser();
+  if (!session.ok) return { ok: false, error: "Sign in first." };
+
+  // Only recipes you can see can be rated, so a number can't be attached to
+  // somebody's private recipe by guessing its id.
+  const visible = await getRecipe(recipeId, session.user.id);
+  if (!visible) return { ok: false, error: "No such recipe" };
+
+  await rate(recipeId, session.user.id, rating);
 
   revalidatePath("/recipes");
+  revalidatePath("/discover");
   revalidatePath(`/recipes/${recipeId}`);
   return { ok: true };
 }
