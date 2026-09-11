@@ -27,7 +27,7 @@ export default async function NewRecipePage() {
   return (
     <>
       <SiteHeader active="recipes" />
-      <main className="mx-auto w-full max-w-[720px] px-5 py-7 pb-32 sm:px-9">
+      <main className="mx-auto w-full max-w-[720px] px-5 py-7 pb-32 sm:px-9 lg:max-w-[1280px]">
         <Link
           href="/recipes"
           className="text-sm font-semibold text-muted-foreground hover:text-foreground"

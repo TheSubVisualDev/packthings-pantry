@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface CookStep {
   id: number;
@@ -25,6 +25,47 @@ export interface CookStep {
  * half-cooked recipe restoring its ticks a week later would be worse than
  * useless.
  */
+/**
+ * Holds the screen awake while you cook.
+ *
+ * Off by default and asked for explicitly: reading a recipe isn't cooking one,
+ * and a page that silently stops a phone sleeping is a page that flattens a
+ * battery. The lock is dropped when the component goes away, and re-taken if
+ * the tab is hidden and comes back - browsers release it on their own when you
+ * switch away, which is otherwise exactly when you'd lose it.
+ */
+function useKeepAwake(on: boolean) {
+  const sentinel = useRef<WakeLockSentinel | null>(null);
+
+  useEffect(() => {
+    if (!on || !("wakeLock" in navigator)) return;
+
+    let dropped = false;
+
+    const take = async () => {
+      try {
+        sentinel.current = await navigator.wakeLock.request("screen");
+      } catch {
+        // Refused, usually because the tab isn't visible. Nothing to do.
+      }
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && !dropped) take();
+    };
+
+    take();
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      dropped = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      sentinel.current?.release().catch(() => {});
+      sentinel.current = null;
+    };
+  }, [on]);
+}
+
 export function RecipeMethod({
   steps,
   labels,
@@ -34,6 +75,9 @@ export function RecipeMethod({
   labels: Record<number, string>;
 }) {
   const [done, setDone] = useState<Record<number, boolean>>({});
+  const [awake, setAwake] = useState(false);
+
+  useKeepAwake(awake);
 
   if (steps.length === 0) return null;
 
@@ -47,9 +91,21 @@ export function RecipeMethod({
 
   return (
     <section>
-      <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-label">
-        Method
-      </h2>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-label">
+          Method
+        </h2>
+        <button
+          type="button"
+          aria-pressed={awake}
+          onClick={() => setAwake((value) => !value)}
+          className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+            awake ? "bg-primary text-primary-foreground" : "bg-chip text-muted-foreground"
+          }`}
+        >
+          {awake ? "Screen staying on" : "Keep screen on"}
+        </button>
+      </div>
 
       <ol className="space-y-2.5">
         {rows.map(({ step, index, showSection }) => {

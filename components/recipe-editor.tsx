@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { PhotoPicker } from "@/components/photo-picker";
+import { RecipePreview } from "@/components/recipe-preview";
 import { SoftSelect } from "@/components/soft-select";
 import { saveRecipeDocument, type SaveRecipeResult } from "@/app/recipes/actions";
 import { PACKAGE_UNITS, UNITS_BY_DIMENSION } from "@/lib/units";
@@ -85,6 +86,11 @@ function move<T>(list: T[], from: number, delta: number): T[] {
  * Nothing is validated here. The draft is handed to the same parse the API
  * uses and the answer comes back with paths attached, because a second
  * implementation of "what is a valid recipe" is a second thing to be wrong.
+ *
+ * Two panes on a wide screen - what it will look like on the left, the fields
+ * on the right - and a tab switch on a narrow one, where side by side would
+ * mean two columns too thin to use. The preview updates as you type because it
+ * reads the same draft state the fields write to.
  */
 export function RecipeEditor({
   initial,
@@ -123,6 +129,10 @@ export function RecipeEditor({
   }));
   const [result, setResult] = useState<SaveRecipeResult | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Which pane is showing, on a screen too narrow for both. Desktop ignores it
+  // and shows the pair side by side.
+  const [pane, setPane] = useState<"edit" | "preview">("edit");
 
   function field<K extends keyof RecipeDraft>(key: K, value: RecipeDraft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -190,7 +200,47 @@ export function RecipeEditor({
     .filter(Boolean);
 
   return (
-    <div className="space-y-6">
+    <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-8">
+      {/* Spans both columns: one bar over the pair, so Save is in the same
+          place whichever pane you're looking at. */}
+      <div className="sticky top-0 z-30 -mx-5 mb-5 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-3 backdrop-blur sm:-mx-9 sm:px-9 lg:col-span-2">
+        <div className="flex gap-1 rounded-full bg-chip p-1 text-[13px] font-bold lg:invisible">
+          {(["edit", "preview"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={pane === option}
+              onClick={() => setPane(option)}
+              className={
+                pane === option
+                  ? "rounded-full bg-card px-3.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                  : "rounded-full px-3.5 py-1.5 text-muted-foreground"
+              }
+            >
+              {option === "edit" ? "Edit" : "Preview"}
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={pending}
+          className="shrink-0 rounded-[14px] bg-primary px-5 py-2.5 text-sm font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
+        >
+          {pending ? "Saving…" : recipeId ? "Save changes" : "Create recipe"}
+        </button>
+      </div>
+
+      {/* Preview left, fields right. */}
+      <div className={`${pane === "preview" ? "block" : "hidden"} lg:block`}>
+        <div className="lg:sticky lg:top-20">
+          <span className={`${LABEL} hidden lg:block`}>Preview</span>
+          <RecipePreview draft={draft} photos={photos} />
+        </div>
+      </div>
+
+      <div className={`${pane === "edit" ? "block" : "hidden"} space-y-6 lg:block`}>
       <section className="space-y-4">
         {recipeId && photos ? (
           <div>
@@ -352,16 +402,19 @@ export function RecipeEditor({
               {/* Pantry names are offered, not required: a recipe can call for
                   something you've never bought, and that line simply shows as
                   not in stock rather than being refused. */}
-              <SoftSelect
-                id={`ingredient-name-${line.key}`}
-                name={`ingredient-name-${line.key}`}
-                options={pantryNames}
-                defaultValue={line.item_name}
-                onValueChange={(value) => patchIngredient(index, { item_name: value })}
-                className={`${FIELD} pr-11`}
-              />
-
-              <div className="mt-2.5 flex flex-wrap gap-2">
+              {/* Name, amount and unit on one line - the three things every
+                  ingredient has. Everything optional goes underneath. */}
+              <div className="flex flex-wrap items-start gap-2">
+                <div className="min-w-40 flex-1">
+                  <SoftSelect
+                    id={`ingredient-name-${line.key}`}
+                    name={`ingredient-name-${line.key}`}
+                    options={pantryNames}
+                    defaultValue={line.item_name}
+                    onValueChange={(value) => patchIngredient(index, { item_name: value })}
+                    className={`${SMALL} w-full pr-9`}
+                  />
+                </div>
                 <input
                   type="number"
                   min="0"
@@ -371,13 +424,13 @@ export function RecipeEditor({
                   placeholder="Qty"
                   value={line.quantity}
                   onChange={(event) => patchIngredient(index, { quantity: event.target.value })}
-                  className={`${SMALL} w-24`}
+                  className={`${SMALL} w-[4.5rem] text-center`}
                 />
                 <select
                   aria-label="Unit"
                   value={line.unit}
                   onChange={(event) => patchIngredient(index, { unit: event.target.value })}
-                  className={`${SMALL} w-28`}
+                  className={`${SMALL} w-24`}
                 >
                   {(Object.keys(UNITS_BY_DIMENSION) as Dimension[]).map((dimension) => (
                     <optgroup key={dimension} label={DIMENSION_LABEL[dimension]}>
@@ -389,14 +442,16 @@ export function RecipeEditor({
                     </optgroup>
                   ))}
                 </select>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <input
                   aria-label="Preparation note"
                   placeholder="finely chopped"
                   value={line.note}
                   onChange={(event) => patchIngredient(index, { note: event.target.value })}
-                  className={`${SMALL} min-w-40 flex-1`}
+                  className={`${SMALL} min-w-36 flex-1`}
                 />
-              </div>
 
               {/* A tin is a container, not an amount. Saying how much is in one
                   lets the line work against a pantry that weighs the contents
@@ -443,16 +498,15 @@ export function RecipeEditor({
                 </div>
               )}
 
-              <div className="mt-2.5 flex flex-wrap items-center gap-3">
                 <input
                   aria-label="Section"
-                  placeholder="Section, e.g. For the sauce"
+                  placeholder="Section"
                   value={line.section}
                   onChange={(event) => patchIngredient(index, { section: event.target.value })}
-                  className={`${SMALL} min-w-48 flex-1`}
+                  className={`${SMALL} min-w-28 flex-1`}
                   list="known-sections"
                 />
-                <label className="flex items-center gap-2 text-sm font-semibold">
+                <label className="flex shrink-0 items-center gap-1.5 text-sm font-semibold">
                   <input
                     type="checkbox"
                     checked={line.optional}
@@ -696,14 +750,7 @@ export function RecipeEditor({
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={onSave}
-        disabled={pending}
-        className="w-full rounded-[14px] bg-primary px-4 py-4 text-[15px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
-      >
-        {pending ? "Saving…" : recipeId ? "Save changes" : "Create recipe"}
-      </button>
+      </div>
     </div>
   );
 }
