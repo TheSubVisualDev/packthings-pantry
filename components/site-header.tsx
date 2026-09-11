@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { logout } from "@/app/login/actions";
+import { AccountMenu } from "@/components/account-menu";
 import { PantryMark } from "@/components/pantry-mark";
-import { KitchenSwitcher } from "@/components/kitchen-switcher";
 import { getKitchensFor } from "@/lib/kitchens";
 import { currentKitchen } from "@/lib/session";
 
@@ -15,6 +14,11 @@ const tabs = [
  * Header from artboards 2a/2b. The nav renders as a segmented control on
  * mobile (muted track, white active pill) and as standalone pills on desktop
  * (dark active pill), matching the two artboards.
+ *
+ * Everything that isn't navigation sits in one menu on the right. Three tabs, a
+ * kitchen switcher, a settings link and a sign-out button did not fit on a
+ * phone, and none of the last three is something you reach for often enough to
+ * earn permanent space.
  */
 export async function SiteHeader({
   active,
@@ -27,18 +31,22 @@ export async function SiteHeader({
   // kitchen; the header still has to render.
   const context = await currentKitchen();
   const kitchens = context.ok ? await getKitchensFor(context.user.id) : [];
+
   return (
     <header className="border-b border-border bg-surface-raised">
-      <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between gap-4 px-5 py-4 sm:px-9 sm:py-5">
-        <div className="flex items-center gap-4 sm:gap-7">
+      <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-9 sm:py-5">
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-7">
           <Link
             href="/pantry"
-            className="flex items-center gap-2 text-[22px] font-extrabold tracking-[-0.02em]"
+            className="flex shrink-0 items-center gap-2 text-[22px] font-extrabold tracking-[-0.02em]"
           >
             <PantryMark className="h-[26px] w-[23px] text-primary" />
-            Pantry
+            {/* The wordmark is the first thing to go when space is tight - the
+                mark alone still says where you are. */}
+            <span className="hidden sm:inline">Pantry</span>
           </Link>
-          <nav className="flex gap-1 rounded-full bg-[oklch(0.93_0.02_60)] p-1 text-[12.5px] font-bold sm:gap-1 sm:bg-transparent sm:p-0 sm:text-[15px] sm:font-semibold">
+
+          <nav className="flex min-w-0 gap-0.5 rounded-full bg-[oklch(0.93_0.02_60)] p-1 text-[12.5px] font-bold sm:gap-1 sm:bg-transparent sm:p-0 sm:text-[15px] sm:font-semibold">
             {tabs.map((tab) => {
               const isActive = tab.key === active;
               return (
@@ -48,8 +56,8 @@ export async function SiteHeader({
                   aria-current={isActive ? "page" : undefined}
                   className={
                     isActive
-                      ? "rounded-full bg-white px-3 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] sm:bg-ink sm:px-4 sm:py-[7px] sm:text-background sm:shadow-none"
-                      : "rounded-full px-3 py-1.5 text-muted-foreground sm:px-4 sm:py-[7px]"
+                      ? "rounded-full bg-white px-2.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] sm:bg-ink sm:px-4 sm:py-[7px] sm:text-background sm:shadow-none"
+                      : "rounded-full px-2.5 py-1.5 text-muted-foreground sm:px-4 sm:py-[7px]"
                   }
                 >
                   {tab.label}
@@ -58,29 +66,18 @@ export async function SiteHeader({
             })}
           </nav>
         </div>
-        <div className="flex items-center gap-3 sm:gap-4">
-          {context.ok && (
-            <KitchenSwitcher current={context.kitchen} kitchens={kitchens} />
-          )}
+
+        <div className="flex shrink-0 items-center gap-3">
           {meta && (
-            <div className="hidden text-sm font-semibold text-muted-foreground sm:block">
+            <div className="hidden text-sm font-semibold text-muted-foreground lg:block">
               {meta}
             </div>
           )}
-          <Link
-            href="/settings"
-            className="text-[13px] font-semibold text-muted-foreground hover:text-foreground sm:text-sm"
-          >
-            Settings
-          </Link>
-          <form action={logout}>
-            <button
-              type="submit"
-              className="text-[13px] font-semibold text-muted-foreground hover:text-foreground sm:text-sm"
-            >
-              Sign out
-            </button>
-          </form>
+          <AccountMenu
+            current={context.ok ? context.kitchen : null}
+            kitchens={kitchens}
+            handle={context.ok ? context.user.handle : null}
+          />
         </div>
       </div>
     </header>
