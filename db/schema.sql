@@ -155,7 +155,18 @@ CREATE TABLE IF NOT EXISTS products (
   brand     TEXT,
   pack_size REAL,
   pack_unit TEXT,
-  seen_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  seen_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  -- Nutrition per 100g or 100ml, copied from Open Food Facts once and kept.
+  -- A barcode product does not change its recipe, so asking twice is just
+  -- being rude with somebody else machine.
+  kcal_100    REAL,
+  protein_100 REAL,
+  carbs_100   REAL,
+  fat_100     REAL,
+  fibre_100   REAL,
+  salt_100    REAL,
+  -- Distinguishes "asked, and they do not know" from "never asked".
+  nutrition_checked_at TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_item ON products(item_id);

@@ -6,6 +6,7 @@ import { cleanProductName, rankItems, STRONG_MATCH } from "@/lib/match";
 import { isBarcode, lookupOpenFoodFacts, type PackSize } from "@/lib/off";
 import { getItems } from "@/lib/queries";
 import { getTags, getTagsByItem } from "@/lib/tags";
+import { copyMacrosToItem, macrosForBarcode } from "@/lib/nutrition";
 import { requireKitchenRole } from "@/lib/session";
 import { toCanonical } from "@/lib/units";
 import type { Item } from "@/lib/types";
@@ -274,6 +275,17 @@ export async function linkBarcode(
     });
     quantity = (updated.rows[0] as unknown as { quantity: number }).quantity;
   }
+
+  /**
+   * Nutrition, fetched at most once per barcode and then read from our own
+   * database forever after.
+   *
+   * After the product row exists, because the cache writes onto it - and
+   * copied onto the item so that grouping a whole shelf by macro is one query
+   * against one table rather than a join for every row.
+   */
+  const macros = await macrosForBarcode(code);
+  await copyMacrosToItem(access.kitchen.id, itemId, macros);
 
   revalidatePath("/pantry");
   revalidatePath("/recipes");

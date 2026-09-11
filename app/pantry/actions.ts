@@ -11,6 +11,7 @@ import { CANONICAL_FOR, dimensionOf, toCanonical } from "@/lib/units";
 import { ADJUST_SQL, PACK_SQL } from "@/lib/containers";
 import { cleanTagName, ensureTag, setPrimaryTag, tagItem, untagItem } from "@/lib/tags";
 import { cleanShopName, setPreferredShop, shopItem, unshopItem } from "@/lib/shops";
+import { copyMacrosToItem, macrosForBarcode } from "@/lib/nutrition";
 
 export interface AddItemState {
   error?: string;
@@ -147,6 +148,10 @@ export async function addItem(
               seen_at = CURRENT_TIMESTAMP`,
       args: [barcode, access.kitchen.id, itemId, name, converted.quantity, CANONICAL_FOR[dimension]],
     });
+
+    // Same cache as the link flow: asked once per barcode, then never again.
+    const macros = await macrosForBarcode(barcode);
+    await copyMacrosToItem(access.kitchen.id, itemId, macros);
   }
 
   revalidatePath("/pantry");

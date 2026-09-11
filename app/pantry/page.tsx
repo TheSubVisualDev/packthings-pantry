@@ -7,6 +7,7 @@ import { SuggestionCard, TopMatchCard } from "@/components/recipe-suggestion";
 import { getItems, getRecipesWithMatches } from "@/lib/queries";
 import { UNPLACED } from "@/lib/locations";
 import { getLocations } from "@/lib/kitchens";
+import { macroGroup } from "@/lib/nutrition";
 import { getTags } from "@/lib/tags";
 import { getExpiring } from "@/lib/queries";
 import { getList } from "@/lib/shopping";
@@ -16,7 +17,7 @@ import type { Item } from "@/lib/types";
 // Live stock - never prerender against the database at build time.
 export const dynamic = "force-dynamic";
 
-type GroupBy = "tag" | "location";
+type GroupBy = "tag" | "location" | "nutrition";
 
 
 
@@ -39,9 +40,19 @@ function group(
   for (const item of items) {
     const filedUnder =
       item.primary_tag_id === null ? null : tagNames.get(item.primary_tag_id) ?? null;
+
+    /**
+     * Nutrition groups by which macro the food mostly IS, by energy rather
+     * than by weight - otherwise almost everything reads as carbs, since fat
+     * is light and carries more than twice the energy per gram. Butter would
+     * sit under carbs on weight alone, which helps nobody.
+     */
     const key =
-      (by === "location" ? item.location : filedUnder) ??
-      (by === "location" ? UNPLACED : "Untagged");
+      by === "location"
+        ? item.location ?? UNPLACED
+        : by === "nutrition"
+          ? macroGroup(item)
+          : filedUnder ?? "Untagged";
     const bucket = groups.get(key);
     if (bucket) bucket.push(item);
     else groups.set(key, [item]);
@@ -56,12 +67,20 @@ function group(
         (order.indexOf(b) === -1 ? 99 : order.indexOf(b)),
     );
   }
+  if (by === "nutrition") {
+    // A bucket meaning "we have no figures" is not a kind of food, so it goes
+    // last instead of sorting under N.
+    return entries.sort(([a], [b]) =>
+      a === "Not known" ? 1 : b === "Not known" ? -1 : a.localeCompare(b),
+    );
+  }
   return entries.sort(([a], [b]) => a.localeCompare(b));
 }
 
 function GroupToggle({ active }: { active: GroupBy }) {
   const options: { key: GroupBy; label: string }[] = [
     { key: "tag", label: "Tag" },
+    { key: "nutrition", label: "Nutrition" },
     { key: "location", label: "Location" },
   ];
   return (
@@ -90,7 +109,8 @@ export default async function PantryPage({
   searchParams: Promise<{ by?: string }>;
 }) {
   const { by } = await searchParams;
-  const groupBy: GroupBy = by === "location" ? "location" : "tag";
+  const groupBy: GroupBy =
+    by === "location" ? "location" : by === "nutrition" ? "nutrition" : "tag";
 
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
@@ -118,7 +138,9 @@ export default async function PantryPage({
     <>
       <SiteHeader
         active="stock"
-        meta={`${items.length} items · ${groups.length} ${groupBy === "location" ? "places" : "tags"}`}
+        meta={`${items.length} items · ${groups.length} ${
+          groupBy === "location" ? "places" : groupBy === "nutrition" ? "kinds" : "tags"
+        }`}
       />
 
       <div className="mx-auto grid w-full max-w-[1280px] sm:grid-cols-[360px_1fr]">

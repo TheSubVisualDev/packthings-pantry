@@ -108,6 +108,19 @@ const ADDED_COLUMNS = [
   // eggs is a sentence about eggs, not about boxes - and asking for the number
   // in packs meant "keep 6" on a box of six read as thirty-six.
   { table: "items", column: "restock_target", definition: "REAL" },
+
+  // Nutrition, cached on the barcode rather than re-fetched. Open Food Facts is
+  // free and asks politely for restraint; a barcode product does not change, so
+  // fetching it twice is just being rude with someone else CPU.
+  { table: "products", column: "kcal_100", definition: "REAL" },
+  { table: "products", column: "protein_100", definition: "REAL" },
+  { table: "products", column: "carbs_100", definition: "REAL" },
+  { table: "products", column: "fat_100", definition: "REAL" },
+  { table: "products", column: "fibre_100", definition: "REAL" },
+  { table: "products", column: "salt_100", definition: "REAL" },
+  // When the catalogue was last asked, so "we looked and it knows nothing" is
+  // distinguishable from "we never looked".
+  { table: "products", column: "nutrition_checked_at", definition: "TIMESTAMP" },
   // Where you buy it. Its own field rather than a tag: tags describe the
   // ingredient, this describes the errand, and the shopping list groups by it.
   { table: "items", column: "shop", definition: "TEXT" },

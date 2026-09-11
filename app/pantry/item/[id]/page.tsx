@@ -3,11 +3,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ItemDetail } from "@/components/item-detail";
 import { Packaging } from "@/components/packaging";
+import { NutritionPanel } from "@/components/nutrition-panel";
 import { ItemShops } from "@/components/item-shops";
 import { ItemTags } from "@/components/item-tags";
 import { SiteHeader } from "@/components/site-header";
 import { getLocations } from "@/lib/kitchens";
 import { getItem } from "@/lib/queries";
+import { hasMacros } from "@/lib/nutrition";
 import { getItemShops, getShops } from "@/lib/shops";
 import { getItemTags, getTags } from "@/lib/tags";
 import { currentKitchen } from "@/lib/session";
@@ -88,6 +90,14 @@ export default async function ItemPage({
               canEdit={canEdit}
             />
           </section>
+
+          {/* Most spices have no figures in the catalogue, and an empty panel
+              is worse than no panel. */}
+          {hasMacros(item) && (
+            <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <NutritionPanel item={item} />
+            </section>
+          )}
         </div>
       </main>
     </>

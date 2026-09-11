@@ -33,6 +33,22 @@ export interface PackSize {
   dimension: Dimension;
 }
 
+/**
+ * Nutrition per 100g or 100ml, as Open Food Facts states it.
+ *
+ * Per 100 rather than per serving because a serving is whatever the packet
+ * felt like claiming, and the pantry needs one basis it can compare across
+ * everything on a shelf.
+ */
+export interface Nutrition {
+  kcal: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  fibre: number | null;
+  salt: number | null;
+}
+
 export interface OffProduct {
   name: string | null;
   brand: string | null;
@@ -44,6 +60,8 @@ export interface OffProduct {
    * whole reason tags replaced a single category.
    */
   categories: string[];
+  /** Null when the catalogue has no figures, which is common enough. */
+  nutrition: Nutrition | null;
   pack: PackSize | null;
 }
 
@@ -77,7 +95,7 @@ export function parsePackSize(raw: string | null | undefined): PackSize | null {
 export async function lookupOpenFoodFacts(
   barcode: string,
 ): Promise<OffProduct | null> {
-  const url = `${ENDPOINT}/${encodeURIComponent(barcode)}.json?fields=product_name,brands,quantity,categories_tags`;
+  const url = `${ENDPOINT}/${encodeURIComponent(barcode)}.json?fields=product_name,brands,quantity,categories_tags,nutriments`;
 
   let response: Response;
   try {
@@ -101,6 +119,7 @@ export async function lookupOpenFoodFacts(
       brands?: string;
       quantity?: string;
       categories_tags?: string[];
+      nutriments?: Record<string, unknown>;
     };
   };
 
@@ -130,10 +149,55 @@ export async function lookupOpenFoodFacts(
   const categories = trusted.filter((name) => !TOO_BROAD.has(name.toLowerCase())).slice(-3);
 
   return {
+
     name: product.product_name?.trim() || null,
     brand: product.brands?.split(",")[0]?.trim() || null,
     category: categories.at(-1) ?? null,
     categories,
+    nutrition: parseNutriments(product.nutriments),
     pack: parsePackSize(product.quantity),
   };
+}
+
+
+/**
+ * Pulls the per-100 figures out of Open Food Facts' nutriments blob.
+ *
+ * Contributor-entered, so every field is optional and some are strings. A
+ * value that will not parse is dropped rather than coerced: a null means
+ * "unknown", and 0 would mean "contains none of it", which is a different and
+ * much more confident claim than the data supports.
+ *
+ * Returns null when nothing usable came back at all, so callers can tell
+ * "never looked" apart from "looked, and the catalogue does not know".
+ */
+function parseNutriments(raw: Record<string, unknown> | undefined): Nutrition | null {
+  if (!raw) return null;
+
+  const number = (key: string): number | null => {
+    const value = raw[key];
+    const parsed = typeof value === "string" ? Number(value) : value;
+    if (typeof parsed !== "number" || !Number.isFinite(parsed) || parsed < 0) {
+      return null;
+    }
+    return parsed;
+  };
+
+  const nutrition: Nutrition = {
+    // energy-kcal_100g is the direct figure; energy_100g is kilojoules, which
+    // is why it is converted rather than read as though it were calories.
+    kcal: number("energy-kcal_100g") ?? kjToKcal(number("energy_100g")),
+    protein: number("proteins_100g"),
+    carbs: number("carbohydrates_100g"),
+    fat: number("fat_100g"),
+    fibre: number("fiber_100g"),
+    salt: number("salt_100g"),
+  };
+
+  const known = Object.values(nutrition).filter((value) => value !== null).length;
+  return known > 0 ? nutrition : null;
+}
+
+function kjToKcal(kj: number | null): number | null {
+  return kj === null ? null : Math.round(kj / 4.184);
 }

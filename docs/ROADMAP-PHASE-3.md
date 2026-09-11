@@ -238,11 +238,33 @@ stop being a question.
 
 # Wave C — the pantry notices things
 
-### S6 · Nutrition — about half a day
+### S6 · Nutrition — DONE 11 Sep 2026
 
-Add `nutriments` to the Open Food Facts field list, store per 100 g, derive a
-main-stat label, and let grouping use it — "high protein" becomes a group you can
-browse.
+**Fetched once per barcode, then read from our own database forever.** Luna's
+call, and the right one: Open Food Facts is free and volunteer-run, and a
+barcode's product does not change its recipe, so asking twice spends somebody
+else's machine to learn what we already know.
+
+The cache lives on `products`, keyed by barcode, because that is the thing the
+figures describe. `nutrition_checked_at` is what makes it a cache rather than a
+guess: a row with a date and all-null figures means *asked, and they do not
+know*, which is an answer worth keeping — without it every spice would be
+re-fetched on every scan. Items get a copy, so grouping a whole shelf is one
+query against one table rather than a join per row.
+
+**Grouping is by share of energy, not by weight.** By weight almost everything
+reads as carbohydrate, because fat is light and carries more than twice the
+energy per gram — butter is 82g fat to 0.6g carbohydrate and would still sort
+under carbs. Energy share is what people mean when they call something a fat.
+
+Against the real pantry: butter 99% fat, icing sugar 100% carbs, dashi stock 67%
+protein, chilli flakes 48% fat — which reads as "Fat" rather than "Mostly fat",
+since a claim needs to clear half the energy to earn the word. Ten items have no
+figures and sit in "Not known", last, because that is not a kind of food.
+
+`scripts/fetch-nutrition.mjs` backfilled the barcodes scanned before any of this
+existed: 12 of 18 had figures, one request each, a pause between them, and every
+answer stamped so a second run costs the catalogue nothing.
 
 ### S7 · Suggestions and the cooked log — about 1.5 days
 
