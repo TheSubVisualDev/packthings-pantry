@@ -11,7 +11,13 @@ import { CANONICAL_FOR, dimensionOf, toCanonical } from "@/lib/units";
 import { ADJUST_SQL, PACK_SQL } from "@/lib/containers";
 import { cleanTagName, ensureTag, setPrimaryTag, tagItem, untagItem } from "@/lib/tags";
 import { cleanShopName, setPreferredShop, shopItem, unshopItem } from "@/lib/shops";
-import { copyMacrosToItem, estimateMissing, macrosForBarcode } from "@/lib/nutrition";
+import {
+  copyMacrosToItem,
+  estimateMissing,
+  estimateOne,
+  macrosForBarcode,
+  reEstimate,
+} from "@/lib/nutrition";
 
 export interface AddItemState {
   error?: string;
@@ -184,6 +190,16 @@ export async function addItem(
     await copyMacrosToItem(access.kitchen.id, itemId, macros);
   }
 
+  /**
+   * A standard figure, if the name is one we know and nothing better arrived.
+   *
+   * After the barcode block, so a scan always wins - estimateOne refuses to
+   * touch a row that already has a source. Means the common case needs no
+   * button: something typed in as "Brown onions" has figures by the time you
+   * look at it.
+   */
+  await estimateOne(access.kitchen.id, itemId, name);
+
   revalidatePath("/pantry");
   revalidatePath("/recipes");
   redirect("/pantry");
@@ -319,6 +335,10 @@ export async function updateItem(
     }
     return { ok: false, error: message || "Couldn't save that." };
   }
+
+  // "Onion" becoming "Red onion" should keep its guess; becoming "Olive oil"
+  // very much should not, and stale figures would sit there looking certain.
+  await reEstimate(access.kitchen.id, itemId, name);
 
   revalidatePath("/pantry");
   revalidatePath(`/pantry/item/${itemId}`);
@@ -857,4 +877,57 @@ export async function estimateNutrition(): Promise<EstimateResult> {
 
   revalidatePath("/pantry");
   return { ok: true, filled: filled.map(({ name, basis }) => ({ name, basis })) };
+}
+
+/**
+ * Types nutrition in by hand.
+ *
+ * The door out of guessing. A standard figure for "cheese" is nothing like a
+ * particular cheese, and the person holding the block can read the back of it -
+ * so what they enter outranks both the table and any future scan, and is marked
+ * 'manual' so nothing quietly replaces it.
+ *
+ * Clearing every field removes the figures and the source with them, which puts
+ * the item back where it started: unknown, and open to being estimated again.
+ */
+export async function setNutrition(
+  _previous: ItemResult,
+  formData: FormData,
+): Promise<ItemResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  const itemId = Number(formData.get("item_id"));
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return { ok: false, error: "Unknown item" };
+  }
+
+  const read = (field: string): number | null | "bad" => {
+    const raw = String(formData.get(field) ?? "").trim();
+    if (!raw) return null;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0) return "bad";
+    return value;
+  };
+
+  const fields = ["kcal_100", "protein_100", "carbs_100", "fat_100", "fibre_100", "salt_100"];
+  const values = fields.map(read);
+  if (values.includes("bad")) {
+    return { ok: false, error: "Those should be numbers, zero or more." };
+  }
+
+  const given = values as (number | null)[];
+  const anything = given.some((value) => value !== null);
+
+  await getDb().execute({
+    sql: `UPDATE items
+          SET kcal_100 = ?, protein_100 = ?, carbs_100 = ?, fat_100 = ?,
+              fibre_100 = ?, salt_100 = ?, nutrition_source = ?
+          WHERE id = ? AND kitchen_id = ?`,
+    args: [...given, anything ? "manual" : null, itemId, access.kitchen.id],
+  });
+
+  revalidatePath("/pantry");
+  revalidatePath(`/pantry/item/${itemId}`);
+  return { ok: true, message: anything ? "Saved." : "Cleared." };
 }

@@ -270,3 +270,80 @@ export async function estimateMissing(
 
   return done;
 }
+
+/**
+ * Estimates one item, if there is nothing better already there.
+ *
+ * Called whenever an item is created or renamed, so the common case needs no
+ * button at all: something typed in as "Brown onions" has figures by the time
+ * you look at it.
+ *
+ * Refuses to touch anything with a source, which is what makes it safe to call
+ * on every write. A scan or a person's own figures are both better answers than
+ * a standard table, and an estimate that is already there is the same answer
+ * this would produce.
+ */
+export async function estimateOne(
+  kitchenId: number,
+  itemId: number,
+  name: string,
+): Promise<string | null> {
+  const generic = estimateFor(name);
+  if (!generic) return null;
+
+  const result = await getDb().execute({
+    sql: `UPDATE items
+          SET kcal_100 = ?, protein_100 = ?, carbs_100 = ?, fat_100 = ?,
+              fibre_100 = ?, salt_100 = ?, nutrition_source = 'estimate'
+          WHERE id = ? AND kitchen_id = ?
+            AND nutrition_source IS NULL
+            AND kcal_100 IS NULL AND protein_100 IS NULL`,
+    args: [
+      generic.kcal_100,
+      generic.protein_100,
+      generic.carbs_100,
+      generic.fat_100,
+      generic.fibre_100,
+      generic.salt_100,
+      itemId,
+      kitchenId,
+    ],
+  });
+
+  return result.rowsAffected > 0 ? generic.label : null;
+}
+
+/**
+ * Re-estimates an item whose name has changed.
+ *
+ * "Onion" becoming "Red onion" should keep its guess; "Onion" becoming "Olive
+ * oil" very much should not, and the old figures would otherwise sit there
+ * looking authoritative. Only ever replaces an estimate - a scan and a person
+ * both outrank one, and renaming something is not an argument against either.
+ */
+export async function reEstimate(
+  kitchenId: number,
+  itemId: number,
+  name: string,
+): Promise<void> {
+  const generic = estimateFor(name);
+
+  await getDb().execute({
+    sql: `UPDATE items
+          SET kcal_100 = ?, protein_100 = ?, carbs_100 = ?, fat_100 = ?,
+              fibre_100 = ?, salt_100 = ?,
+              nutrition_source = CASE WHEN ? IS NULL THEN NULL ELSE 'estimate' END
+          WHERE id = ? AND kitchen_id = ? AND nutrition_source = 'estimate'`,
+    args: [
+      generic?.kcal_100 ?? null,
+      generic?.protein_100 ?? null,
+      generic?.carbs_100 ?? null,
+      generic?.fat_100 ?? null,
+      generic?.fibre_100 ?? null,
+      generic?.salt_100 ?? null,
+      generic?.label ?? null,
+      itemId,
+      kitchenId,
+    ],
+  });
+}

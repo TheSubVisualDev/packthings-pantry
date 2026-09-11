@@ -197,17 +197,16 @@ export default async function PantryPage({
                 <GroupToggle active={groupBy} />
               </div>
 
-              {/* Only where it is relevant: under any other grouping a button
-                  about nutrition is noise. */}
-              {groupBy === "nutrition" && (
-                <EstimateButton
-                  missing={
-                    items.filter(
-                      (item) => item.kcal_100 === null && item.protein_100 === null,
-                    ).length
-                  }
-                />
-              )}
+              {/* Shown only when there is something to do, and not hidden
+                  behind a grouping: new items are estimated as they are
+                  added, so this is the backlog and nothing else. */}
+              <EstimateButton
+                missing={
+                  items.filter(
+                    (item) => item.kcal_100 === null && item.protein_100 === null,
+                  ).length
+                }
+              />
 
               <StockList
                 groups={groups}

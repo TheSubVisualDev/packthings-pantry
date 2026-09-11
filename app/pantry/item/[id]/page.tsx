@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ItemDetail } from "@/components/item-detail";
 import { Packaging } from "@/components/packaging";
 import { NutritionPanel } from "@/components/nutrition-panel";
+import { NutritionEditor } from "@/components/nutrition-editor";
 import { ItemShops } from "@/components/item-shops";
 import { ItemTags } from "@/components/item-tags";
 import { SiteHeader } from "@/components/site-header";
@@ -93,11 +94,25 @@ export default async function ItemPage({
 
           {/* Most spices have no figures in the catalogue, and an empty panel
               is worse than no panel. */}
-          {hasMacros(item) && (
-            <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+          {/* Always here, even with nothing in it: "this item has no figures
+              and here is how to give it some" is the answer to a question
+              people were otherwise left asking. */}
+          <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+            {hasMacros(item) ? (
               <NutritionPanel item={item} />
-            </section>
-          )}
+            ) : (
+              <>
+                <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-label">
+                  Per {item.canonical_unit === "ml" ? "100ml" : "100g"}
+                </h2>
+                <p className="mt-2 text-sm font-semibold text-muted-foreground">
+                  Nothing known. Scanning its barcode fills this in; so does the
+                  name, if it is something ordinary.
+                </p>
+              </>
+            )}
+            {canEdit && <NutritionEditor item={item} />}
+          </section>
         </div>
       </main>
     </>
