@@ -22,11 +22,18 @@ export function AccountForm({
   action,
   hidden,
   submitLabel,
+  askDeploymentPassword = false,
 }: {
   action: (state: AccountFormState, formData: FormData) => Promise<AccountFormState>;
   /** Extra fields carried through, such as an invite code. */
   hidden?: Record<string, string>;
   submitLabel: string;
+  /**
+   * First run only. The very first account is what makes this pantry someone's,
+   * so it asks for the deployment's own password to prove you're the person who
+   * set it up rather than the first stranger to find the URL.
+   */
+  askDeploymentPassword?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<AccountFormState, FormData>(
     action,
@@ -39,6 +46,26 @@ export function AccountForm({
         <input key={name} type="hidden" name={name} value={value} />
       ))}
 
+      {askDeploymentPassword && (
+        <div>
+          <label htmlFor="deployment_password" className={LABEL}>
+            Pantry password
+          </label>
+          <input
+            id="deployment_password"
+            name="deployment_password"
+            type="password"
+            required
+            autoComplete="off"
+            className={FIELD}
+          />
+          <p className="mt-1.5 text-xs font-semibold text-muted-foreground">
+            The one from your environment settings, proving this pantry is yours.
+            Asked for once, and never again.
+          </p>
+        </div>
+      )}
+
       <div>
         <label htmlFor="handle" className={LABEL}>
           Handle
@@ -50,7 +77,6 @@ export function AccountForm({
             name="handle"
             type="text"
             required
-            autoFocus
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}

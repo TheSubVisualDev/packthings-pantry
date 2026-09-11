@@ -2,7 +2,13 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { SESSION_COOKIE, credentialsValid, mintSession, safeNextPath } from "@/lib/auth";
+import {
+  SESSION_COOKIE,
+  credentialsValid,
+  expectedUser,
+  mintSession,
+  safeNextPath,
+} from "@/lib/auth";
 import { verifyPassword } from "@/lib/passwords";
 import { countUsers, createUser, getUserByHandle, redeemInvite } from "@/lib/users";
 
@@ -42,17 +48,6 @@ export async function login(
   const handle = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
   const next = safeNextPath(String(formData.get("next") ?? ""));
-
-  // Before the first account exists nobody can sign in against the users
-  // table, so the env credentials stand in and lead to /setup. This path is
-  // only open while there are zero users, which is also the only window in
-  // which the env password is the sole credential anyway.
-  if ((await countUsers()) === 0) {
-    if (!credentialsValid(handle, password)) {
-      return { error: "That handle and password didn't match." };
-    }
-    redirect("/setup");
-  }
 
   const user = await getUserByHandle(handle);
 
@@ -108,9 +103,9 @@ export interface SetupState {
 /**
  * Creates the very first account.
  *
- * Refuses once anyone exists, so it can't be used to mint a second owner. The
- * page is behind the proxy's gate like everything else, so reaching it at all
- * means holding the deployment's password.
+ * Refuses once anyone exists, so it can't be used to mint a second owner, and
+ * requires the deployment's own password so the first stranger to find the URL
+ * can't claim someone else's pantry.
  */
 export async function createFirstUser(
   _previous: SetupState,
@@ -123,6 +118,14 @@ export async function createFirstUser(
   const handle = String(formData.get("handle") ?? "");
   const displayName = String(formData.get("display_name") ?? "");
   const password = String(formData.get("password") ?? "");
+  const deploymentPassword = String(formData.get("deployment_password") ?? "");
+
+  // The form is on the public login page, because a first-run form behind the
+  // gate is a form nobody can reach - there is no session to get through the
+  // gate with yet. So it carries its own proof instead.
+  if (!credentialsValid(expectedUser(), deploymentPassword)) {
+    return { error: "That isn't this pantry's password." };
+  }
 
   if (password.length < 10) {
     return { error: "Use a password of at least 10 characters." };
