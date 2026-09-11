@@ -6,6 +6,7 @@ import { getRecipe } from "@/lib/queries";
 import {
   addLine,
   clearBought,
+  getRestockSuggestions,
   pendingNames,
   removeLine,
   setBought,
@@ -183,5 +184,40 @@ export async function addShortfall(
       onList > 0
         ? `Already on the list${onList === 1 ? "" : ` (${onList} of them)`}.`
         : "You already have everything.",
+  };
+}
+
+/**
+ * Puts everything that has fallen below its keep-on-hand number onto the list.
+ *
+ * All of them at once rather than one button per row: the whole reason to set a
+ * target is not having to decide again every week. Each line carries the pack
+ * size, so "2" reads as two bottles rather than a bare number.
+ */
+export async function addRestock(): Promise<ListResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  const suggestions = await getRestockSuggestions(access.kitchen.id);
+  if (suggestions.length === 0) {
+    return { ok: false, error: "Nothing is below its target." };
+  }
+
+  for (const suggestion of suggestions) {
+    await addLine(access.kitchen.id, access.user.id, {
+      name: suggestion.name,
+      // How many packs, in packs - not the total volume. A shopping list saying
+      // "1000ml soy sauce" is a list you have to do arithmetic on in the aisle.
+      quantity: suggestion.pack_size === null ? null : suggestion.short,
+      unit: suggestion.pack_size === null ? null : "pack",
+      itemId: suggestion.item_id,
+    });
+  }
+
+  revalidatePath("/pantry/list");
+  revalidatePath("/pantry");
+  return {
+    ok: true,
+    message: `Added ${suggestions.length} ${suggestions.length === 1 ? "thing" : "things"}.`,
   };
 }

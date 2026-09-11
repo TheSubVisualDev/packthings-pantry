@@ -309,6 +309,22 @@ export function CookPanel({
         ))}
       </section>
 
+        {/* Right under the ingredients, because "can I make this tonight" is
+            answered here and the answer is useless three screens down past the
+            method. The cook flow offers it again afterwards for what it could
+            not decrement. */}
+        {hasKitchen && blockers.length > 0 && !result && (
+          <div className="rounded-[16px] bg-chip px-4 py-3">
+            <p className="text-center text-sm font-semibold text-muted-foreground">
+              Short of {blockers.length}{" "}
+              {blockers.length === 1 ? "thing" : "things"} for {servings}.
+            </p>
+            <div className="mt-1.5">
+              <AddShortfallButton recipeId={recipeId} servings={servings} />
+            </div>
+          </div>
+        )}
+
       {hasKitchen ? (
         <button
           type="button"
@@ -330,15 +346,6 @@ export function CookPanel({
 
       <RecipeMethod steps={steps} labels={labels} />
 
-      {hasKitchen && blockers.length > 0 && !result && (
-        <div className="space-y-2">
-          <p className="text-center text-xs font-semibold text-muted-foreground">
-            {blockers.length} {blockers.length === 1 ? "line" : "lines"} won&apos;t
-            decrement cleanly &mdash; they&apos;ll be listed after cooking.
-          </p>
-          <AddShortfallButton recipeId={recipeId} servings={servings} />
-        </div>
-      )}
 
       {result && (
         <section

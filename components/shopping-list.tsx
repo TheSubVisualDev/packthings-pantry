@@ -21,7 +21,24 @@ export function ShoppingList({ lines }: { lines: ShoppingLine[] }) {
   );
   const [, startTransition] = useTransition();
 
-  const todo = lines.filter((line) => !line.bought_at);
+  /**
+   * Outstanding lines, grouped by shop, in the order the query returned them.
+   *
+   * A Map preserves insertion order, so the SQL's ORDER BY decides the groups
+   * and their contents - there is one place that knows what order a shopping
+   * list goes in, and it is not here.
+   */
+  const byShop = (() => {
+    const groups = new Map<string, ShoppingLine[]>();
+    for (const line of lines.filter((entry) => !entry.bought_at)) {
+      const key = line.shop ?? "Anywhere";
+      const bucket = groups.get(key);
+      if (bucket) bucket.push(line);
+      else groups.set(key, [line]);
+    }
+    return [...groups.entries()];
+  })();
+
   const done = lines.filter((line) => line.bought_at);
 
   function row(line: ShoppingLine) {
@@ -115,10 +132,33 @@ export function ShoppingList({ lines }: { lines: ShoppingLine[] }) {
           to add what&apos;s missing.
         </p>
       ) : (
-        <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-          {todo.map(row)}
-          {done.map(row)}
-        </ul>
+        <div className="space-y-4">
+          {byShop.map(([shop, shopLines]) => (
+            <section key={shop}>
+              {/* No heading when everything is unassigned: a single "Anywhere"
+                  banner over the whole list is a label, not information. */}
+              {byShop.length > 1 && (
+                <h2 className="mb-1.5 text-xs font-bold uppercase tracking-[0.08em] text-label">
+                  {shop}
+                </h2>
+              )}
+              <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+                {shopLines.map(row)}
+              </ul>
+            </section>
+          ))}
+
+          {done.length > 0 && (
+            <section>
+              <h2 className="mb-1.5 text-xs font-bold uppercase tracking-[0.08em] text-label">
+                In the trolley
+              </h2>
+              <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+                {done.map(row)}
+              </ul>
+            </section>
+          )}
+        </div>
       )}
 
       {done.length > 0 && (

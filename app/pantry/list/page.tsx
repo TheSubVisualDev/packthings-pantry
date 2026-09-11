@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { RestockPanel } from "@/components/restock-panel";
 import { ShoppingList } from "@/components/shopping-list";
 import { SiteHeader } from "@/components/site-header";
 import { currentKitchen } from "@/lib/session";
-import { getList } from "@/lib/shopping";
+import { getList, getRestockSuggestions } from "@/lib/shopping";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,10 @@ export default async function ShoppingPage() {
   if (!context.ok) redirect("/login?next=%2Fpantry%2Flist");
   if (!context.kitchen) redirect("/kitchens?need=stock");
 
-  const lines = await getList(context.kitchen.id);
+  const [lines, restock] = await Promise.all([
+    getList(context.kitchen.id),
+    getRestockSuggestions(context.kitchen.id),
+  ]);
   const todo = lines.filter((line) => !line.bought_at).length;
 
   return (
@@ -38,6 +42,7 @@ export default async function ShoppingPage() {
           Shared with everyone in {context.kitchen.name}.
         </p>
 
+        <RestockPanel suggestions={restock} />
         <ShoppingList lines={lines} />
       </main>
     </>
