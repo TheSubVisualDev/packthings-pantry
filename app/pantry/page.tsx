@@ -1,10 +1,13 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SuggestionCard, TopMatchCard } from "@/components/recipe-suggestion";
 import { getItems, getRecipesWithMatches } from "@/lib/queries";
 import { formatQuantity } from "@/lib/units";
-import { LOCATIONS, UNPLACED } from "@/lib/locations";
+import { UNPLACED } from "@/lib/locations";
+import { getLocations } from "@/lib/kitchens";
+import { currentKitchen } from "@/lib/session";
 import type { Item } from "@/lib/types";
 
 // Live stock - never prerender against the database at build time.
@@ -24,7 +27,11 @@ function quantityLabel(item: Item): string {
  * answers "where does this go" when putting the shopping away, so locations
  * keep their kitchen order rather than sorting alphabetically.
  */
-function group(items: Item[], by: GroupBy): [string, Item[]][] {
+function group(
+  items: Item[],
+  by: GroupBy,
+  placeOrder: readonly string[],
+): [string, Item[]][] {
   const groups = new Map<string, Item[]>();
   for (const item of items) {
     const key =
@@ -37,7 +44,7 @@ function group(items: Item[], by: GroupBy): [string, Item[]][] {
 
   const entries = [...groups.entries()];
   if (by === "location") {
-    const order = [...LOCATIONS, UNPLACED] as readonly string[];
+    const order = [...placeOrder, UNPLACED];
     return entries.sort(
       ([a], [b]) =>
         (order.indexOf(a) === -1 ? 99 : order.indexOf(a)) -
@@ -80,12 +87,17 @@ export default async function PantryPage({
   const { by } = await searchParams;
   const groupBy: GroupBy = by === "location" ? "location" : "category";
 
-  const [items, recipes] = await Promise.all([
-    getItems(),
-    getRecipesWithMatches(),
+  const context = await currentKitchen();
+  if (!context.ok) redirect("/login");
+  const { kitchen } = context;
+
+  const [items, recipes, places] = await Promise.all([
+    getItems(kitchen.id),
+    getRecipesWithMatches(kitchen.id),
+    getLocations(kitchen.id),
   ]);
 
-  const groups = group(items, groupBy);
+  const groups = group(items, groupBy, places);
   const [topMatch, ...runnersUp] = recipes;
 
   return (

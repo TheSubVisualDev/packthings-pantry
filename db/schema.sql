@@ -4,6 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS items (
   id             INTEGER PRIMARY KEY,
+  kitchen_id     INTEGER REFERENCES kitchens(id) ON DELETE CASCADE,
   name           TEXT NOT NULL UNIQUE,
   quantity       REAL NOT NULL,
   canonical_unit TEXT NOT NULL,   -- 'g' | 'ml' | 'count'
@@ -82,6 +83,8 @@ CREATE TABLE IF NOT EXISTS recipe_step_ingredients (
 -- silently discard it. A clamped-short line records what was actually taken.
 CREATE TABLE IF NOT EXISTS cook_events (
   id         INTEGER PRIMARY KEY,
+  kitchen_id INTEGER REFERENCES kitchens(id) ON DELETE CASCADE,
+  cooked_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
   recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
   servings   INTEGER NOT NULL,
   cooked_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -98,6 +101,7 @@ CREATE INDEX IF NOT EXISTS idx_cook_events_recipe ON cook_events(recipe_id, cook
 -- restock can add one pack without re-reading the label.
 CREATE TABLE IF NOT EXISTS products (
   barcode   TEXT PRIMARY KEY,
+  kitchen_id INTEGER REFERENCES kitchens(id) ON DELETE CASCADE,
   item_id   INTEGER REFERENCES items(id) ON DELETE SET NULL,
   name      TEXT,
   brand     TEXT,
@@ -107,6 +111,9 @@ CREATE TABLE IF NOT EXISTS products (
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_item ON products(item_id);
+CREATE INDEX IF NOT EXISTS idx_items_kitchen ON items(kitchen_id);
+CREATE INDEX IF NOT EXISTS idx_products_kitchen ON products(kitchen_id);
+CREATE INDEX IF NOT EXISTS idx_cook_events_kitchen ON cook_events(kitchen_id);
 
 -- People. Invite-only: there is no self-serve signup, so no email is stored,
 -- nothing is verified, and a forgotten password is reset by whoever runs the
@@ -138,3 +145,40 @@ CREATE TABLE IF NOT EXISTS invites (
 );
 
 CREATE INDEX IF NOT EXISTS idx_invites_creator ON invites(created_by);
+
+-- A kitchen is a stock list with people attached. Most households have one;
+-- the point of having several is a second home, or a friend's cupboard you can
+-- see but not touch.
+CREATE TABLE IF NOT EXISTS kitchens (
+  id         INTEGER PRIMARY KEY,
+  name       TEXT NOT NULL,
+  owner_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_kitchens_owner ON kitchens(owner_id);
+
+-- Who can do what. 'owner' manages people and can delete the kitchen, 'editor'
+-- changes stock and cooks, 'viewer' only looks - which is the sharing case: a
+-- friend seeing what you have so they can suggest something to make.
+CREATE TABLE IF NOT EXISTS kitchen_members (
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role       TEXT NOT NULL DEFAULT 'viewer',   -- owner | editor | viewer
+  joined_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (kitchen_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_kitchen_members_user ON kitchen_members(user_id);
+
+-- Where things live, per kitchen. Was a hardcoded list, which assumed every
+-- home has a spice rack and none has a garage freezer. `position` keeps the
+-- order you'd actually walk them in, which is not alphabetical.
+CREATE TABLE IF NOT EXISTS kitchen_locations (
+  id         INTEGER PRIMARY KEY,
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  position   INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_kitchen_locations ON kitchen_locations(kitchen_id, position);

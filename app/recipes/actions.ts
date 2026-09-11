@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getItems } from "@/lib/queries";
+import { currentKitchen } from "@/lib/session";
 import { parseRecipeDocument, type RecipeProblem } from "@/lib/recipe-schema";
 import { deleteRecipe, saveRecipe } from "@/lib/recipe-store";
 
@@ -25,7 +26,12 @@ export async function saveRecipeDocument(
   document: unknown,
   existingId?: number,
 ): Promise<SaveRecipeResult> {
-  const parsed = parseRecipeDocument(document, await getItems());
+  const context = await currentKitchen();
+  if (!context.ok) {
+    return { ok: false, problems: [{ path: "", message: "Sign in first." }], warnings: [] };
+  }
+
+  const parsed = parseRecipeDocument(document, await getItems(context.kitchen.id));
 
   if (!parsed.ok || !parsed.recipe) {
     return { ok: false, problems: parsed.problems, warnings: parsed.warnings };
@@ -53,7 +59,12 @@ export async function parsePastedRecipe(text: string): Promise<SaveRecipeResult>
     };
   }
 
-  const parsed = parseRecipeDocument(document, await getItems());
+  const context = await currentKitchen();
+  if (!context.ok) {
+    return { ok: false, problems: [{ path: "", message: "Sign in first." }], warnings: [] };
+  }
+
+  const parsed = parseRecipeDocument(document, await getItems(context.kitchen.id));
   return {
     ok: parsed.ok,
     problems: parsed.problems,

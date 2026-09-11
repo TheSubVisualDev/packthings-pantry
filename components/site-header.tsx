@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { logout } from "@/app/login/actions";
 import { PantryMark } from "@/components/pantry-mark";
+import { KitchenSwitcher } from "@/components/kitchen-switcher";
+import { getKitchensFor } from "@/lib/kitchens";
+import { currentKitchen } from "@/lib/session";
 
 const tabs = [
   { href: "/pantry", key: "stock", label: "Stock" },
@@ -12,13 +15,17 @@ const tabs = [
  * mobile (muted track, white active pill) and as standalone pills on desktop
  * (dark active pill), matching the two artboards.
  */
-export function SiteHeader({
+export async function SiteHeader({
   active,
   meta,
 }: {
   active: "stock" | "recipes";
   meta?: string;
 }) {
+  // Reached through the Basic-auth back door there is no account and so no
+  // kitchen; the header still has to render.
+  const context = await currentKitchen();
+  const kitchens = context.ok ? await getKitchensFor(context.user.id) : [];
   return (
     <header className="border-b border-border bg-surface-raised">
       <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between gap-4 px-5 py-4 sm:px-9 sm:py-5">
@@ -50,7 +57,10 @@ export function SiteHeader({
             })}
           </nav>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          {context.ok && (
+            <KitchenSwitcher current={context.kitchen} kitchens={kitchens} />
+          )}
           {meta && (
             <div className="hidden text-sm font-semibold text-muted-foreground sm:block">
               {meta}

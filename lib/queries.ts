@@ -8,10 +8,11 @@ import type {
   RecipeWithIngredients,
 } from "./types";
 
-export async function getItems(): Promise<Item[]> {
-  const result = await getDb().execute(
-    "SELECT * FROM items ORDER BY category NULLS LAST, name",
-  );
+export async function getItems(kitchenId: number): Promise<Item[]> {
+  const result = await getDb().execute({
+    sql: "SELECT * FROM items WHERE kitchen_id = ? ORDER BY category NULLS LAST, name",
+    args: [kitchenId],
+  });
   return result.rows as unknown as Item[];
 }
 
@@ -76,8 +77,11 @@ export async function getRecipe(id: number): Promise<RecipeWithIngredients | nul
 }
 
 /** Item names currently in stock, lowercased, for recipe match indicators. */
-export async function getStockedItemNames(): Promise<Set<string>> {
-  const result = await getDb().execute("SELECT name FROM items WHERE quantity > 0");
+export async function getStockedItemNames(kitchenId: number): Promise<Set<string>> {
+  const result = await getDb().execute({
+    sql: "SELECT name FROM items WHERE kitchen_id = ? AND quantity > 0",
+    args: [kitchenId],
+  });
   return new Set(
     (result.rows as unknown as { name: string }[]).map((r) => r.name.toLowerCase()),
   );
@@ -91,13 +95,15 @@ export interface RecipeWithMatch extends Recipe {
 
 /**
  * Recipes ranked for the "cook with what you have" panel, each with a count of
- * how many of its lines are currently stocked. One query for all ingredient
- * lines rather than one per recipe.
+ * how many of its lines are stocked *in this kitchen*. One query for all
+ * ingredient lines rather than one per recipe.
  */
-export async function getRecipesWithMatches(): Promise<RecipeWithMatch[]> {
+export async function getRecipesWithMatches(
+  kitchenId: number,
+): Promise<RecipeWithMatch[]> {
   const [recipes, stocked, ingredientRows] = await Promise.all([
     getRecipes(),
-    getStockedItemNames(),
+    getStockedItemNames(kitchenId),
     getDb().execute("SELECT recipe_id, item_name FROM recipe_ingredients"),
   ]);
 

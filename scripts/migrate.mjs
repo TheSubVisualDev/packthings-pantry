@@ -60,6 +60,14 @@ const ADDED_COLUMNS = [
   { table: "recipe_ingredients", column: "optional", definition: "INTEGER NOT NULL DEFAULT 0" },
   { table: "recipe_ingredients", column: "section", definition: "TEXT" },
   { table: "recipe_ingredients", column: "position", definition: "INTEGER NOT NULL DEFAULT 0" },
+
+  // Stock belongs to a kitchen now. Nullable, because rows written before
+  // kitchens existed have no answer yet - the app adopts them into the first
+  // kitchen anyone makes rather than this script guessing an owner.
+  { table: "items", column: "kitchen_id", definition: "INTEGER REFERENCES kitchens(id) ON DELETE CASCADE" },
+  { table: "products", column: "kitchen_id", definition: "INTEGER REFERENCES kitchens(id) ON DELETE CASCADE" },
+  { table: "cook_events", column: "kitchen_id", definition: "INTEGER REFERENCES kitchens(id) ON DELETE CASCADE" },
+  { table: "cook_events", column: "cooked_by", definition: "INTEGER REFERENCES users(id) ON DELETE SET NULL" },
 ];
 
 for (const { table, column, definition } of ADDED_COLUMNS) {

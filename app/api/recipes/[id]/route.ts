@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { apiContext } from "@/lib/session";
 import { getItems, getRecipe } from "@/lib/queries";
 import { parseRecipeDocument } from "@/lib/recipe-schema";
 import { deleteRecipe, saveRecipe } from "@/lib/recipe-store";
@@ -71,6 +72,11 @@ export async function PUT(
   const existing = await getRecipe(id);
   if (!existing) return NextResponse.json({ error: "No such recipe" }, { status: 404 });
 
+  const context = await apiContext(request);
+  if (!context.ok) {
+    return NextResponse.json({ error: "No account for this request" }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -81,7 +87,7 @@ export async function PUT(
     );
   }
 
-  const parsed = parseRecipeDocument(body, await getItems());
+  const parsed = parseRecipeDocument(body, await getItems(context.kitchen.id));
   if (!parsed.ok || !parsed.recipe) {
     return NextResponse.json(
       { problems: parsed.problems, warnings: parsed.warnings },

@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { apiContext } from "@/lib/session";
 import { getItems } from "@/lib/queries";
 import { parseRecipeDocument } from "@/lib/recipe-schema";
 import { saveRecipe } from "@/lib/recipe-store";
@@ -17,6 +18,11 @@ export const dynamic = "force-dynamic";
  * anything you haven't bought yet.
  */
 export async function POST(request: Request) {
+  const context = await apiContext(request);
+  if (!context.ok) {
+    return NextResponse.json({ error: "No account for this request" }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -27,7 +33,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const parsed = parseRecipeDocument(body, await getItems());
+  const parsed = parseRecipeDocument(body, await getItems(context.kitchen.id));
 
   if (!parsed.ok || !parsed.recipe) {
     return NextResponse.json(

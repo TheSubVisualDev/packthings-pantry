@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AddItemForm } from "@/components/add-item-form";
 import { SiteHeader } from "@/components/site-header";
 import { getItems } from "@/lib/queries";
+import { getLocations } from "@/lib/kitchens";
+import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +29,15 @@ export default async function AddItemPage({
     barcode?: string;
   }>;
 }) {
-  const [prefill, items] = await Promise.all([searchParams, getItems()]);
+  const context = await currentKitchen();
+  if (!context.ok) redirect("/login");
+  const { kitchen } = context;
+
+  const [prefill, items, places] = await Promise.all([
+    searchParams,
+    getItems(kitchen.id),
+    getLocations(kitchen.id),
+  ]);
 
   const categories = [
     ...new Set(items.map((item) => item.category).filter((c): c is string => !!c)),
@@ -45,7 +56,7 @@ export default async function AddItemPage({
         <h1 className="mt-2 mb-6 text-[26px] font-extrabold tracking-[-0.02em]">
           Add item
         </h1>
-        <AddItemForm prefill={prefill} categories={categories} />
+        <AddItemForm prefill={prefill} categories={categories} locations={places} />
       </main>
     </>
   );

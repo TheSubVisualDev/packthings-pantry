@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { LOCATIONS } from "@/lib/locations";
+import { getLocations } from "@/lib/kitchens";
 import { getItems, getRecipes } from "@/lib/queries";
+import { apiContext } from "@/lib/session";
 import { recipeJsonSchema, RECIPE_SCHEMA_VERSION } from "@/lib/recipe-schema";
 import { UNITS_BY_DIMENSION } from "@/lib/units";
 
@@ -16,12 +17,27 @@ export const dynamic = "force-dynamic";
  * inventing "cups". The proxy has already checked the bearer token by the time
  * this runs.
  */
-export async function GET() {
-  const [items, recipes] = await Promise.all([getItems(), getRecipes()]);
+export async function GET(request: Request) {
+  const context = await apiContext(request);
+  if (!context.ok) {
+    return NextResponse.json({ error: "No account for this request" }, { status: 401 });
+  }
+
+  const [items, recipes, locations] = await Promise.all([
+    getItems(context.kitchen.id),
+    getRecipes(),
+    getLocations(context.kitchen.id),
+  ]);
 
   return NextResponse.json(
     {
       generated_at: new Date().toISOString(),
+
+      kitchen: {
+        id: context.kitchen.id,
+        name: context.kitchen.name,
+        your_role: context.kitchen.role,
+      },
 
       pantry: {
         items: items.map((item) => ({
@@ -52,7 +68,7 @@ export async function GET() {
 
       vocabulary: {
         units: UNITS_BY_DIMENSION,
-        locations: LOCATIONS,
+        locations,
         note: "Conversion only happens within a dimension. Grams never become millilitres - there is no density data here.",
       },
 

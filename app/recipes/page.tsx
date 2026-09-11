@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import {
@@ -6,11 +7,16 @@ import {
   TopMatchCard,
 } from "@/components/recipe-suggestion";
 import { getRecipesWithMatches } from "@/lib/queries";
+import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function RecipesPage() {
-  const recipes = await getRecipesWithMatches();
+  const context = await currentKitchen();
+  if (!context.ok) redirect("/login");
+  const { kitchen } = context;
+
+  const recipes = await getRecipesWithMatches(kitchen.id);
   const [topMatch, ...rest] = recipes;
 
   return (

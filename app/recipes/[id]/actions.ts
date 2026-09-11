@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
+import { requireKitchenRole } from "@/lib/session";
 import { scaleQuantity, toCanonical } from "@/lib/units";
 import type {
   CookChange,
@@ -56,6 +57,12 @@ export async function cookRecipe(
     return { ok: false, error: "Invalid serving count", applied: [], flagged: [] };
   }
 
+  // Cooking spends stock, so it needs a kitchen you're allowed to change.
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) {
+    return { ok: false, error: access.error, applied: [], flagged: [] };
+  }
+
   const tx = await getDb().transaction("write");
 
   try {
@@ -75,7 +82,10 @@ export async function cookRecipe(
     });
     const lines = ingredientResult.rows as unknown as RecipeIngredient[];
 
-    const itemResult = await tx.execute("SELECT * FROM items");
+    const itemResult = await tx.execute({
+      sql: "SELECT * FROM items WHERE kitchen_id = ?",
+      args: [access.kitchen.id],
+    });
     const itemsByName = new Map(
       (itemResult.rows as unknown as Item[]).map((item) => [
         item.name.toLowerCase(),
@@ -160,8 +170,15 @@ export async function cookRecipe(
     // Written inside the same transaction as the decrements: a log that can be
     // committed separately from the change it describes is worse than none.
     const event = await tx.execute({
-      sql: "INSERT INTO cook_events (recipe_id, servings, changes) VALUES (?, ?, ?)",
-      args: [recipeId, servings, JSON.stringify(changes)],
+      sql: `INSERT INTO cook_events (kitchen_id, cooked_by, recipe_id, servings, changes)
+            VALUES (?, ?, ?, ?, ?)`,
+      args: [
+        access.kitchen.id,
+        access.user.id,
+        recipeId,
+        servings,
+        JSON.stringify(changes),
+      ],
     });
 
     await tx.commit();
@@ -237,12 +254,15 @@ export async function undoCook(eventId: number): Promise<UndoResult> {
     return { ok: false, error: "Invalid cook", restored: [] };
   }
 
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error, restored: [] };
+
   const tx = await getDb().transaction("write");
 
   try {
     const eventResult = await tx.execute({
-      sql: "SELECT * FROM cook_events WHERE id = ?",
-      args: [eventId],
+      sql: "SELECT * FROM cook_events WHERE id = ? AND kitchen_id = ?",
+      args: [eventId, access.kitchen.id],
     });
     const event = eventResult.rows[0] as unknown as CookEvent | undefined;
 
@@ -252,8 +272,9 @@ export async function undoCook(eventId: number): Promise<UndoResult> {
     }
 
     const claimed = await tx.execute({
-      sql: "UPDATE cook_events SET undone_at = CURRENT_TIMESTAMP WHERE id = ? AND undone_at IS NULL",
-      args: [eventId],
+      sql: `UPDATE cook_events SET undone_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND kitchen_id = ? AND undone_at IS NULL`,
+      args: [eventId, access.kitchen.id],
     });
 
     if (claimed.rowsAffected === 0) {
@@ -269,8 +290,8 @@ export async function undoCook(eventId: number): Promise<UndoResult> {
       // in - but it keeps a hand-edited log from writing a negative quantity.
       const updated = await tx.execute({
         sql: `UPDATE items SET quantity = MAX(0, quantity + ?), updated_at = CURRENT_TIMESTAMP
-              WHERE id = ? RETURNING name, quantity, canonical_unit`,
-        args: [change.delta, change.item_id],
+              WHERE id = ? AND kitchen_id = ? RETURNING name, quantity, canonical_unit`,
+        args: [change.delta, change.item_id, access.kitchen.id],
       });
 
       const row = updated.rows[0] as unknown as

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { RecipeEditor } from "@/components/recipe-editor";
 import { SiteHeader } from "@/components/site-header";
 import { getItems } from "@/lib/queries";
+import { currentKitchen } from "@/lib/session";
 import { emptyDraft } from "@/lib/recipe-draft";
 import { getSectionNames } from "@/lib/recipe-sections";
 
@@ -13,7 +15,14 @@ export const metadata: Metadata = {
 };
 
 export default async function NewRecipePage() {
-  const [items, sections] = await Promise.all([getItems(), getSectionNames()]);
+  const context = await currentKitchen();
+  if (!context.ok) redirect("/login");
+  const { kitchen } = context;
+
+  const [items, sections] = await Promise.all([
+    getItems(kitchen.id),
+    getSectionNames(),
+  ]);
 
   return (
     <>

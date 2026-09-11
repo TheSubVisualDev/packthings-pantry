@@ -3,7 +3,6 @@
 import { useActionState, useState } from "react";
 import { addItem, type AddItemState } from "@/app/pantry/actions";
 import { SoftSelect } from "@/components/soft-select";
-import { LOCATIONS } from "@/lib/locations";
 import { dimensionOf, UNITS_BY_DIMENSION } from "@/lib/units";
 import type { Dimension } from "@/lib/types";
 
@@ -44,9 +43,12 @@ export interface AddItemPrefill {
 export function AddItemForm({
   prefill,
   categories,
+  locations,
 }: {
   prefill: AddItemPrefill;
   categories: string[];
+  /** This kitchen's own places, not a fixed list - see lib/kitchens.ts. */
+  locations: string[];
 }) {
   const [state, formAction, pending] = useActionState<AddItemState, FormData>(
     addItem,
@@ -148,7 +150,7 @@ export function AddItemForm({
             className={FIELD}
           >
             <option value="">Unplaced</option>
-            {LOCATIONS.map((location) => (
+            {locations.map((location) => (
               <option key={location} value={location}>
                 {location}
               </option>

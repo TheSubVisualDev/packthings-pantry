@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db";
-import { isLocation } from "@/lib/locations";
+import { isKnownLocation } from "@/lib/locations";
+import { getLocations } from "@/lib/kitchens";
+import { requireKitchenRole } from "@/lib/session";
 import { isBarcode } from "@/lib/off";
 import { CANONICAL_FOR, dimensionOf, toCanonical } from "@/lib/units";
 
@@ -23,6 +25,11 @@ export async function addItem(
   _previous: AddItemState,
   formData: FormData,
 ): Promise<AddItemState> {
+  // Adding stock is a change to a kitchen, so a viewer can't do it however
+  // they reached the form.
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { error: access.error };
+
   const name = String(formData.get("name") ?? "").trim();
   const unit = String(formData.get("unit") ?? "").trim().toLowerCase();
   const quantityRaw = String(formData.get("quantity") ?? "").trim();
@@ -50,17 +57,20 @@ export async function addItem(
 
   let itemId: number;
 
+  const places = await getLocations(access.kitchen.id);
+
   try {
     const inserted = await getDb().execute({
-      sql: `INSERT INTO items (name, quantity, canonical_unit, dimension, category, location, expiry_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      sql: `INSERT INTO items (kitchen_id, name, quantity, canonical_unit, dimension, category, location, expiry_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       args: [
+        access.kitchen.id,
         name,
         converted.quantity,
         CANONICAL_FOR[dimension],
         dimension,
         category || null,
-        isLocation(location) ? location : null,
+        isKnownLocation(location, places) ? location : null,
         expiryDate,
       ],
     });
@@ -78,14 +88,14 @@ export async function addItem(
   // so the next scan of it recognises the product instead of asking again.
   if (isBarcode(barcode)) {
     await getDb().execute({
-      sql: `INSERT INTO products (barcode, item_id, name, pack_size, pack_unit, seen_at)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      sql: `INSERT INTO products (barcode, kitchen_id, item_id, name, pack_size, pack_unit, seen_at)
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(barcode) DO UPDATE SET
               item_id = excluded.item_id,
               pack_size = excluded.pack_size,
               pack_unit = excluded.pack_unit,
               seen_at = CURRENT_TIMESTAMP`,
-      args: [barcode, itemId, name, converted.quantity, CANONICAL_FOR[dimension]],
+      args: [barcode, access.kitchen.id, itemId, name, converted.quantity, CANONICAL_FOR[dimension]],
     });
   }
 
@@ -112,6 +122,9 @@ export async function adjustItem(
   itemId: number,
   delta: number,
 ): Promise<AdjustResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
   if (!Number.isInteger(itemId) || itemId <= 0) {
     return { ok: false, error: "Unknown item" };
   }
@@ -120,9 +133,11 @@ export async function adjustItem(
   }
 
   const result = await getDb().execute({
+    // The kitchen is in the WHERE clause, not checked afterwards: an item id
+    // from another kitchen simply matches nothing.
     sql: `UPDATE items SET quantity = MAX(0, quantity + ?), updated_at = CURRENT_TIMESTAMP
-          WHERE id = ? RETURNING quantity`,
-    args: [delta, itemId],
+          WHERE id = ? AND kitchen_id = ? RETURNING quantity`,
+    args: [delta, itemId, access.kitchen.id],
   });
 
   const row = result.rows[0] as unknown as { quantity: number } | undefined;

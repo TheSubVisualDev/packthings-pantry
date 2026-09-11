@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { cleanProductName, rankItems, STRONG_MATCH } from "@/lib/match";
 import { isBarcode, lookupOpenFoodFacts, type PackSize } from "@/lib/off";
 import { getItems } from "@/lib/queries";
+import { requireKitchenRole } from "@/lib/session";
 import { toCanonical } from "@/lib/units";
 import type { Item } from "@/lib/types";
 
@@ -49,14 +50,23 @@ export interface ScanResult {
 }
 
 /**
- * Resolves a scanned barcode: what we already know first, Open Food Facts
- * second.
+ * Resolves a scanned barcode: what this kitchen already knows first, Open Food
+ * Facts second.
+ *
+ * Product links are per kitchen on purpose. The same barcode can mean the
+ * generic pasta row in one house and its own line in another, and that decision
+ * belongs to whoever made it.
  *
  * A previously linked barcode short-circuits the network call - once someone
  * has said which item a product is, that answer is better than anything the
  * catalogue can offer.
  */
 export async function lookupBarcode(barcode: string): Promise<ScanResult> {
+  // Looking one up changes nothing, so a viewer may scan - it's how they see
+  // whether a kitchen already has the thing in their hand.
+  const access = await requireKitchenRole("viewer");
+  if (!access.ok) return { ok: false, error: access.error };
+
   const code = barcode.trim();
   if (!isBarcode(code)) {
     return { ok: false, error: `"${code}" doesn't look like a barcode.` };
@@ -66,8 +76,8 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
     sql: `SELECT p.name, p.brand, p.pack_size, p.pack_unit, p.item_id,
                  i.name AS item_name, i.quantity AS item_quantity, i.canonical_unit
           FROM products p LEFT JOIN items i ON i.id = p.item_id
-          WHERE p.barcode = ?`,
-    args: [code],
+          WHERE p.barcode = ? AND p.kitchen_id = ?`,
+    args: [code, access.kitchen.id],
   });
 
   const row = stored.rows[0] as unknown as
@@ -115,7 +125,7 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
 
   const [product, items] = await Promise.all([
     lookupOpenFoodFacts(code),
-    getItems(),
+    getItems(access.kitchen.id),
   ]);
 
   const name = product?.name ?? row?.name ?? null;
@@ -173,6 +183,9 @@ export async function linkBarcode(
   product: { name: string | null; brand: string | null; pack: PackSize | null },
   addPack: boolean,
 ): Promise<{ ok: boolean; error?: string; quantity?: number }> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
   const code = barcode.trim();
   if (!isBarcode(code)) return { ok: false, error: "Bad barcode" };
   if (!Number.isInteger(itemId) || itemId <= 0) return { ok: false, error: "Unknown item" };
@@ -180,8 +193,8 @@ export async function linkBarcode(
   const db = getDb();
 
   const itemResult = await db.execute({
-    sql: "SELECT * FROM items WHERE id = ?",
-    args: [itemId],
+    sql: "SELECT * FROM items WHERE id = ? AND kitchen_id = ?",
+    args: [itemId, access.kitchen.id],
   });
   const item = itemResult.rows[0] as unknown as Item | undefined;
   if (!item) return { ok: false, error: "That item is gone" };
@@ -195,8 +208,8 @@ export async function linkBarcode(
   }
 
   await db.execute({
-    sql: `INSERT INTO products (barcode, item_id, name, brand, pack_size, pack_unit, seen_at)
-          VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    sql: `INSERT INTO products (barcode, kitchen_id, item_id, name, brand, pack_size, pack_unit, seen_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(barcode) DO UPDATE SET
             item_id = excluded.item_id,
             name = COALESCE(excluded.name, products.name),
@@ -206,6 +219,7 @@ export async function linkBarcode(
             seen_at = CURRENT_TIMESTAMP`,
     args: [
       code,
+      access.kitchen.id,
       itemId,
       product.name,
       product.brand,
@@ -222,8 +236,8 @@ export async function linkBarcode(
     }
     const updated = await db.execute({
       sql: `UPDATE items SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ? RETURNING quantity`,
-      args: [packCanonical, itemId],
+            WHERE id = ? AND kitchen_id = ? RETURNING quantity`,
+      args: [packCanonical, itemId, access.kitchen.id],
     });
     quantity = (updated.rows[0] as unknown as { quantity: number }).quantity;
   }
@@ -237,14 +251,17 @@ export async function linkBarcode(
 export async function restockBarcode(
   barcode: string,
 ): Promise<{ ok: boolean; error?: string; quantity?: number; added?: number; unit?: string }> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
   const code = barcode.trim();
   if (!isBarcode(code)) return { ok: false, error: "Bad barcode" };
 
   const result = await getDb().execute({
     sql: `SELECT p.item_id, p.pack_size, i.canonical_unit
           FROM products p JOIN items i ON i.id = p.item_id
-          WHERE p.barcode = ?`,
-    args: [code],
+          WHERE p.barcode = ? AND p.kitchen_id = ?`,
+    args: [code, access.kitchen.id],
   });
 
   const row = result.rows[0] as unknown as
@@ -256,8 +273,8 @@ export async function restockBarcode(
 
   const updated = await getDb().execute({
     sql: `UPDATE items SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ? RETURNING quantity`,
-    args: [row.pack_size, row.item_id],
+          WHERE id = ? AND kitchen_id = ? RETURNING quantity`,
+    args: [row.pack_size, row.item_id, access.kitchen.id],
   });
 
   revalidatePath("/pantry");

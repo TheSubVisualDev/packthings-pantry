@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ScanPanel } from "@/components/scan-panel";
 import { SiteHeader } from "@/components/site-header";
 import { getItems } from "@/lib/queries";
+import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +13,11 @@ export const metadata: Metadata = {
 };
 
 export default async function ScanPage() {
-  const items = await getItems();
+  const context = await currentKitchen();
+  if (!context.ok) redirect("/login");
+  const { kitchen } = context;
+
+  const items = await getItems(kitchen.id);
 
   return (
     <>

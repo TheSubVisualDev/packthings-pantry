@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { RecipeEditor } from "@/components/recipe-editor";
 import { SiteHeader } from "@/components/site-header";
 import { DeleteRecipeButton } from "@/components/delete-recipe-button";
 import { getItems, getRecipe } from "@/lib/queries";
+import { currentKitchen } from "@/lib/session";
 import { draftFromRecipe } from "@/lib/recipe-draft";
 import { getSectionNames } from "@/lib/recipe-sections";
 
@@ -22,9 +23,13 @@ export default async function EditRecipePage({
   const recipeId = Number((await params).id);
   if (!Number.isInteger(recipeId)) notFound();
 
+  const context = await currentKitchen();
+  if (!context.ok) redirect("/login");
+  const { kitchen } = context;
+
   const [recipe, items, sections] = await Promise.all([
     getRecipe(recipeId),
-    getItems(),
+    getItems(kitchen.id),
     getSectionNames(),
   ]);
   if (!recipe) notFound();

@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { CookPanel, type CookLine } from "@/components/cook-panel";
 import type { CookStep } from "@/components/recipe-method";
 import { getRecipe, getItems } from "@/lib/queries";
+import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,14 @@ export default async function RecipePage({
   const recipeId = Number(id);
   if (!Number.isInteger(recipeId)) notFound();
 
-  const [recipe, items] = await Promise.all([getRecipe(recipeId), getItems()]);
+  const context = await currentKitchen();
+  if (!context.ok) redirect("/login");
+  const { kitchen } = context;
+
+  const [recipe, items] = await Promise.all([
+    getRecipe(recipeId),
+    getItems(kitchen.id),
+  ]);
   if (!recipe) notFound();
 
   const itemsByName = new Map(
