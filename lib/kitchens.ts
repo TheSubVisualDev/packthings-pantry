@@ -155,18 +155,31 @@ export async function createKitchen(
 }
 
 /**
- * The kitchen someone lands in, making one if they have none.
+ * The kitchen someone lands in, or null.
  *
- * Adoption happens here rather than in the migration script because a script
- * can only guess who the owner is, while by the time this runs somebody has
- * actually signed in and said so. It also means a fresh deployment works the
- * same way as an upgraded one, with no special case for either.
+ * Deliberately does not conjure one. An account is a person on the network
+ * first: they can follow people, write recipes and read everyone else's
+ * without ever tracking a tin of beans. A kitchen is something you make or get
+ * added to, and an empty "Home" nobody asked for is just a thing to explain.
  */
-export async function ensureKitchen(userId: number): Promise<KitchenMembership> {
+export async function currentKitchenFor(
+  userId: number,
+): Promise<KitchenMembership | null> {
   const mine = await getKitchensFor(userId);
-  if (mine.length > 0) return mine[0];
+  return mine[0] ?? null;
+}
 
-  await createKitchen(userId, "Home");
+/**
+ * Makes someone their first kitchen and hands it back.
+ *
+ * Only called from places where a person has actually asked for one - claiming
+ * the pantry at first run, or pressing the button on /kitchens.
+ */
+export async function makeFirstKitchen(
+  userId: number,
+  name = "Home",
+): Promise<KitchenMembership> {
+  await createKitchen(userId, name);
 
   // Read it back rather than assembling the membership by hand, so the row
   // carries the owner handle the switcher needs.

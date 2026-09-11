@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { SESSION_COOKIE, bearerToken, sessionUserId } from "./auth";
 import {
   atLeast,
-  ensureKitchen,
+  currentKitchenFor,
   getKitchenFor,
   type KitchenMembership,
   type Role,
@@ -58,7 +58,7 @@ export async function requireUser(): Promise<
  * falls back to one of your own.
  */
 export async function currentKitchen(): Promise<
-  { ok: true; user: User; kitchen: KitchenMembership } | { ok: false }
+  { ok: true; user: User; kitchen: KitchenMembership | null } | { ok: false }
 > {
   const session = await requireUser();
   if (!session.ok) return { ok: false };
@@ -71,7 +71,11 @@ export async function currentKitchen(): Promise<
     if (chosen) return { ok: true, user: session.user, kitchen: chosen };
   }
 
-  return { ok: true, user: session.user, kitchen: await ensureKitchen(session.user.id) };
+  return {
+    ok: true,
+    user: session.user,
+    kitchen: await currentKitchenFor(session.user.id),
+  };
 }
 
 /** For writes: refuses when the role isn't high enough. */
@@ -80,6 +84,9 @@ export async function requireKitchenRole(
 ): Promise<{ ok: true; user: User; kitchen: KitchenMembership } | { ok: false; error: string }> {
   const context = await currentKitchen();
   if (!context.ok) return { ok: false, error: "Sign in first." };
+  if (!context.kitchen) {
+    return { ok: false, error: "You don't have a kitchen yet. Make one first." };
+  }
 
   if (!atLeast(context.kitchen.role, needed)) {
     return {
@@ -91,7 +98,7 @@ export async function requireKitchenRole(
     };
   }
 
-  return context;
+  return { ok: true, user: context.user, kitchen: context.kitchen };
 }
 
 /**
@@ -106,12 +113,16 @@ export async function requireKitchenRole(
  */
 export async function apiContext(
   request: Request,
-): Promise<{ ok: true; user: User; kitchen: KitchenMembership } | { ok: false }> {
+): Promise<
+  { ok: true; user: User; kitchen: KitchenMembership | null } | { ok: false }
+> {
   const token = bearerToken(request.headers.get("authorization"));
 
   if (token) {
     const user = await getUserByApiToken(token);
-    if (user) return { ok: true, user, kitchen: await ensureKitchen(user.id) };
+    if (user) {
+      return { ok: true, user, kitchen: await currentKitchenFor(user.id) };
+    }
   }
 
   const context = await currentKitchen();

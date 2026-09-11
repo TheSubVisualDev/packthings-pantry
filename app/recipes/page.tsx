@@ -17,12 +17,14 @@ export default async function RecipesPage({
 }) {
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
-  const { kitchen } = context;
+  // No kitchen is fine here: your recipes are yours, not a kitchen's. The
+  // "what can I cook" counts simply come back empty.
+  const kitchen = context.kitchen;
 
   const { q } = await searchParams;
   const term = q?.trim() ?? "";
 
-  const recipes = await getRecipesWithMatches(kitchen.id, context.user.id, term);
+  const recipes = await getRecipesWithMatches(kitchen?.id ?? null, context.user.id, term);
 
   return (
     <>

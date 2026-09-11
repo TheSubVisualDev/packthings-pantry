@@ -16,15 +16,69 @@ export const metadata: Metadata = {
 const CARD = "rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:p-6";
 const LABEL = "text-xs font-bold uppercase tracking-[0.08em] text-label";
 
-export default async function KitchensPage() {
-  const context = await currentKitchen();
+export default async function KitchensPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ need?: string }>;
+}) {
+  const [context, { need }] = await Promise.all([currentKitchen(), searchParams]);
   if (!context.ok) redirect("/login?next=%2Fkitchens");
 
   const { user, kitchen } = context;
-  const [members, locations, kitchens] = await Promise.all([
+  const kitchens = await getKitchensFor(user.id);
+
+  // An account with no kitchen is a normal state, not a broken one: you can
+  // follow people and write recipes without ever tracking a tin of beans.
+  if (!kitchen) {
+    return (
+      <>
+        <SiteHeader active="stock" />
+
+        <main className="mx-auto w-full max-w-[560px] px-5 py-10 pb-32 sm:px-9">
+          <span className={LABEL}>Kitchens</span>
+          <h1 className="mt-2 text-[30px] font-extrabold tracking-[-0.02em]">
+            You haven&apos;t got a kitchen yet
+          </h1>
+
+          <p className="mt-3 text-[15px] leading-relaxed font-medium text-muted-foreground">
+            {need === "stock"
+              ? "That page is about what's on your shelves, which needs a kitchen to be on the shelves of."
+              : "A kitchen is a stock list with people attached — what you have in, what's running out, what to buy."}
+          </p>
+
+          <div className={`${CARD} mt-6`}>
+            <h2 className={LABEL}>Make one</h2>
+            <p className="mt-2 mb-4 text-sm font-medium text-muted-foreground">
+              Yours to fill. You can share it with people later, so they can see
+              what you have or help keep it up to date.
+            </p>
+            <NewKitchen alwaysOpen />
+          </div>
+
+          <div className={`${CARD} mt-3`}>
+            <h2 className={LABEL}>Or wait to be added</h2>
+            <p className="mt-2 text-sm font-medium text-muted-foreground">
+              Anyone who owns a kitchen can add you to theirs by your handle,{" "}
+              <strong className="font-bold text-foreground">@{user.handle}</strong>.
+              It&apos;ll turn up in the menu at the top.
+            </p>
+          </div>
+
+          <p className="mt-6 text-sm font-semibold text-muted-foreground">
+            Meanwhile you can{" "}
+            <Link href="/discover" className="font-bold text-primary underline underline-offset-2">
+              see what people are cooking
+            </Link>{" "}
+            and write your own recipes — neither needs a kitchen.
+          </p>
+        </main>
+      </>
+    );
+  }
+
+  const [members, locations] = await Promise.all([
     getMembers(kitchen.id),
     getLocations(kitchen.id),
-    getKitchensFor(user.id),
   ]);
 
   const youAreOwner = kitchen.role === "owner";
@@ -41,7 +95,7 @@ export default async function KitchensPage() {
         <p className="mt-1 text-sm font-semibold text-muted-foreground">
           {youAreOwner
             ? "Yours."
-            : `Shared with you — you ${kitchen.role === "editor" ? "can edit it" : "can look, not touch"}.`}
+            : `Shared with you by @${kitchen.owner_handle} — you ${kitchen.role === "editor" ? "can edit it" : "can look, not touch"}.`}
         </p>
 
         <div className="mt-7 space-y-3">

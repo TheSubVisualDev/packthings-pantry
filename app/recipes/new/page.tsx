@@ -17,10 +17,10 @@ export const metadata: Metadata = {
 export default async function NewRecipePage() {
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
-  const { kitchen } = context;
+  const kitchen = context.kitchen;
 
   const [items, sections] = await Promise.all([
-    getItems(kitchen.id),
+    getItems(kitchen?.id ?? null),
     getSectionNames(),
   ]);
 

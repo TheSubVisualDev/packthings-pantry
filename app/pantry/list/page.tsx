@@ -15,6 +15,7 @@ export const metadata: Metadata = {
 export default async function ShoppingPage() {
   const context = await currentKitchen();
   if (!context.ok) redirect("/login?next=%2Fpantry%2Flist");
+  if (!context.kitchen) redirect("/kitchens?need=stock");
 
   const lines = await getList(context.kitchen.id);
   const todo = lines.filter((line) => !line.bought_at).length;

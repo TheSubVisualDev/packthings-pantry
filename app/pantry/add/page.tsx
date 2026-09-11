@@ -31,6 +31,8 @@ export default async function AddItemPage({
 }) {
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
+  // Stock lives in a kitchen, so there's nothing to show without one.
+  if (!context.kitchen) redirect("/kitchens?need=stock");
   const { kitchen } = context;
 
   const [prefill, items, places] = await Promise.all([

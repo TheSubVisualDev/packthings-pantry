@@ -31,7 +31,10 @@ export async function saveRecipeDocument(
     return { ok: false, problems: [{ path: "", message: "Sign in first." }], warnings: [] };
   }
 
-  const parsed = parseRecipeDocument(document, await getItems(context.kitchen.id));
+  const parsed = parseRecipeDocument(
+    document,
+    await getItems(context.kitchen?.id ?? null),
+  );
 
   if (!parsed.ok || !parsed.recipe) {
     return { ok: false, problems: parsed.problems, warnings: parsed.warnings };
@@ -64,7 +67,10 @@ export async function parsePastedRecipe(text: string): Promise<SaveRecipeResult>
     return { ok: false, problems: [{ path: "", message: "Sign in first." }], warnings: [] };
   }
 
-  const parsed = parseRecipeDocument(document, await getItems(context.kitchen.id));
+  const parsed = parseRecipeDocument(
+    document,
+    await getItems(context.kitchen?.id ?? null),
+  );
   return {
     ok: parsed.ok,
     problems: parsed.problems,

@@ -153,9 +153,10 @@ export async function leaveKitchen(kitchenId: number): Promise<KitchenResult> {
 
   await removeMember(kitchenId, session.user.id);
 
-  // Drops you back into one of your own, making one if that was your last.
+  // Drops you into another of yours, if there is one. If that was your last,
+  // you simply have none - which is now a state the app knows how to show.
   const context = await currentKitchen();
-  if (context.ok) await switchKitchen(context.kitchen.id);
+  if (context.ok && context.kitchen) await switchKitchen(context.kitchen.id);
 
   revalidatePath("/", "layout");
   return { ok: true };

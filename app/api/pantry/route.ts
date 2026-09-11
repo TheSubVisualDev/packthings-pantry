@@ -24,20 +24,28 @@ export async function GET(request: Request) {
   }
 
   const [items, recipes, locations] = await Promise.all([
-    getItems(context.kitchen.id),
+    getItems(context.kitchen?.id ?? null),
     getRecipes(context.user.id),
-    getLocations(context.kitchen.id),
+    context.kitchen ? getLocations(context.kitchen.id) : Promise.resolve([]),
   ]);
 
   return NextResponse.json(
     {
       generated_at: new Date().toISOString(),
 
-      kitchen: {
-        id: context.kitchen.id,
-        name: context.kitchen.name,
-        your_role: context.kitchen.role,
-      },
+      // Null rather than absent, and said out loud: an account with no kitchen
+      // can still write recipes, it just has no stock to check them against.
+      kitchen: context.kitchen
+        ? {
+            id: context.kitchen.id,
+            name: context.kitchen.name,
+            your_role: context.kitchen.role,
+          }
+        : null,
+
+      note: context.kitchen
+        ? undefined
+        : "This account has no kitchen yet, so pantry.items is empty. Recipes can still be written; their ingredients simply won't resolve to stock.",
 
       pantry: {
         items: items.map((item) => ({

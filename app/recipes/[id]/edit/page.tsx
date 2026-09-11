@@ -26,11 +26,11 @@ export default async function EditRecipePage({
 
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
-  const { kitchen } = context;
+  const kitchen = context.kitchen;
 
   const [recipe, items, sections] = await Promise.all([
     getRecipe(recipeId, context.user.id),
-    getItems(kitchen.id),
+    getItems(kitchen?.id ?? null),
     getSectionNames(),
   ]);
   if (!recipe) notFound();

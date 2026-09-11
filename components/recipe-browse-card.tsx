@@ -45,12 +45,14 @@ export function RecipeBrowseCard({
     >
       <div
         aria-hidden
-        className="absolute inset-y-0 left-0 w-[58%]"
+        className="absolute inset-y-0 left-0 w-[44%]"
         style={{
-          // The mask is what does the fading: the image is painted normally and
-          // then dissolved to nothing before it reaches the text.
-          maskImage: "linear-gradient(to right, black 45%, transparent 100%)",
-          WebkitMaskImage: "linear-gradient(to right, black 45%, transparent 100%)",
+          // The image is painted normally and then dissolved to nothing. It has
+          // to be *gone* before the text starts, not merely faint: title over a
+          // busy photo is unreadable however low the opacity gets, and the
+          // fade's job is to blend into the card, not to sit behind words.
+          maskImage: "linear-gradient(to right, black 58%, transparent 97%)",
+          WebkitMaskImage: "linear-gradient(to right, black 58%, transparent 97%)",
         }}
       >
         {recipe.photo_url ? (
@@ -66,7 +68,8 @@ export function RecipeBrowseCard({
         )}
       </div>
 
-      <div className="relative ml-[34%] flex min-w-0 flex-1 flex-col justify-center p-4 sm:p-5">
+      {/* Starts past the end of the image, so nothing is ever read against it. */}
+      <div className="relative ml-[45%] flex min-w-0 flex-1 flex-col justify-center py-4 pr-4 pl-1 sm:py-5 sm:pr-5">
         <h3 className="text-[17px] font-extrabold tracking-[-0.01em] break-words">
           {recipe.name}
         </h3>

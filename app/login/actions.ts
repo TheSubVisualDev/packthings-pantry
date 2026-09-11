@@ -11,7 +11,7 @@ import {
 } from "@/lib/auth";
 import { verifyPassword } from "@/lib/passwords";
 import { countUsers, createUser, getUserByHandle, redeemInvite } from "@/lib/users";
-import { ensureKitchen } from "@/lib/kitchens";
+import { makeFirstKitchen } from "@/lib/kitchens";
 
 export interface LoginState {
   error?: string;
@@ -90,8 +90,8 @@ export async function acceptInvite(
     return { error: result.error ?? "Couldn't create that account." };
   }
 
-  // Same reasoning as first-run: a kitchen at signup, not at first glance.
-  await ensureKitchen(result.user.id);
+  // Invited accounts deliberately start with no kitchen. You join to be on the
+  // network; a kitchen is something you make or get added to.
 
   if (!(await startSession(result.user.id))) {
     return { error: "Account created, but signing in failed. Try the login page." };
@@ -137,11 +137,11 @@ export async function createFirstUser(
 
   const user = await createUser(handle, displayName, password);
 
-  // Made here rather than on the first page load. Adoption of everything that
-  // predates accounts happens when the first kitchen is created, so leaving it
-  // until someone browses means whoever opens a page first inherits the
-  // pantry - which on a shared link is not necessarily the person who set it up.
-  await ensureKitchen(user.id);
+  // The one account that does get a kitchen automatically. This is the person
+  // claiming a pantry that already exists, and the first kitchen ever created
+  // is what adopts everything predating accounts - so it has to be theirs, and
+  // it has to happen here rather than whenever somebody first opens a page.
+  await makeFirstKitchen(user.id);
 
   if (!(await startSession(user.id))) {
     return { error: "Account created, but signing in failed. Try the login page." };

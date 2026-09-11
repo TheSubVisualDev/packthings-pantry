@@ -31,11 +31,12 @@ export default async function RecipePage({
 
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
-  const { kitchen } = context;
+  // Readable without a kitchen - the cook panel is what needs one.
+  const kitchen = context.kitchen;
 
   const [recipe, items] = await Promise.all([
     getRecipe(recipeId, context.user.id),
-    getItems(kitchen.id),
+    getItems(kitchen?.id ?? null),
   ]);
   if (!recipe) notFound();
 
@@ -206,6 +207,7 @@ export default async function RecipePage({
           rating={yourRating}
           lines={lines}
           steps={steps}
+          hasKitchen={kitchen !== null}
         />
 
         <div className="mt-5">

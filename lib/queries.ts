@@ -10,7 +10,10 @@ import type {
   RecipeWithIngredients,
 } from "./types";
 
-export async function getItems(kitchenId: number): Promise<Item[]> {
+/** No kitchen means no stock, which is a real state rather than an error. */
+export async function getItems(kitchenId: number | null): Promise<Item[]> {
+  if (kitchenId === null) return [];
+
   const result = await getDb().execute({
     sql: "SELECT * FROM items WHERE kitchen_id = ? ORDER BY category NULLS LAST, name",
     args: [kitchenId],
@@ -174,7 +177,11 @@ export async function getRecipe(
 }
 
 /** Item names currently in stock, lowercased, for recipe match indicators. */
-export async function getStockedItemNames(kitchenId: number): Promise<Set<string>> {
+export async function getStockedItemNames(
+  kitchenId: number | null,
+): Promise<Set<string>> {
+  if (kitchenId === null) return new Set();
+
   const result = await getDb().execute({
     sql: "SELECT name FROM items WHERE kitchen_id = ? AND quantity > 0",
     args: [kitchenId],
@@ -196,7 +203,7 @@ export interface RecipeWithMatch extends RecipeWithAuthor {
  * ingredient lines rather than one per recipe.
  */
 export async function getRecipesWithMatches(
-  kitchenId: number,
+  kitchenId: number | null,
   authorId: number,
   term = "",
 ): Promise<RecipeWithMatch[]> {
@@ -368,9 +375,11 @@ export interface ExpiringItem extends Item {
  * "this went off on Tuesday" is more useful than silence.
  */
 export async function getExpiring(
-  kitchenId: number,
+  kitchenId: number | null,
   withinDays = 7,
 ): Promise<ExpiringItem[]> {
+  if (kitchenId === null) return [];
+
   const result = await getDb().execute({
     sql: `SELECT *, CAST(julianday(expiry_date) - julianday('now') AS INTEGER) AS days_left
           FROM items

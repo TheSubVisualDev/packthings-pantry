@@ -96,7 +96,7 @@ export async function PUT(
     );
   }
 
-  const parsed = parseRecipeDocument(body, await getItems(context.kitchen.id));
+  const parsed = parseRecipeDocument(body, await getItems(context.kitchen?.id ?? null));
   if (!parsed.ok || !parsed.recipe) {
     return NextResponse.json(
       { problems: parsed.problems, warnings: parsed.warnings },

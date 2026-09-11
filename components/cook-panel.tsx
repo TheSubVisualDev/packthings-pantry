@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import {
   cookRecipe,
@@ -132,12 +133,15 @@ export function CookPanel({
   rating,
   lines,
   steps,
+  hasKitchen,
 }: {
   recipeId: number;
   baseServings: number;
   rating: number | null;
   lines: CookLine[];
   steps: CookStep[];
+  /** Cooking spends stock, so without a kitchen there's nothing to spend. */
+  hasKitchen: boolean;
 }) {
   const [servings, setServings] = useState(baseServings);
   const [result, setResult] = useState<CookResult | null>(null);
@@ -305,18 +309,28 @@ export function CookPanel({
         ))}
       </section>
 
-      <button
-        type="button"
-        onClick={onCook}
-        disabled={pending}
-        className="w-full rounded-[14px] bg-primary px-4 py-4 text-[15px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
-      >
-        {pending ? "Cooking…" : `Cook for ${servings}`}
-      </button>
+      {hasKitchen ? (
+        <button
+          type="button"
+          onClick={onCook}
+          disabled={pending}
+          className="w-full rounded-[14px] bg-primary px-4 py-4 text-[15px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
+        >
+          {pending ? "Cooking…" : `Cook for ${servings}`}
+        </button>
+      ) : (
+        <p className="rounded-[14px] bg-chip px-4 py-3.5 text-center text-sm font-semibold text-muted-foreground">
+          Cooking takes things off a shelf, so it needs{" "}
+          <Link href="/kitchens" className="font-bold text-primary underline underline-offset-2">
+            a kitchen
+          </Link>
+          . You can still read the recipe.
+        </p>
+      )}
 
       <RecipeMethod steps={steps} labels={labels} />
 
-      {blockers.length > 0 && !result && (
+      {hasKitchen && blockers.length > 0 && !result && (
         <div className="space-y-2">
           <p className="text-center text-xs font-semibold text-muted-foreground">
             {blockers.length} {blockers.length === 1 ? "line" : "lines"} won&apos;t

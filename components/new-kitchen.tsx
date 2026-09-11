@@ -3,9 +3,12 @@
 import { useActionState, useState } from "react";
 import { makeKitchen, type KitchenResult } from "@/app/kitchens/actions";
 
-/** Tucked behind a link: most people will only ever have one kitchen. */
-export function NewKitchen() {
-  const [open, setOpen] = useState(false);
+/**
+ * Tucked behind a link where you already have a kitchen, and shown outright
+ * where you have none - there it isn't an extra, it's the thing to do.
+ */
+export function NewKitchen({ alwaysOpen = false }: { alwaysOpen?: boolean }) {
+  const [open, setOpen] = useState(alwaysOpen);
   const [state, action, pending] = useActionState<KitchenResult, FormData>(
     makeKitchen,
     { ok: true },
