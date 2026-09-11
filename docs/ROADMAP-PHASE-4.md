@@ -75,26 +75,46 @@ ingredients, and the moment you are *finished* is the moment stock should move.
 
 ## P5 · Receipt scanning quality — about half a day
 
-**Luna's instinct was right, and the constraint she remembers is already gone.**
+**Lossless, not lossy - and the pipeline is already most of the way there.**
 
-The scanner used to upload a photo, so it was shrunk to fit under the Server
-Action body limit. Since recognition moved into the browser, **nothing is
-uploaded at all** - only the recognised text crosses the wire. File size stopped
-mattering the moment that changed.
+Two things that were true when this was scoped are no longer true, and the next
+person should not go looking for either.
 
-What survives is `TARGET_WIDTH = 1600` in `lib/scan-image.ts`, which now only
-exists because Tesseract is trained near 300dpi. It is applied unconditionally,
-so a 4000px photo is *thrown away down to* 1600px before it is read.
+**There is no upload.** Recognition moved into the browser in phase 3, so
+nothing crosses the wire but the recognised text. The Server Action body limit
+that originally forced a shrink is irrelevant now.
 
-So the work is not compression at all:
+**There is no lossy codec either.** `prepareReceipt` hands Tesseract the canvas
+directly, as raw pixels - the JPEG encoding went out with the upload. So there
+is no quality setting to raise and no format to switch to. Anyone hunting for a
+`toBlob` call will not find one.
 
-1. Stop downscaling. Cap far higher, or not at all, and only ever enlarge small
-   photos.
-2. Tune the preprocessing on real receipts. Greyscale and a contrast stretch are
-   in; adaptive thresholding and deskewing are the usual next two.
-3. Consider letting the person crop to just the items before it reads.
-4. `npm run check:receipt` covers parsing, not recognition. A handful of real
-   photographs kept as fixtures would be the thing that makes tuning honest.
+**The only loss left is the resample**, and it is the one worth killing:
+`TARGET_WIDTH = 1600` in `lib/scan-image.ts` is applied unconditionally, so a
+4000px photograph of a receipt is bicubically averaged down to 1600px before
+anything reads it. Small print is exactly what that destroys, and it is thrown
+away for no benefit at all now that nothing is being transmitted or stored.
+
+So the work, in order of how much it is likely to buy:
+
+1. **Stop downscaling.** Only ever enlarge small photos; leave big ones alone,
+   or cap somewhere far higher. This is the whole of Luna's point and probably
+   most of the win.
+2. **Adaptive thresholding.** The current contrast stretch is global, so one
+   shadow across a curled receipt drags the whole image. Local thresholding is
+   the standard answer and suits thermal paper particularly well.
+3. **Deskew.** A photograph taken at an angle costs more accuracy than most
+   people expect.
+4. **Crop to the items**, by hand or by finding the printed block, so the shop's
+   logo and the card receipt stapled underneath are never read at all.
+
+If a photo is ever stored or sent for any reason, it should be PNG or lossless
+WebP. Nothing in the current path does, but the principle is the one to keep.
+
+**`npm run check:receipt` covers parsing, not recognition.** A handful of real
+photographs kept as fixtures is what would make any of this measurable rather
+than a matter of opinion - and it is worth doing first, so the tuning has a
+before and after.
 
 ## Inherited, still outstanding
 
