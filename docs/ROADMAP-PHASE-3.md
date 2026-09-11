@@ -182,12 +182,25 @@ Add `nutriments` to the Open Food Facts field list, store per 100 g, derive a
 main-stat label, and let grouping use it — "high protein" becomes a group you can
 browse.
 
-### S7 · Suggestions and the cooked log — about 1 day
+### S7 · Suggestions and the cooked log — about 1.5 days
 
-Restock suggestions from real consumption, "you haven't touched this in a while"
-pointing at recipes that use it, and the cooked log: names and days, read straight off
-`cook_events`, which already records who, what, when, servings and per kitchen. No new
-tables and no writes — the cheapest visible thing in the phase.
+**Cook this before it goes off.** Added at Luna's request 11 Sep 2026. The stock
+page already lists what is expiring; this turns that list into recipes you could
+actually make tonight, ranked by how soon the ingredient dies and how much of the
+rest of the recipe is already on the shelf.
+
+The deadline is whichever comes first of two dates, which is the part worth
+getting right: the date printed on a sealed packet (`expiry_date`), and
+`opened_at + shelf_life_days` once it has been opened. `getExpiring()` already
+computes exactly that pair for the use-these-up panel, so this is a ranking
+problem rather than a new query — and containers make the open deadline sharper,
+since the app now knows when the open jar was actually opened and clears the
+stamp when it runs out.
+
+Then the rest: restock suggestions from real consumption, "you haven't touched
+this in a while" pointing at recipes that use it, and the cooked log — names and
+days, read straight off `cook_events`, which already records who, what, when,
+servings and per kitchen. No new tables and no writes for that last one.
 
 ### S8 · Remix — about 1 day
 
@@ -196,6 +209,6 @@ chains, and "remixes of this" on a recipe.
 
 ---
 
-**Rough total: 9 to 10 days.** Wave A is the one that changes how the app feels, B is
+**Rough total: 9.5 to 10.5 days.** Wave A is the one that changes how the app feels, B is
 the one that changes whether the data stays true, and C is the one that makes it
 useful without being asked.

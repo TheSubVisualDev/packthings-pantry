@@ -95,9 +95,10 @@ export function shortfall(item: Item): number {
  * ROUND guards the split against floating point, so 1500 never arrives as
  * 1499.9999 and quietly becomes 2 sealed plus 499.9 rather than 3 sealed.
  *
- * opened_at is restamped only when a sealed container actually had to be opened
- * to satisfy the take - that is the moment the clock on "once open, use within"
- * genuinely restarts.
+ * opened_at is restamped when a sealed container actually had to be opened to
+ * satisfy the take - that is the moment the "once open, use within" clock
+ * genuinely restarts - and cleared when the open one runs out, because a
+ * deadline against a container you have finished is a false alarm.
  *
  * Rows with unspecified set are excluded rather than adjusted: there is no
  * number there to add to.
@@ -133,8 +134,12 @@ UPDATE items
 SET quantity = (SELECT new_open FROM split),
     sealed_count = (SELECT new_sealed FROM split),
     opened_at = CASE
+      -- Nothing left in the open one means nothing is open, so the clock on
+      -- "use within N days of opening" stops. Leaving the stamp behind meant a
+      -- use-by deadline kept counting down against a container that no longer
+      -- existed.
+      WHEN (SELECT new_open FROM split) = 0 THEN NULL
       WHEN (SELECT new_sealed FROM split) < (SELECT was_sealed FROM split)
-       AND (SELECT new_open FROM split) > 0
       THEN CURRENT_TIMESTAMP
       ELSE opened_at
     END,
@@ -190,4 +195,18 @@ export function applyDelta(
 /** Matching the ROUND(..., 6) the SQL uses, for the same reason. */
 function round6(value: number): number {
   return Math.round(value * 1e6) / 1e6;
+}
+
+/**
+ * Whether describeStock already contains the word "open".
+ *
+ * A packaged item with something left in the open container reads "2 sealed +
+ * 320ml open", and a list that also pins an "open" badge on anything with an
+ * opened_at then says it twice. Both facts are worth showing - what is left,
+ * and that the clock is running - so the badge is suppressed rather than the
+ * label shortened, and this is the single place that decides.
+ */
+export function labelSaysOpen(item: Item): boolean {
+  if (item.unspecified) return false;
+  return packOf(item) !== null && item.quantity > 0;
 }

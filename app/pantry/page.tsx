@@ -2,9 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { StockList } from "@/components/stock-list";
 import { SuggestionCard, TopMatchCard } from "@/components/recipe-suggestion";
 import { getItems, getRecipesWithMatches } from "@/lib/queries";
-import { describeStock } from "@/lib/containers";
 import { UNPLACED } from "@/lib/locations";
 import { getLocations } from "@/lib/kitchens";
 import { getTags } from "@/lib/tags";
@@ -209,41 +209,12 @@ export default async function PantryPage({
                 <GroupToggle active={groupBy} />
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
-                {groups.map(([name, groupItems]) => (
-                  <section
-                    key={name}
-                    className="sm:rounded-[20px] sm:bg-card sm:p-5 sm:shadow-[0_1px_3px_rgba(0,0,0,0.05)]"
-                  >
-                    <h2 className="mb-2.5 text-xs font-bold uppercase tracking-[0.08em] text-label sm:mb-3">
-                      {name}
-                    </h2>
-                    <ul className="flex flex-wrap gap-2">
-                      {groupItems.map((item) => (
-                        <li key={item.id}>
-                          <Link
-                            href={`/pantry/item/${item.id}`}
-                            className="block rounded-[14px] bg-card px-3 py-2.5 text-sm font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-colors hover:bg-chip sm:rounded-xl sm:bg-chip sm:px-3 sm:py-2 sm:shadow-none sm:hover:bg-border"
-                          >
-                            {item.name}{" "}
-                            <span className="font-bold text-quantity">
-                              {describeStock(item)}
-                            </span>
-                            {item.opened_at && (
-                              <span
-                                title="Opened"
-                                className="ml-1.5 text-xs font-bold text-muted-foreground"
-                              >
-                                open
-                              </span>
-                            )}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                ))}
-              </div>
+              <StockList
+                groups={groups}
+                places={places}
+                tags={tags}
+                canEdit={kitchen.role !== "viewer"}
+              />
             </>
           )}
         </main>

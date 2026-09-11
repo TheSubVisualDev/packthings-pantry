@@ -9,7 +9,7 @@ import { requireKitchenRole } from "@/lib/session";
 import { isBarcode } from "@/lib/off";
 import { CANONICAL_FOR, dimensionOf, toCanonical } from "@/lib/units";
 import { ADJUST_SQL, PACK_SQL } from "@/lib/containers";
-import { cleanTagName, setPrimaryTag, tagItem, untagItem } from "@/lib/tags";
+import { cleanTagName, ensureTag, setPrimaryTag, tagItem, untagItem } from "@/lib/tags";
 
 export interface AddItemState {
   error?: string;
@@ -499,4 +499,193 @@ export async function setPackaging(
   revalidatePath("/pantry");
   revalidatePath(`/pantry/item/${itemId}`);
   return { ok: true, message: "Saved." };
+}
+
+export interface BulkResult {
+  ok: boolean;
+  error?: string;
+  /** How many rows actually changed, which is what the toast should say. */
+  changed?: number;
+}
+
+/**
+ * The ids a bulk action is allowed to touch.
+ *
+ * Every bulk statement below filters on kitchen_id as well as the id list, so a
+ * borrowed id from another kitchen matches nothing rather than being checked
+ * and rejected. This just keeps the list sane before it gets that far.
+ */
+function cleanIds(ids: number[]): number[] {
+  return [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))].slice(0, 500);
+}
+
+/** Moves everything selected to one place in the kitchen. */
+export async function bulkLocation(
+  ids: number[],
+  location: string,
+): Promise<BulkResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  const wanted = cleanIds(ids);
+  if (wanted.length === 0) return { ok: false, error: "Nothing selected." };
+
+  const places = await getLocations(access.kitchen.id);
+  const place = location.trim();
+  // An empty string means "nowhere in particular", which is a real answer.
+  if (place && !isKnownLocation(place, places)) {
+    return { ok: false, error: "That isn't one of this kitchen's places." };
+  }
+
+  const result = await getDb().execute({
+    sql: `UPDATE items SET location = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE kitchen_id = ? AND id IN (${wanted.map(() => "?").join(", ")})`,
+    args: [place || null, access.kitchen.id, ...wanted],
+  });
+
+  revalidatePath("/pantry");
+  return { ok: true, changed: result.rowsAffected };
+}
+
+/**
+ * Marks everything selected as opened, or back to sealed.
+ *
+ * Opening only stamps rows that are not already open, so putting six things
+ * away and tapping "opened" does not reset the clock on the jar that has been
+ * open since Tuesday.
+ */
+export async function bulkOpened(
+  ids: number[],
+  opened: boolean,
+): Promise<BulkResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  const wanted = cleanIds(ids);
+  if (wanted.length === 0) return { ok: false, error: "Nothing selected." };
+
+  const placeholders = wanted.map(() => "?").join(", ");
+  const result = await getDb().execute({
+    sql: opened
+      ? `UPDATE items SET opened_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE kitchen_id = ? AND opened_at IS NULL AND id IN (${placeholders})`
+      : `UPDATE items SET opened_at = NULL, updated_at = CURRENT_TIMESTAMP
+         WHERE kitchen_id = ? AND id IN (${placeholders})`,
+    args: [access.kitchen.id, ...wanted],
+  });
+
+  revalidatePath("/pantry");
+  return { ok: true, changed: result.rowsAffected };
+}
+
+/**
+ * Puts one tag on everything selected.
+ *
+ * The tag is created once and linked many times, rather than going through
+ * tagItem per row - that would be three round trips to Nuremberg per item, and
+ * the whole point of selecting twelve things is not doing something twelve
+ * times.
+ */
+export async function bulkTag(ids: number[], name: string): Promise<BulkResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  const wanted = cleanIds(ids);
+  if (wanted.length === 0) return { ok: false, error: "Nothing selected." };
+
+  const tag = await ensureTag(access.kitchen.id, name);
+  if (!tag) return { ok: false, error: "Give the tag a name." };
+
+  const placeholders = wanted.map(() => "?").join(", ");
+  const db = getDb();
+
+  const linked = await db.execute({
+    sql: `INSERT OR IGNORE INTO item_tags (item_id, tag_id)
+          SELECT i.id, ? FROM items i
+          WHERE i.kitchen_id = ? AND i.id IN (${placeholders})`,
+    args: [tag.id, access.kitchen.id, ...wanted],
+  });
+
+  // Anything not filed anywhere gets filed here, matching what a single tag
+  // does. Anything already filed keeps its own answer.
+  await db.execute({
+    sql: `UPDATE items SET primary_tag_id = ?
+          WHERE kitchen_id = ? AND primary_tag_id IS NULL AND id IN (${placeholders})`,
+    args: [tag.id, access.kitchen.id, ...wanted],
+  });
+
+  revalidatePath("/pantry");
+  revalidatePath("/kitchens");
+  return { ok: true, changed: linked.rowsAffected };
+}
+
+/**
+ * Takes one tag off everything selected.
+ *
+ * Filing falls back to whatever else the item carries, the same rule a single
+ * untag follows - an item should never drop out of the grouped view because of
+ * a tidy-up.
+ */
+export async function bulkUntag(ids: number[], tagId: number): Promise<BulkResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  const wanted = cleanIds(ids);
+  if (wanted.length === 0) return { ok: false, error: "Nothing selected." };
+  if (!Number.isInteger(tagId)) return { ok: false, error: "Unknown tag." };
+
+  const placeholders = wanted.map(() => "?").join(", ");
+  const db = getDb();
+
+  const removed = await db.execute({
+    sql: `DELETE FROM item_tags
+          WHERE tag_id = ?
+            AND item_id IN (
+              SELECT i.id FROM items i
+              WHERE i.kitchen_id = ? AND i.id IN (${placeholders})
+            )`,
+    args: [tagId, access.kitchen.id, ...wanted],
+  });
+
+  await db.execute({
+    sql: `UPDATE items
+          SET primary_tag_id = (
+            SELECT it.tag_id FROM item_tags it
+            JOIN tags t ON t.id = it.tag_id
+            WHERE it.item_id = items.id
+            ORDER BY t.name COLLATE NOCASE
+            LIMIT 1
+          )
+          WHERE kitchen_id = ? AND primary_tag_id = ? AND id IN (${placeholders})`,
+    args: [access.kitchen.id, tagId, ...wanted],
+  });
+
+  revalidatePath("/pantry");
+  revalidatePath("/kitchens");
+  return { ok: true, changed: removed.rowsAffected };
+}
+
+/**
+ * Deletes everything selected.
+ *
+ * Recipes that call for these keep their lines and simply stop being linked to
+ * stock, which is the same thing deleting one item does - the recipe's own
+ * wording was never the pantry's to take away.
+ */
+export async function bulkDelete(ids: number[]): Promise<BulkResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  const wanted = cleanIds(ids);
+  if (wanted.length === 0) return { ok: false, error: "Nothing selected." };
+
+  const result = await getDb().execute({
+    sql: `DELETE FROM items
+          WHERE kitchen_id = ? AND id IN (${wanted.map(() => "?").join(", ")})`,
+    args: [access.kitchen.id, ...wanted],
+  });
+
+  revalidatePath("/pantry");
+  revalidatePath("/recipes");
+  return { ok: true, changed: result.rowsAffected };
 }
