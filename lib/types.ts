@@ -34,6 +34,12 @@ export interface Item {
   sealed_count: number;
   /** How many packs to keep on hand. Null means nobody has said. */
   restock_to: number | null;
+  /**
+   * "Some, I do not know how much." quantity carries no meaning when this is
+   * set - a recipe line against it simply cannot be deducted, which is the same
+   * case as an unmatched line and already handled by the cook flow.
+   */
+  unspecified: number;
 
   /** Per 100g or 100ml, as Open Food Facts reports it. Null until scanned. */
   kcal_100: number | null;

@@ -26,6 +26,9 @@ export interface ScanPrefill {
   quantity: string;
   unit: string;
   /** Comma separated, which is what the add form's tag field expects. */
+  /** What one pack holds, straight off the label. */
+  pack_size: string;
+  sealed_count: string;
   tags: string;
   location: string;
 }
@@ -121,7 +124,7 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
         known: true,
         // A linked barcode has already had its question answered.
         suggestions: [],
-        prefill: { name: "", quantity: "", unit: "", tags: "", location: "" },
+        prefill: { name: "", quantity: "", unit: "", tags: "", location: "", pack_size: "", sealed_count: "" },
       },
     };
   }
@@ -181,7 +184,11 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
       })),
       prefill: {
         name: cleanProductName(name, brand),
-        quantity: pack ? String(pack.quantity) : "",
+        // You just bought it, so it is sealed and nothing is open yet. The
+        // quantity field means the open container, which is why it is zero.
+        quantity: pack ? "0" : "",
+        pack_size: pack ? String(pack.quantity) : "",
+        sealed_count: pack ? "1" : "",
         // No pack size on record, so fall back to how the nearest existing
         // item is measured rather than defaulting everything to grams.
         unit: pack?.unit ?? best?.canonical_unit ?? "",

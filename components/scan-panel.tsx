@@ -315,6 +315,8 @@ export function ScanPanel({ items }: { items: Item[] }) {
                 quantity: match.prefill.quantity,
                 unit: match.prefill.unit,
                 tags: match.prefill.tags,
+                pack_size: match.prefill.pack_size,
+                sealed_count: match.prefill.sealed_count,
                 location: match.prefill.location,
               },
             }}

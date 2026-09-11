@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ItemDetail } from "@/components/item-detail";
+import { Packaging } from "@/components/packaging";
 import { ItemTags } from "@/components/item-tags";
 import { SiteHeader } from "@/components/site-header";
 import { getLocations } from "@/lib/kitchens";
@@ -58,6 +59,12 @@ export default async function ItemPage({
           {/* Its own card, above the edit form: a tag saves the moment you add
               it, so putting it inside a form with a Save button would promise
               something the form doesn't do. */}
+          {/* Above the tags: what is on the shelf is the thing you came to
+              check, and how it is filed is the thing you came to fix. */}
+          <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+            <Packaging item={item} canEdit={canEdit} />
+          </section>
+
           <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             <ItemTags
               itemId={item.id}

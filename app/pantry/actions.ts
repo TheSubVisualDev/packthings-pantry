@@ -8,6 +8,7 @@ import { getLocations } from "@/lib/kitchens";
 import { requireKitchenRole } from "@/lib/session";
 import { isBarcode } from "@/lib/off";
 import { CANONICAL_FOR, dimensionOf, toCanonical } from "@/lib/units";
+import { ADJUST_SQL, PACK_SQL } from "@/lib/containers";
 import { cleanTagName, setPrimaryTag, tagItem, untagItem } from "@/lib/tags";
 
 export interface AddItemState {
@@ -44,8 +45,22 @@ export async function addItem(
     .map(cleanTagName)
     .filter(Boolean);
 
+  // A scan knows what one pack holds, so an item can arrive already knowing
+  // it comes in 500ml bottles rather than being taught later.
+  const packRaw = String(formData.get("pack_size") ?? "").trim();
+  const packSize = packRaw ? Number(packRaw) : null;
+  const sealedRaw = String(formData.get("sealed_count") ?? "").trim();
+  const sealed = sealedRaw ? Number(sealedRaw) : 0;
+
   if (!name) return { error: "Give it a name." };
   if (name.length > 80) return { error: "That name is too long." };
+
+  if (packSize !== null && (!Number.isFinite(packSize) || packSize <= 0)) {
+    return { error: "A pack has to hold more than nothing." };
+  }
+  if (!Number.isInteger(sealed) || sealed < 0) {
+    return { error: "Sealed packs has to be a whole number, zero or more." };
+  }
 
   const quantity = Number(quantityRaw);
   if (!Number.isFinite(quantity) || quantity < 0) {
@@ -58,6 +73,14 @@ export async function addItem(
   const converted = toCanonical(quantity, unit, dimension);
   if (!converted.ok) return { error: "That quantity couldn't be converted." };
 
+  // The pack size is typed in the same unit as the quantity beside it, so it
+  // converts the same way - and a pack that will not convert is a bad pack,
+  // not a silent null.
+  const convertedPack = packSize === null ? null : toCanonical(packSize, unit, dimension);
+  if (convertedPack && !convertedPack.ok) {
+    return { error: "That pack size couldn't be converted." };
+  }
+
   // An empty date input posts "", which would otherwise be stored as a date.
   const expiryDate = /^\d{4}-\d{2}-\d{2}$/.test(expiry) ? expiry : null;
 
@@ -67,8 +90,8 @@ export async function addItem(
 
   try {
     const inserted = await getDb().execute({
-      sql: `INSERT INTO items (kitchen_id, name, quantity, canonical_unit, dimension, location, expiry_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      sql: `INSERT INTO items (kitchen_id, name, quantity, canonical_unit, dimension, location, expiry_date, pack_size, pack_unit, sealed_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       args: [
         access.kitchen.id,
         name,
@@ -77,6 +100,11 @@ export async function addItem(
         dimension,
         isKnownLocation(location, places) ? location : null,
         expiryDate,
+        // Stored in the canonical unit, like every other quantity here, so
+        // nothing downstream has to ask what the number means.
+        convertedPack && convertedPack.ok ? convertedPack.quantity : null,
+        packSize === null ? null : CANONICAL_FOR[dimension],
+        packSize === null ? 0 : sealed,
       ],
     });
     itemId = (inserted.rows[0] as unknown as { id: number }).id;
@@ -118,7 +146,12 @@ export async function addItem(
 export interface AdjustResult {
   ok: boolean;
   error?: string;
+  /** What is left in the open container - or the loose amount. */
   quantity?: number;
+  /** Unopened containers still on the shelf. */
+  sealedCount?: number;
+  /** What one container holds, so the caller can redraw the bar. */
+  packSize?: number | null;
 }
 
 /**
@@ -146,17 +179,27 @@ export async function adjustItem(
   const result = await getDb().execute({
     // The kitchen is in the WHERE clause, not checked afterwards: an item id
     // from another kitchen simply matches nothing.
-    sql: `UPDATE items SET quantity = MAX(0, quantity + ?), updated_at = CURRENT_TIMESTAMP
-          WHERE id = ? AND kitchen_id = ? RETURNING quantity`,
+    sql: ADJUST_SQL,
     args: [delta, itemId, access.kitchen.id],
   });
 
-  const row = result.rows[0] as unknown as { quantity: number } | undefined;
-  if (!row) return { ok: false, error: "That item is gone" };
+  const row = result.rows[0] as unknown as
+    | { quantity: number; sealed_count: number; pack_size: number | null }
+    | undefined;
+  // No row means the id belongs to another kitchen, the item is gone, or its
+  // quantity is marked unspecified - and none of those is something to add to.
+  if (!row) {
+    return { ok: false, error: "That item can't be adjusted." };
+  }
 
   revalidatePath("/pantry");
   revalidatePath("/recipes");
-  return { ok: true, quantity: row.quantity };
+  return {
+    ok: true,
+    quantity: row.quantity,
+    sealedCount: row.sealed_count,
+    packSize: row.pack_size,
+  };
 }
 
 export interface ItemResult {
@@ -341,4 +384,119 @@ export async function fileUnder(itemId: number, tagId: number): Promise<TagResul
   revalidatePath(`/pantry/item/${itemId}`);
   revalidatePath("/pantry");
   return { ok: true };
+}
+
+/**
+ * Puts whole unopened containers on the shelf, or takes them off.
+ *
+ * Its own action rather than a large positive adjustment, because those are
+ * different events: buying a bottle adds a sealed bottle, it does not pour
+ * 500ml into the one already open.
+ */
+export async function adjustPacks(
+  itemId: number,
+  packs: number,
+): Promise<AdjustResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return { ok: false, error: "Unknown item" };
+  }
+  if (!Number.isInteger(packs) || packs === 0) {
+    return { ok: false, error: "Nothing to change" };
+  }
+
+  const result = await getDb().execute({
+    sql: PACK_SQL,
+    args: [packs, itemId, access.kitchen.id],
+  });
+
+  const row = result.rows[0] as unknown as
+    | { quantity: number; sealed_count: number; pack_size: number | null }
+    | undefined;
+  // PACK_SQL requires a pack size: an item measured loosely has no containers
+  // to count, so there is nothing this could mean.
+  if (!row) {
+    return { ok: false, error: "Give this a pack size first." };
+  }
+
+  revalidatePath("/pantry");
+  revalidatePath(`/pantry/item/${itemId}`);
+  revalidatePath("/recipes");
+  return {
+    ok: true,
+    quantity: row.quantity,
+    sealedCount: row.sealed_count,
+    packSize: row.pack_size,
+  };
+}
+
+/**
+ * Sets how an item is packaged: what one container holds, how many unopened
+ * ones there are, how many to keep, and whether the amount is known at all.
+ *
+ * Clearing the pack size turns the item back into a loose amount, so the
+ * sealed count goes with it rather than lingering as a number counting nothing.
+ */
+export async function setPackaging(
+  _previous: ItemResult,
+  formData: FormData,
+): Promise<ItemResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  const itemId = Number(formData.get("item_id"));
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return { ok: false, error: "Unknown item" };
+  }
+
+  const unspecified = formData.get("unspecified") === "on" ? 1 : 0;
+
+  const sizeRaw = String(formData.get("pack_size") ?? "").trim();
+  const packSize = sizeRaw ? Number(sizeRaw) : null;
+  if (packSize !== null && (!Number.isFinite(packSize) || packSize <= 0)) {
+    return { ok: false, error: "A pack has to hold more than nothing." };
+  }
+
+  const sealedRaw = String(formData.get("sealed_count") ?? "").trim();
+  const sealed = sealedRaw ? Number(sealedRaw) : 0;
+  if (!Number.isInteger(sealed) || sealed < 0) {
+    return { ok: false, error: "Sealed packs has to be a whole number, zero or more." };
+  }
+
+  const restockRaw = String(formData.get("restock_to") ?? "").trim();
+  const restockTo = restockRaw ? Number(restockRaw) : null;
+  if (restockTo !== null && (!Number.isInteger(restockTo) || restockTo < 0)) {
+    return { ok: false, error: "Keep on hand has to be a whole number." };
+  }
+
+  const shop = String(formData.get("shop") ?? "").trim();
+
+  await getDb().execute({
+    sql: `UPDATE items
+          SET pack_size = ?,
+              pack_unit = CASE WHEN ? IS NULL THEN NULL ELSE canonical_unit END,
+              sealed_count = CASE WHEN ? IS NULL THEN 0 ELSE ? END,
+              restock_to = ?,
+              shop = ?,
+              unspecified = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND kitchen_id = ?`,
+    args: [
+      packSize,
+      packSize,
+      packSize,
+      sealed,
+      restockTo,
+      shop || null,
+      unspecified,
+      itemId,
+      access.kitchen.id,
+    ],
+  });
+
+  revalidatePath("/pantry");
+  revalidatePath(`/pantry/item/${itemId}`);
+  return { ok: true, message: "Saved." };
 }

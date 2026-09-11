@@ -5,10 +5,11 @@ import { useEffect, useId, useRef, useState } from "react";
 /**
  * A text field that also drops down what's already in use.
  *
- * Not a <select>: tags and places are free text, and a strict list would mean
- * you can't file the first jar of something new without a code change. Not a
- * bare datalist either - browsers only surface those while you type, so the
- * existing options stay invisible until you guess one. This shows them.
+ * Holds ONE value. Tags are a set and use components/tag-picker.tsx instead -
+ * choosing here replaces the field, which on a comma-separated list quietly ate
+ * what you had already typed. Not a bare datalist either: browsers only surface
+ * those while you type, so the existing options stay invisible until you guess
+ * one. This shows them.
  */
 export function SoftSelect({
   id,

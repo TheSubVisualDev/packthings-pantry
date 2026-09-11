@@ -113,6 +113,11 @@ const ADDED_COLUMNS = [
   { table: "items", column: "fat_100", definition: "REAL" },
   { table: "items", column: "fibre_100", definition: "REAL" },
   { table: "items", column: "salt_100", definition: "REAL" },
+
+  // "I have some, I do not know how much." quantity is NOT NULL and making it
+  // nullable would mean another table rebuild, so the honest answer is a flag
+  // saying the number should not be read rather than a number pretending.
+  { table: "items", column: "unspecified", definition: "INTEGER NOT NULL DEFAULT 0" },
 ];
 
 for (const { table, column, definition } of ADDED_COLUMNS) {

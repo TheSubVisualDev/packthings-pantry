@@ -2,7 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { adjustItem } from "@/app/pantry/actions";
-import { ADJUST_STEP, formatQuantity } from "@/lib/units";
+import { ADJUST_STEP } from "@/lib/units";
+import { applyDelta, describeStock, inStock } from "@/lib/containers";
 import type { Item } from "@/lib/types";
 
 /**
@@ -22,7 +23,9 @@ export function QuickAdjust({ items }: { items: Item[] }) {
   const [amounts, setAmounts] = useState<Record<number, string>>({});
   // Only holds rows this session has changed; everything else reads through to
   // the server's numbers, so a refresh elsewhere isn't masked by stale state.
-  const [edited, setEdited] = useState<Record<number, number>>({});
+  const [edited, setEdited] = useState<
+    Record<number, { quantity: number; sealedCount: number }>
+  >({});
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -50,12 +53,14 @@ export function QuickAdjust({ items }: { items: Item[] }) {
     const delta = amount * direction;
     setError(null);
 
-    // Matching the server's own MAX(0, ...) so the optimistic number and the
-    // authoritative one agree about what taking too much does.
-    setEdited((current) => ({
-      ...current,
-      [item.id]: Math.max(0, (current[item.id] ?? item.quantity) + delta),
-    }));
+    // applyDelta is the same split ADJUST_SQL performs, so a take that empties
+    // the open bottle shows the next one opening rather than a number going
+    // negative. scripts/check-cascade.mjs keeps the two honest.
+    setEdited((current) => {
+      const now = current[item.id];
+      const base = now ? { ...item, quantity: now.quantity, sealed_count: now.sealedCount } : item;
+      return { ...current, [item.id]: applyDelta(base, delta) };
+    });
     inFlight.current[item.id] = (inFlight.current[item.id] ?? 0) + 1;
 
     startTransition(async () => {
@@ -65,16 +70,23 @@ export function QuickAdjust({ items }: { items: Item[] }) {
       if (!result.ok) {
         // Undo this delta specifically rather than restoring a snapshot, so a
         // tap that landed in the meantime isn't undone along with it.
-        setEdited((current) => ({
-          ...current,
-          [item.id]: Math.max(0, (current[item.id] ?? item.quantity) - delta),
-        }));
+        setEdited((current) => {
+          const now = current[item.id];
+          const base = now ? { ...item, quantity: now.quantity, sealed_count: now.sealedCount } : item;
+          return { ...current, [item.id]: applyDelta(base, -delta) };
+        });
         setError(result.error ?? "Couldn't adjust that.");
         return;
       }
 
       if (inFlight.current[item.id] === 0) {
-        setEdited((current) => ({ ...current, [item.id]: result.quantity! }));
+        setEdited((current) => ({
+          ...current,
+          [item.id]: {
+            quantity: result.quantity!,
+            sealedCount: result.sealedCount ?? item.sealed_count,
+          },
+        }));
       }
     });
   }
@@ -103,7 +115,12 @@ export function QuickAdjust({ items }: { items: Item[] }) {
       ) : (
         <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
           {visible.map((item) => {
-            const quantity = edited[item.id] ?? item.quantity;
+            // The edited position if this session has moved it, otherwise the
+            // server's - so a change made elsewhere is not masked by stale state.
+            const moved = edited[item.id];
+            const shown = moved
+              ? { ...item, quantity: moved.quantity, sealed_count: moved.sealedCount }
+              : item;
 
             return (
               <li
@@ -113,8 +130,7 @@ export function QuickAdjust({ items }: { items: Item[] }) {
                 <div className="min-w-0">
                   <div className="font-bold break-words">{item.name}</div>
                   <div className="text-sm font-semibold text-quantity">
-                    {formatQuantity(quantity)}
-                    {item.canonical_unit === "count" ? "" : item.canonical_unit}
+                    {describeStock(shown)}
                   </div>
                 </div>
 
@@ -125,7 +141,7 @@ export function QuickAdjust({ items }: { items: Item[] }) {
                     onClick={() => apply(item, -1)}
                     // Not disabled while a change is in flight: the whole point
                     // is that you can tap three times without waiting.
-                    disabled={quantity <= 0}
+                    disabled={!inStock(shown)}
                     className="h-10 w-10 rounded-full bg-chip text-xl font-extrabold leading-none text-foreground disabled:opacity-30"
                   >
                     &minus;

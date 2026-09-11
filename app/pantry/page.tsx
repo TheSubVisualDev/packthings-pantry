@@ -4,7 +4,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SuggestionCard, TopMatchCard } from "@/components/recipe-suggestion";
 import { getItems, getRecipesWithMatches } from "@/lib/queries";
-import { formatQuantity } from "@/lib/units";
+import { describeStock } from "@/lib/containers";
 import { UNPLACED } from "@/lib/locations";
 import { getLocations } from "@/lib/kitchens";
 import { getTags } from "@/lib/tags";
@@ -18,12 +18,7 @@ export const dynamic = "force-dynamic";
 
 type GroupBy = "tag" | "location";
 
-function quantityLabel(item: Item): string {
-  const amount = formatQuantity(item.quantity);
-  return item.canonical_unit === "count"
-    ? amount
-    : `${amount}${item.canonical_unit}`;
-}
+
 
 /**
  * Groups stock for display. The tag it is filed under answers "what have I
@@ -232,7 +227,7 @@ export default async function PantryPage({
                           >
                             {item.name}{" "}
                             <span className="font-bold text-quantity">
-                              {quantityLabel(item)}
+                              {describeStock(item)}
                             </span>
                             {item.opened_at && (
                               <span

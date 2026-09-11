@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS items (
   fat_100        REAL,
   fibre_100      REAL,
   salt_100       REAL,
+  -- "Some, I do not know how much": read nothing into quantity when this is 1.
+  unspecified    INTEGER NOT NULL DEFAULT 0,
   updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   -- Per kitchen, not global. A name unique across the whole database meant the
   -- second household to buy milk could not write it down. Changing this on an

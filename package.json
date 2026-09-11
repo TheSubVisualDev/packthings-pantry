@@ -10,7 +10,8 @@
     "migrate": "node --env-file=.env.local scripts/migrate.mjs",
     "seed": "node --env-file=.env.local scripts/seed.mjs",
     "reset": "node --env-file=.env.local scripts/reset.mjs",
-    "probe": "node --env-file=.env.local scripts/probe-db.mjs"
+    "probe": "node --env-file=.env.local scripts/probe-db.mjs",
+    "check:cascade": "node scripts/check-cascade.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

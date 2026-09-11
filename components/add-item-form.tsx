@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { addItem, type AddItemState } from "@/app/pantry/actions";
-import { SoftSelect } from "@/components/soft-select";
+import { TagPicker } from "@/components/tag-picker";
 import { dimensionOf, UNITS_BY_DIMENSION } from "@/lib/units";
 import type { Dimension } from "@/lib/types";
 
@@ -33,6 +33,9 @@ const AMOUNT_LABEL: Record<Dimension, string> = {
 export interface AddItemPrefill {
   name?: string;
   quantity?: string;
+  /** What one pack holds, from a scan. Its presence turns on the fields. */
+  pack_size?: string;
+  sealed_count?: string;
   unit?: string;
   tags?: string;
   location?: string;
@@ -56,6 +59,8 @@ export function AddItemForm({
     {},
   );
   const [unit, setUnit] = useState(prefill.unit ?? "g");
+  // A scan arrives knowing the pack; typing it by hand is opt-in.
+  const [packed, setPacked] = useState(Boolean(prefill.pack_size));
 
   // An unrecognised prefill unit falls back to mass rather than blanking the
   // label; the action rejects it on submit either way.
@@ -125,18 +130,64 @@ export function AddItemForm({
       </div>
 
       <div>
-        <label htmlFor="tags" className={LABEL}>
-          Tags <span className="normal-case text-muted-foreground">optional, comma separated</span>
+        <label className="flex items-center gap-2.5 text-sm font-bold">
+          <input
+            type="checkbox"
+            checked={packed}
+            onChange={(event) => setPacked(event.target.checked)}
+            className="h-4 w-4 accent-[var(--color-primary)]"
+          />
+          It comes in packs, tins or bottles
         </label>
-        {/* Offers what's already in use so the grouping doesn't fragment into
-            "Dairy", "dairy" and "Dairy products", without refusing a new one.
-            Several at once, because one jar is usually more than one thing. */}
-        <SoftSelect
-          id="tags"
+
+        {/* The amount above is then what is in the OPEN one, and these say how
+            many unopened ones are behind it. A scan fills both in. */}
+        {packed && (
+          <div className="mt-3 flex flex-wrap gap-3">
+            <div className="min-w-32 flex-1">
+              <label htmlFor="pack_size" className={LABEL}>
+                One holds ({unit})
+              </label>
+              <input
+                id="pack_size"
+                name="pack_size"
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                defaultValue={prefill.pack_size ?? ""}
+                className={FIELD}
+              />
+            </div>
+            <div className="min-w-28 flex-1">
+              <label htmlFor="sealed_count" className={LABEL}>
+                Sealed
+              </label>
+              <input
+                id="sealed_count"
+                name="sealed_count"
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                defaultValue={prefill.sealed_count ?? "0"}
+                className={FIELD}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <span className={LABEL}>
+          Tags <span className="normal-case text-muted-foreground">optional</span>
+        </span>
+        {/* The first tag is the one it gets filed under, which is why the
+            picker marks it rather than explaining it. */}
+        <TagPicker
           name="tags"
           options={tags}
           defaultValue={prefill.tags ?? ""}
-          className={`${FIELD} pr-11`}
         />
       </div>
 

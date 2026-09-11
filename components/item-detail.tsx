@@ -8,7 +8,6 @@ import {
   type ItemResult,
 } from "@/app/pantry/actions";
 import { daysUntil, parseStamp } from "@/lib/dates";
-import { formatQuantity } from "@/lib/units";
 import type { Item } from "@/lib/types";
 
 const FIELD =
@@ -55,10 +54,6 @@ export function ItemDetail({
           <h1 className="text-[24px] font-extrabold tracking-[-0.02em] break-words">
             {item.name}
           </h1>
-          <span className="shrink-0 text-sm font-bold text-quantity">
-            {formatQuantity(item.quantity)}
-            {item.canonical_unit === "count" ? "" : item.canonical_unit}
-          </span>
         </div>
 
         {useBy && (
@@ -137,7 +132,7 @@ export function ItemDetail({
             <div className="flex flex-wrap gap-3">
               <div className="min-w-28 flex-1">
                 <label htmlFor="quantity" className={LABEL}>
-                  How much ({item.canonical_unit})
+                  {item.pack_size === null ? "How much" : "In the open one"} ({item.canonical_unit})
                 </label>
                 <input
                   id="quantity"

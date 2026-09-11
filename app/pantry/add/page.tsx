@@ -25,6 +25,8 @@ export default async function AddItemPage({
     quantity?: string;
     unit?: string;
     tags?: string;
+    pack_size?: string;
+    sealed_count?: string;
     location?: string;
     barcode?: string;
   }>;
