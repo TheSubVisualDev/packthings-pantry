@@ -86,6 +86,33 @@ const ADDED_COLUMNS = [
   { table: "recipes", column: "photo_url", definition: "TEXT" },
   { table: "recipe_steps", column: "photo_url", definition: "TEXT" },
   // shopping_list and its index arrive as whole-table creates from schema.sql.
+
+  // Which tag an item is filed under. One column, so "exactly one primary"
+  // needs no trigger to enforce.
+  { table: "items", column: "primary_tag_id", definition: "INTEGER REFERENCES tags(id) ON DELETE SET NULL" },
+
+  // Containers. An item is sealed_count full packs plus whatever is left in
+  // the open one, which is what `quantity` now means - so a bar can show
+  // two-thirds of a bottle instead of a total that moves every time you shop.
+  { table: "items", column: "pack_size", definition: "REAL" },
+  { table: "items", column: "pack_unit", definition: "TEXT" },
+  { table: "items", column: "sealed_count", definition: "INTEGER NOT NULL DEFAULT 0" },
+  // How many containers you want on hand, which is what the shopping list
+  // fills the gap to. Null means nobody has said.
+  { table: "items", column: "restock_to", definition: "INTEGER" },
+  // Where you buy it. Its own field rather than a tag: tags describe the
+  // ingredient, this describes the errand, and the shopping list groups by it.
+  { table: "items", column: "shop", definition: "TEXT" },
+
+  // Nutrition per 100g or 100ml, as Open Food Facts reports it. Added here
+  // rather than in a later migration because the columns cost nothing empty,
+  // and a second ALTER pass over a live table is a second chance to be wrong.
+  { table: "items", column: "kcal_100", definition: "REAL" },
+  { table: "items", column: "protein_100", definition: "REAL" },
+  { table: "items", column: "carbs_100", definition: "REAL" },
+  { table: "items", column: "fat_100", definition: "REAL" },
+  { table: "items", column: "fibre_100", definition: "REAL" },
+  { table: "items", column: "salt_100", definition: "REAL" },
 ];
 
 for (const { table, column, definition } of ADDED_COLUMNS) {
@@ -104,6 +131,56 @@ for (const statement of statements.filter(isIndex)) {
   await client.execute(statement);
 }
 console.log(`indexes: ${statements.filter(isIndex).length} ensured`);
+
+/**
+ * Turns every existing `category` string into a tag, and files the item under
+ * it.
+ *
+ * Additive in both directions: `category` is left exactly where it is, so this
+ * can be re-run and can be ignored. Only items whose primary_tag_id is still
+ * null are filed, which means a tag chosen by hand is never overwritten by the
+ * old category string.
+ *
+ * Items with no kitchen are skipped rather than guessed at - a tag belongs to a
+ * kitchen, and this script has no way to know which one.
+ */
+const tagged = await client.execute(`
+  INSERT OR IGNORE INTO tags (kitchen_id, name)
+  SELECT DISTINCT kitchen_id, TRIM(category) FROM items
+  WHERE kitchen_id IS NOT NULL
+    AND category IS NOT NULL
+    AND TRIM(category) <> ''
+`);
+console.log(`tags: ${tagged.rowsAffected} created from existing categories`);
+
+const linkedTags = await client.execute(`
+  INSERT OR IGNORE INTO item_tags (item_id, tag_id)
+  SELECT i.id, t.id
+  FROM items i
+  JOIN tags t
+    ON t.kitchen_id = i.kitchen_id
+   AND LOWER(t.name) = LOWER(TRIM(i.category))
+  WHERE i.category IS NOT NULL AND TRIM(i.category) <> ''
+`);
+console.log(`item_tags: ${linkedTags.rowsAffected} items tagged`);
+
+const filed = await client.execute(`
+  UPDATE items SET primary_tag_id = (
+    SELECT t.id FROM tags t
+    WHERE t.kitchen_id = items.kitchen_id
+      AND LOWER(t.name) = LOWER(TRIM(items.category))
+  )
+  WHERE primary_tag_id IS NULL
+    AND kitchen_id IS NOT NULL
+    AND category IS NOT NULL
+    AND TRIM(category) <> ''
+`);
+console.log(`filed: ${filed.rowsAffected} items given a primary tag`);
+
+const untagged = await client.execute(
+  "SELECT COUNT(*) AS n FROM items WHERE primary_tag_id IS NULL",
+);
+console.log(`untagged: ${untagged.rows[0].n} items with nothing to file them under`);
 
 /**
  * Links recipe lines to stock by name, for rows written before item_id existed.

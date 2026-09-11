@@ -280,3 +280,32 @@ CREATE TABLE IF NOT EXISTS shopping_list (
 );
 
 CREATE INDEX IF NOT EXISTS idx_shopping_list_kitchen ON shopping_list(kitchen_id, bought_at);
+
+-- Tags, which replace the free-text `category` column on items.
+--
+-- Per kitchen rather than global: one household's vocabulary ("nan's cupboard",
+-- "Sam won't eat") is noise in another's, and a shared tag list would leak what
+-- one kitchen stocks to everyone who can see any kitchen.
+--
+-- `category` is deliberately left on items for now. Retiring a column needs a
+-- table rebuild, and keeping the old value costs nothing while it is the only
+-- way back if the tag migration turns out to be wrong.
+CREATE TABLE IF NOT EXISTS tags (
+  id         INTEGER PRIMARY KEY,
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- An item can carry any number of tags. Which one it is *filed* under is
+-- items.primary_tag_id, not a flag here: a column can only hold one value, so
+-- "exactly one primary" is true by construction rather than by trigger.
+CREATE TABLE IF NOT EXISTS item_tags (
+  item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  tag_id  INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (item_id, tag_id)
+);
+
+-- Case-insensitive, so "Baking" and "baking" can't both exist in one kitchen.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_kitchen_name ON tags(kitchen_id, LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON item_tags(tag_id);
