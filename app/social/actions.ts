@@ -56,25 +56,36 @@ export async function publish(
 }
 
 /**
- * Takes a copy of someone else's recipe.
+ * Takes a copy of a recipe to work on.
  *
- * Fetched through getRecipe with the viewer's id first, so a recipe you aren't
- * allowed to see can't be copied by guessing its number.
+ * Works on your own as well as other people's, which is the point of calling
+ * it a remix rather than a save: the commonest reason to copy a recipe is to
+ * try it differently, and that is as true of something you wrote as of
+ * something you found. Your own copy gets "(remix)" on the end, because two
+ * identical names in one list help nobody.
+ *
+ * Fetched through getRecipe with the viewer's id first, so a recipe you are
+ * not allowed to see cannot be copied by guessing its number.
+ *
+ * The copy starts private regardless of what the original was. Publishing is
+ * a decision, and inheriting it from somebody else's recipe would make it by
+ * accident.
  */
-export async function saveToMine(recipeId: number): Promise<SocialResult> {
+export async function remix(recipeId: number): Promise<SocialResult> {
   const session = await requireUser();
   if (!session.ok) return { ok: false, error: "Sign in first." };
 
   const visible = await getRecipe(recipeId, session.user.id);
   if (!visible) return { ok: false, error: "No such recipe." };
-  if (visible.author_id === session.user.id) {
-    return { ok: false, error: "This one's already yours." };
-  }
 
-  const copy = await forkRecipe(recipeId, session.user.id);
+  const yours = visible.author_id === session.user.id;
+  const copy = await forkRecipe(recipeId, session.user.id, (name) =>
+    yours ? `${name} (remix)` : name,
+  );
   if (!copy) return { ok: false, error: "Couldn't copy that." };
 
   revalidatePath("/recipes");
+  revalidatePath(`/recipes/${recipeId}`);
   redirect(`/recipes/${copy}`);
 }
 

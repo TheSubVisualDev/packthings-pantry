@@ -198,3 +198,86 @@ export async function browsePeople(viewerId: number): Promise<
     you_follow: number;
   })[];
 }
+
+export interface Ancestor {
+  id: number;
+  name: string;
+  handle: string | null;
+  display_name: string | null;
+  /** 1 is the recipe this was taken from, 2 is where that came from. */
+  depth: number;
+}
+
+/**
+ * Where a recipe came from, all the way back.
+ *
+ * Walks forked_from_id upwards rather than showing one hop, because a recipe
+ * three people have adapted has three people to thank, and stopping at the
+ * nearest one quietly takes the credit away from whoever actually wrote it.
+ *
+ * **Deliberately skips the visibility rule**, like getRecipeAuthorHandle does:
+ * an attribution is a credit, not access. "Adapted from @sam" has to keep
+ * working after Sam makes the original private, or taking your own copy private
+ * would erase the person you got it from. Only the name and the author travel -
+ * never the ingredients, never the method.
+ *
+ * The depth limit is not for cycles, which forking cannot create, but for the
+ * database being wrong: a recursive query with no floor is a hang waiting for a
+ * bad row.
+ */
+export async function getLineage(recipeId: number, limit = 8): Promise<Ancestor[]> {
+  const result = await getDb().execute({
+    sql: `WITH RECURSIVE chain(id, depth) AS (
+            SELECT forked_from_id, 1 FROM recipes
+              WHERE id = ? AND forked_from_id IS NOT NULL
+            UNION ALL
+            SELECT r.forked_from_id, chain.depth + 1
+              FROM recipes r JOIN chain ON r.id = chain.id
+              WHERE r.forked_from_id IS NOT NULL AND chain.depth < ?
+          )
+          SELECT r.id, r.name, u.handle, u.display_name, chain.depth
+          FROM chain
+          JOIN recipes r ON r.id = chain.id
+          LEFT JOIN users u ON u.id = r.author_id
+          ORDER BY chain.depth`,
+    args: [recipeId, limit],
+  });
+  return result.rows as unknown as Ancestor[];
+}
+
+export interface Remix {
+  id: number;
+  name: string;
+  handle: string | null;
+  display_name: string | null;
+  /** Whether it is the viewer's own, so their variations read differently. */
+  yours: number;
+}
+
+/**
+ * Recipes taken from this one.
+ *
+ * Unlike the lineage above, this DOES apply the visibility rule. A credit
+ * pointing backwards is something the original author earned; a list pointing
+ * forwards would expose what other people have written, and a private remix is
+ * private for a reason - somebody's half-finished attempt is not the original
+ * author's to show off.
+ */
+export async function getRemixes(
+  recipeId: number,
+  viewerId: number,
+  limit = 12,
+): Promise<Remix[]> {
+  const result = await getDb().execute({
+    sql: `SELECT r.id, r.name, u.handle, u.display_name,
+                 (r.author_id = ?) AS yours
+          FROM recipes r
+          LEFT JOIN users u ON u.id = r.author_id
+          WHERE r.forked_from_id = ?
+            AND ${VISIBLE_TO_VIEWER}
+          ORDER BY yours DESC, r.id DESC
+          LIMIT ?`,
+    args: [viewerId, recipeId, ...viewerArgs(viewerId), limit],
+  });
+  return result.rows as unknown as Remix[];
+}

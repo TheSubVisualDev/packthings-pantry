@@ -183,6 +183,12 @@ export async function deleteRecipe(id: number): Promise<boolean> {
 export async function forkRecipe(
   recipeId: number,
   newAuthorId: number,
+  /**
+   * What to call the copy. Remixing somebody else's keeps the name - it is
+   * still their dish - while remixing your own would otherwise leave two
+   * identical rows you cannot tell apart in a list.
+   */
+  rename?: (name: string) => string,
 ): Promise<number | null> {
   const tx = await getDb().transaction("write");
 
@@ -215,7 +221,7 @@ export async function forkRecipe(
       args: [
         newAuthorId,
         recipeId,
-        recipe.name,
+        rename ? rename(recipe.name) : recipe.name,
         recipe.description,
         recipe.base_servings,
         recipe.prep_minutes,

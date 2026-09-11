@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { RecipeVisibility } from "@/components/recipe-visibility";
-import { SaveRecipeButton } from "@/components/save-recipe-button";
+import { RemixButton } from "@/components/remix-button";
+import { Lineage } from "@/components/lineage";
 import { RecipeSocial } from "@/components/recipe-social";
 import { CookPanel, type CookLine } from "@/components/cook-panel";
 import type { CookStep } from "@/components/recipe-method";
@@ -14,6 +15,7 @@ import {
   getRecipeAuthorHandle,
   getRecipeSocial,
 } from "@/lib/queries";
+import { getLineage, getRemixes } from "@/lib/social";
 import { currentKitchen } from "@/lib/session";
 import { myRating } from "@/lib/recipe-store";
 import { getUser } from "@/lib/users";
@@ -45,7 +47,8 @@ export default async function RecipePage({
   // Everything the page still needs, in one round trip rather than two.
   // libSQL over HTTP opens a request per query, so awaits in sequence cost
   // sequential trips to Nuremberg; none of these five depends on another.
-  const [author, forkedFrom, yourRating, social, comments] = await Promise.all([
+  const [author, forkedFrom, yourRating, social, comments, ancestors, remixes] =
+    await Promise.all([
     recipe.author_id ? getUser(recipe.author_id) : null,
     // Looked up without a visibility check on purpose: the credit has to
     // survive the original being made private.
@@ -53,6 +56,8 @@ export default async function RecipePage({
     myRating(recipe.id, context.user.id),
     getRecipeSocial(recipe.id, context.user.id),
     getComments(recipe.id, context.user.id),
+    getLineage(recipe.id),
+    getRemixes(recipe.id, context.user.id),
   ]);
 
   const forkedAuthor =
@@ -213,7 +218,15 @@ export default async function RecipePage({
           {isAuthor ? (
             <RecipeVisibility recipeId={recipe.id} current={recipe.visibility} />
           ) : (
-            <SaveRecipeButton recipeId={recipe.id} />
+            <RemixButton recipeId={recipe.id} yours={false} />
+          )}
+
+          {/* The author gets it too, quietly: trying a variation without
+              losing the version that already works is the same operation. */}
+          {isAuthor && (
+            <div className="mt-2">
+              <RemixButton recipeId={recipe.id} yours />
+            </div>
           )}
         </div>
 
@@ -225,6 +238,8 @@ export default async function RecipePage({
           viewerId={context.user.id}
           isAuthor={isAuthor}
         />
+
+        <Lineage ancestors={ancestors} remixes={remixes} />
 
         {recipe.notes && (
           <section className="mt-5">

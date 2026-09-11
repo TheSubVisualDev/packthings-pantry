@@ -312,10 +312,35 @@ the thing up.
 the OPEN one" since containers arrived — so three sealed tins read as nothing
 there, and an unopened pack could go off unmentioned.
 
-### S8 · Remix — about 1 day
+### S8 · Remix — DONE 11 Sep 2026
 
-Finish what `forked_from_id` started: a Remix action you can actually see, attribution
-chains, and "remixes of this" on a recipe.
+Forking existed but was only reachable as "Save to my recipes" on somebody
+else's page, and showed one hop of attribution. Now:
+
+- **Remix works on your own recipes too**, which is the point of the word. The
+  commonest reason to copy a recipe is to try it differently, and that is as
+  true of something you wrote as of something you found. Your own copy gets
+  "(remix)" appended, because two identical names in a list help nobody.
+- **The lineage goes all the way back**, not one step. A recipe three people
+  have adapted has three people to thank.
+- **"Remixes of this"** shows what has been made from it.
+
+**The two directions are deliberately not symmetrical, and this is the part
+worth not breaking later.** Looking *back* is a credit, so it skips the
+visibility rule: "adapted from @sam" has to survive Sam making the original
+private, or taking your own copy private would erase who you got it from. Only
+the name and the author travel — never ingredients, never method. Looking
+*forward* is a list of other people's work, so it obeys visibility like
+everything else: somebody's half-finished variation is not the original
+author's to show off.
+
+Verified on a clone with a three-deep chain across two people and a private
+link in the middle: the private ancestor is still credited, while each person
+sees only their own private remix and not the other's.
+
+A copy always starts private, whatever the original was. Publishing is a
+decision, and inheriting it from somebody else's recipe would make it by
+accident.
 
 ---
 
