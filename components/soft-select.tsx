@@ -18,6 +18,7 @@ export function SoftSelect({
   defaultValue = "",
   className,
   onValueChange,
+  autoFocus,
 }: {
   id: string;
   name: string;
@@ -26,6 +27,12 @@ export function SoftSelect({
   className?: string;
   /** For callers holding the value themselves; the field still posts its own. */
   onValueChange?: (value: string) => void;
+  /**
+   * Takes focus on mount. Used where the field is remounted after a submit, so
+   * the next thing can be typed straight away - never on a first page load,
+   * where grabbing focus scrolls somebody to a form they did not ask for.
+   */
+  autoFocus?: boolean;
 }) {
   const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
@@ -101,6 +108,7 @@ export function SoftSelect({
         id={id}
         name={name}
         type="text"
+        autoFocus={autoFocus}
         value={value}
         role="combobox"
         aria-expanded={open}

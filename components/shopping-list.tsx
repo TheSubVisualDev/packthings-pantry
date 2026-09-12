@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useTransition } from "react";
+import { useActionState, useMemo, useState, useTransition } from "react";
+import { SoftSelect } from "@/components/soft-select";
+import { suggestFor, type ItemProfile } from "@/lib/suggest";
 import {
   addItemToList,
   clearDone,
@@ -17,16 +19,56 @@ const SMALL =
 export function ShoppingList({
   lines,
   filter,
+  profiles,
 }: {
   lines: ShoppingLine[];
   /** The shop the list is narrowed to, if any. */
   filter?: string | null;
+  /**
+   * What the kitchen already holds, so a line can be typed once and mean the
+   * same row the pantry already knows about.
+   *
+   * Free text here was quietly expensive: "bread" and "Bread" and "Sourdough
+   * bread" all became separate lines, and none of them matched the stock row
+   * the shortfall list was trying not to duplicate.
+   */
+  profiles: ItemProfile[];
 }) {
   const [state, formAction, pending] = useActionState<ListResult, FormData>(
     addItemToList,
     { ok: true },
   );
   const [, startTransition] = useTransition();
+
+  const [draft, setDraft] = useState("");
+  /** Bumped on every add, to remount the name field empty. */
+  const [seq, setSeq] = useState(0);
+
+  /**
+   * The unit follows the name, the same way it does on the add form.
+   *
+   * Grams was the default for everything, so a line for bread went on the list
+   * as "500 g bread" unless somebody noticed and changed it.
+   */
+  const guess = useMemo(() => suggestFor(draft, profiles), [draft, profiles]);
+  const [unitOverride, setUnitOverride] = useState<string | null>(null);
+  const unit = unitOverride ?? guess.unit ?? "g";
+
+  /**
+   * Clears and refocuses the moment you submit, not when the server replies.
+   *
+   * A shopping list is written in bursts of five or six things, and the form
+   * used to keep whatever was in it - so every line after the first began with
+   * selecting the old text and deleting it. Waiting for the round trip to
+   * Nuremberg first would put a visible pause between each one, which is the
+   * same reason QuickAdjust moves its number before the server is asked.
+   */
+  function submit(data: FormData) {
+    setSeq((value) => value + 1);
+    setDraft("");
+    setUnitOverride(null);
+    formAction(data);
+  }
 
   /**
    * Outstanding lines, grouped by shop, in the order the query returned them.
@@ -100,13 +142,22 @@ export function ShoppingList({
 
   return (
     <div className="space-y-5">
-      <form action={formAction} className="flex flex-wrap gap-2">
-        <input
-          name="name"
-          placeholder="Bread"
-          aria-label="What to buy"
-          className={`${SMALL} min-w-36 flex-1`}
-        />
+      <form action={submit} className="flex flex-wrap gap-2">
+        {/* Offers what the kitchen already calls things, so a line matches the
+            stock row it means rather than becoming a second name for it. Still
+            free text: half of what goes on a shopping list is something you
+            have never bought before. */}
+        <div className="min-w-36 flex-1">
+          <SoftSelect
+            key={seq}
+            autoFocus={seq > 0}
+            id="shopping-name"
+            name="name"
+            options={profiles.map((profile) => profile.name)}
+            onValueChange={setDraft}
+            className={`${SMALL} w-full pr-9`}
+          />
+        </div>
         <input
           name="quantity"
           type="number"
@@ -117,7 +168,13 @@ export function ShoppingList({
           aria-label="How much (optional)"
           className={`${SMALL} w-20 text-center`}
         />
-        <select name="unit" defaultValue="g" aria-label="Unit" className={`${SMALL} w-24`}>
+        <select
+          name="unit"
+          value={unit}
+          onChange={(event) => setUnitOverride(event.target.value)}
+          aria-label="Unit"
+          className={`${SMALL} w-24`}
+        >
           {ENTRY_UNITS.map((unit) => (
             <option key={unit} value={unit}>
               {unit}
