@@ -14,7 +14,6 @@ everything at equal weight and makes me find the thing.
 Start here:
   • The canvas: https://claude.ai/code/artifact/895493ae-0dcb-430e-8872-d110ac7c042d
     Ten screens, a first pass, mine to be argued with — not a spec.
-  • The repo: C:\Users\Luna\Documents\pantry\packthings-pantry
   • docs/DESIGN-BRIEF.md — the problems, ranked
   • docs/DESIGN-LANGUAGE.md — the tokens and two rules that must survive
   • docs/FRICTION-2026-09-12.md — what was already fixed, so you don't redo it
@@ -64,6 +63,18 @@ if a better structure exists, take it. In particular:
 COVER EVERY SCREEN: stock, tonight, cookbook, recipe, cook, recipe editor,
 add item, item detail, shopping list, barcode scan, receipt review, selection
 mode, discover, profile, kitchens, settings, login.
+
+COMING NEXT — please leave room for these rather than making me bolt them on
+  1. The shop trip is one continuous thing, and a screen needs to show where I
+     am in it: list pinned / in the shop / bought / ready to cook. Coming home
+     to a waiting "Start cooking" is the moment the whole app is for.
+  2. A container slider replaces typed numbers in several places. Nobody knows
+     they have 320ml of soy sauce; they know the bottle is two-thirds full.
+     The number should become the result, not the input.
+  3. A stats surface exists — Letterboxd-for-a-kitchen, what I cook, what I
+     waste, the year in food. It is a real screen, not a panel.
+  4. Every important screen has a print form: the list on paper, the recipe to
+     cook from with floury hands, the stock list for a stocktake.
 
 HOW TO LOOK AT IT
   npm run dev
