@@ -37,6 +37,46 @@ UNSALTED BUTTER 250G          1.89
 *** BALANCE DUE ***           4.09
 `;
 
+/**
+ * The shapes a second and third real receipt turned out to have - M9.
+ *
+ * Everything here is a line the parser got wrong before this fixture existed:
+ * a weight-priced item printed on one line, a quantity prefix that silently
+ * lost its count, a refund, an offer that is not a saving, and prices written
+ * the three other ways tills write them.
+ */
+const AWKWARD = `
+SAINSBURY'S
+LOOSE BANANAS 0.482kg @ £0.95/kg   0.46
+2 X GOLDEN GRANULATED SUGAR 1KG    2.00
+SPAGHETTI...........................0.75
+MILK 2 PINT                          75p
+REDUCED TO CLEAR                    -0.40
+3 FOR 2 MULTIBUY
+PENNE 500G                          £1.05
+RETURN: BROKEN EGGS                 -2.40
+TOTAL                                4.61
+`;
+
+/**
+ * Foods whose names contain a word off the till.
+ *
+ * Every one of these was thrown off every receipt until the word list stopped
+ * being matched as substrings: "pin" is inside SPINACH and PINEAPPLE, "chip"
+ * inside CHIPOLATAS, "cash" inside CASHEW NUTS, "card" inside CARDAMOM. The
+ * bug was invisible because a dropped line looks exactly like a line the OCR
+ * never read.
+ */
+const INNOCENT = `
+SPINACH 400G                  1.20
+PINEAPPLE                     1.50
+CHIPOLATAS 340G               2.30
+CASHEW NUTS 200G              2.75
+CARDAMOM PODS 40G             1.80
+PINTO BEANS 400G              0.65
+TOTAL                         10.20
+`;
+
 let problems = 0;
 const expect = (label, got, want) => {
   const ok = got === want;
@@ -44,7 +84,7 @@ const expect = (label, got, want) => {
   console.log(`  ${ok ? "ok  " : "FAIL"} ${label}: ${got}${ok ? "" : ` (wanted ${want})`}`);
 };
 
-for (const [label, text] of [["Tesco", TESCO], ["OCR-mangled", MANGLED]]) {
+for (const [label, text] of [["Tesco", TESCO], ["OCR-mangled", MANGLED], ["Awkward", AWKWARD], ["Innocent", INNOCENT]]) {
   console.log(`\n--- ${label} ---`);
   const lines = parseReceipt(text);
   for (const line of lines) {
@@ -63,6 +103,26 @@ for (const [label, text] of [["Tesco", TESCO], ["OCR-mangled", MANGLED]]) {
     expect("dropped the shop name and address", names.some((n) => /^Tesco$|High Street/.test(n)), false);
     expect("multiple applies to the line above", lines.find((l) => /Soy/i.test(l.name))?.count, 2);
     expect("stripped the VAT marker", names.includes("British Free Range Eggs"), true);
+  } else if (label === "Awkward") {
+    const named = (fragment) => lines.find((l) => new RegExp(fragment, "i").test(l.name));
+
+    expect("weight pricing leaves the name alone", named("banana")?.name, "Loose Bananas");
+    expect("and keeps the price actually paid", named("banana")?.price, 46);
+    expect("a quantity prefix becomes a count", named("granulated")?.count, 2);
+    expect("and is not left in the name", /^2 ?x/i.test(named("granulated")?.name ?? ""), false);
+    expect("dot leaders are not part of the name", named("spaghetti")?.name, "Spaghetti");
+    expect("pence-only prices read", named("milk")?.price, 75);
+    expect("a pound sign before the price reads", named("penne")?.price, 105);
+    expect("a refund is not shopping", names.some((n) => /broken eggs/i.test(n)), false);
+    expect("a reduction is not shopping", names.some((n) => /reduced/i.test(n)), false);
+    expect("an offer is not shopping", names.some((n) => /multibuy/i.test(n)), false);
+    expect("nothing else got in", lines.length, 5);
+  } else if (label === "Innocent") {
+    expect("kept every food with a till word inside it", lines.length, 6);
+    expect("spinach is not a card machine", names.includes("Spinach 400g"), true);
+    expect("cashew nuts are not cash", names.includes("Cashew Nuts 200g"), true);
+    expect("cardamom is not a card", names.includes("Cardamom Pods 40g"), true);
+    expect("and the total still goes", names.some((n) => /total/i.test(n)), false);
   } else {
     expect("kept all three products", lines.length, 3);
     expect("read a price through OCR damage", lines.find((l) => /Sdy/i.test(l.name))?.price, 220);

@@ -23,22 +23,74 @@ export interface ReceiptLine {
 /**
  * Lines that are never shopping.
  *
- * Matched against the whole line, lowercased. Kept as fragments rather than
- * exact strings because OCR mangles the ends of words far more often than the
- * middles.
+ * Split in two, and the split is the whole point. `PHRASES` are matched
+ * anywhere in the line, because they are several words long and cannot appear
+ * inside a food. `WORDS` are matched as whole words only, because as
+ * substrings they eat the shopping: "pin" is inside SPINACH and PINEAPPLE,
+ * "chip" is inside CHIPOLATAS, "cash" is inside CASHEW NUTS, and every one of
+ * those was being thrown off every receipt scanned until somebody typed
+ * spinach into a test.
+ *
+ * The bias is still towards discarding - a line wrongly kept puts rubbish in
+ * the pantry - but discarding has to be aimed at the till's own words rather
+ * than at anything that happens to contain them.
  */
-const NOT_SHOPPING = [
-  "total", "subtotal", "sub total", "balance", "change", "tender",
+const PHRASES = [
+  "sub total", "offer ends", "you saved", "thank you", "thanks for",
+  "customer copy", "please retain", "item count", "aid:", "opening hours",
+  "www", "http", ".com", ".co.uk",
+  // Offers and reductions print like products and are not ones: the saving is
+  // already in the price of the line above, so keeping these would put "3 For
+  // 2 Multibuy" on a shelf and count its money twice.
+  "multibuy", "meal deal", "price promise", "was £", "3 for 2", "2 for 1",
+  "reduced to clear", "yellow sticker", "half price", "price match",
+];
+
+const WORDS = [
+  "total", "subtotal", "balance", "change", "tender",
   "cash", "card", "credit", "debit", "contactless", "visa", "mastercard",
   "amex", "maestro", "chip", "pin", "auth", "approved", "merchant",
   "vat", "tax", "invoice", "receipt", "till", "cashier", "operator",
-  "store", "branch", "tel", "www", "http", ".com", ".co.uk",
-  "clubcard", "nectar", "loyalty", "points", "voucher", "coupon",
-  "saving", "savings", "discount", "offer ends", "you saved",
-  "thank you", "thanks for", "customer copy", "please retain",
-  "items", "item count", "qty", "aid:", "terminal", "trans", "seq",
-  "refund", "returns", "exchange", "open ", "closed", "opening hours",
+  "store", "branch", "tel", "clubcard", "nectar", "loyalty", "points",
+  "voucher", "coupon", "saving", "savings", "discount",
+  "items", "qty", "terminal", "trans", "seq",
+  "refund", "returns", "exchange", "open", "closed",
 ];
+
+const TILL_WORDS = new Set(WORDS);
+
+/**
+ * Whether a line is the till talking rather than something you bought.
+ *
+ * The words are compared against the line's own words - split on anything that
+ * is not a letter - rather than searched for inside it. A built regex would do
+ * the same job and invites exactly the bug this replaces: the word list used
+ * to be matched as substrings, and SPINACH, PINEAPPLE, CHIPOLATAS and CASHEW
+ * NUTS all contain a till word and were all being silently thrown away.
+ */
+function isNotShopping(line: string): boolean {
+  const lowered = line.toLowerCase();
+  if (PHRASES.some((phrase) => lowered.includes(phrase))) return true;
+  return lowered.split(/[^a-z]+/).some((word) => TILL_WORDS.has(word));
+}
+
+/**
+ * A line whose price is negative: a refund, a reduction, a correction.
+ *
+ * Never shopping. Adding stock for one would be backwards, and since the
+ * scanner now keeps prices, recording a minus as a purchase would put a
+ * negative into the price history of something you never bought.
+ */
+const NEGATIVE = /[-−]\s*[£$€]?\s*\d/;
+
+/** "0.482kg @ £0.95/kg" printed inside the name, on receipts that do that. */
+const WEIGHT_CLAUSE = /\s*\d+[.,]?\d*\s*(kg|g|ml|l|lb|oz)\s*(@|x)\s*[£$€]?\s*[\d.,]+\s*(\/\s*(kg|g|ml|l|lb|oz))?/i;
+
+/** "2 X SUGAR", "3 x Penne" - a count in front of a real description. */
+const LEADING_COUNT = /^(\d{1,2})\s*[x*]\s+(?=[a-z])/i;
+
+/** "75p", "£1.05" - the two ways a till writes a price that is not "1.05". */
+const PENCE_ONLY = /(?:^|\s)(\d{1,3})\s*p$/i;
 
 /**
  * A price at the end of a line: "1.20", "£1.20", "1.20 A", "-1.20".
@@ -77,8 +129,8 @@ export function parseReceipt(text: string): ReceiptLine[] {
     const line = raw.replace(/\s+/g, " ").trim();
     if (line.length < 3) continue;
 
-    const lowered = line.toLowerCase();
-    if (NOT_SHOPPING.some((word) => lowered.includes(word))) continue;
+    if (isNotShopping(line)) continue;
+    if (NEGATIVE.test(line)) continue;
     // A weight line belongs to the product above it, not to itself.
     if (WEIGHT_LINE.test(line)) continue;
 
@@ -109,6 +161,8 @@ export function parseReceipt(text: string): ReceiptLine[] {
      * half-legible strapline out of the pantry. Supermarkets print a price
      * against every item; the exceptions are continuation lines, handled here.
      */
+    let counted = 1;
+
     const split = splitPrice(line);
     if (!split) {
       // Anything else without a price is not shopping.
@@ -116,7 +170,18 @@ export function parseReceipt(text: string): ReceiptLine[] {
     }
 
     let name = split.name;
-    const price = split.price;
+    let price: number | null = split.price;
+
+    /**
+     * A price nobody paid for a tin of beans.
+     *
+     * A misread decimal point turns £12.50 into £1250, and that number now
+     * lands in a price history and a spend total rather than just looking odd
+     * for a second. The line is kept - you did buy something - and the price
+     * is dropped, because "we could not read it" is honest and "£1,250" is a
+     * lie with a decimal point in it.
+     */
+    if (price !== null && price >= 10000) price = null;
 
     /**
      * The same multiple, printed on one line with its total.
@@ -136,12 +201,35 @@ export function parseReceipt(text: string): ReceiptLine[] {
     // Trailing single letters are VAT markers; leading long digits are codes.
     name = name.replace(/\s+[a-z*]$/i, "").replace(/^\d{4,}\s+/, "").trim();
 
+    /**
+     * A count printed in front of the name, which is most of them.
+     *
+     * "2 X GOLDEN GRANULATED SUGAR" used to fall through every multiple rule -
+     * it is not a bare multiple, because it describes something - and arrive
+     * as one bag called "2 X Golden Granulated Sugar". The count was simply
+     * lost, and with it half the sugar.
+     */
+    const leading = name.match(LEADING_COUNT);
+    if (leading) {
+      const count = Number(leading[1]);
+      name = name.slice(leading[0].length).trim();
+      if (count > 0 && count < 100) counted = count;
+    }
+
+    // Weight pricing printed inline: the price at the end is what was paid,
+    // and the clause in the middle is arithmetic nobody needs in a name.
+    name = name.replace(WEIGHT_CLAUSE, " ").trim();
+
+    // Dot leaders, which exist to carry the eye to the price and stop being
+    // useful the moment the price is taken off.
+    name = name.replace(/[.…]{2,}\s*$/, "").trim();
+
     if (name.length < 3) continue;
     if (CODE_ONLY.test(name)) continue;
     // Needs actual words, not punctuation and stray letters.
     if (!/[a-z]{3}/i.test(name)) continue;
 
-    out.push({ name: tidyName(name), price, count: 1, raw: line });
+    out.push({ name: tidyName(name), price, count: counted, raw: line });
   }
 
   return out;
@@ -165,6 +253,22 @@ function splitPrice(line: string): { name: string; price: number } | null {
     if (!Number.isFinite(price)) continue;
     return { name: (head + tail.slice(0, match.index)).trim(), price };
   }
+
+  /**
+   * "75p", which is how a till writes anything under a pound on some receipts.
+   *
+   * Tried after the decimal forms rather than alongside them, because "1.05"
+   * ends in a digit and would never reach here, and because a bare "p" on the
+   * end of a word - "2 PINT 75p" - must not be read as part of the name.
+   */
+  const pence = tail.match(PENCE_ONLY);
+  if (pence && pence.index !== undefined) {
+    const price = Number(pence[1]);
+    if (Number.isFinite(price) && price > 0 && price < 100) {
+      return { name: (head + tail.slice(0, pence.index)).trim(), price };
+    }
+  }
+
   return null;
 }
 
