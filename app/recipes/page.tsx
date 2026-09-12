@@ -5,7 +5,8 @@ import { SearchBox } from "@/components/search-box";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { RecipeBrowseCard } from "@/components/recipe-browse-card";
-import { getRecipesWithMatches } from "@/lib/queries";
+import { getMyRecipes, getRecipesWithMatches } from "@/lib/queries";
+import { getCookbookIds } from "@/lib/cookbook";
 import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,20 @@ export default async function RecipesPage({
   const { q } = await searchParams;
   const term = q?.trim() ?? "";
 
-  const recipes = await getRecipesWithMatches(kitchen?.id ?? null, context.user.id, term);
+  const [recipes, mine, adopted] = await Promise.all([
+    getRecipesWithMatches(kitchen?.id ?? null, context.user.id, term),
+    getMyRecipes(context.user.id, term),
+    getCookbookIds(kitchen?.id ?? null),
+  ]);
+
+  /**
+   * What you wrote and have not adopted.
+   *
+   * Kept visible rather than filed away somewhere, because the cookbook being
+   * a choice only works if the things you did not choose are still easy to
+   * find - otherwise writing a recipe and not adopting it feels like losing it.
+   */
+  const unadopted = mine.filter((recipe) => !adopted.has(recipe.id));
 
   return (
     <>
@@ -36,7 +50,7 @@ export default async function RecipesPage({
       <div className="mx-auto w-full max-w-[1280px] px-5 pt-6 pb-32 sm:px-9 sm:py-7">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
-            Your recipes
+            Your cookbook
           </h1>
           <div className="flex flex-wrap gap-2">
             <Link
@@ -67,7 +81,9 @@ export default async function RecipesPage({
         {recipes.length === 0 ? (
           <div className="rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             <p className="text-sm font-semibold text-muted-foreground">
-              {term ? `Nothing of yours matches "${term}".` : "No recipes yet."}
+              {term
+                ? `Nothing in your cookbook matches "${term}".`
+                : "Nothing in your cookbook yet."}
             </p>
             <Link
               href={term ? "/recipes" : "/recipes/new"}
@@ -94,6 +110,23 @@ export default async function RecipesPage({
               ))}
             </div>
           </>
+        )}
+
+        {unadopted.length > 0 && (
+          <section className="mt-8">
+            <div className="mb-3 text-xs font-bold uppercase tracking-[0.1em] text-label">
+              Written by you, not in your cookbook
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {unadopted.map((recipe) => (
+                <RecipeBrowseCard key={recipe.id} recipe={recipe} showAuthor={false} />
+              ))}
+            </div>
+            <p className="mt-3 text-xs font-semibold text-muted-foreground">
+              Open one and add it to link its ingredients to your shelves. Until
+              then it is a recipe you have written down rather than one you cook.
+            </p>
+          </section>
         )}
       </div>
 

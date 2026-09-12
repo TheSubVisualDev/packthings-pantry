@@ -5,6 +5,8 @@ import { getDb } from "@/lib/db";
 import { requireKitchenRole, requireUser } from "@/lib/session";
 import { getRecipe } from "@/lib/queries";
 import { rate } from "@/lib/recipe-store";
+import { resolveWithLinks } from "@/lib/cookbook";
+import { indexStock } from "@/lib/pantry-match";
 import { resolveAmount, scaleQuantity } from "@/lib/units";
 import type {
   CookChange,
@@ -109,12 +111,32 @@ export async function cookRecipe(
     });
     const stock = itemResult.rows as unknown as Item[];
     const stockById = new Map(stock.map((item) => [item.id, item]));
-    const itemsByName = new Map(
-      stock.map((item) => [
-        item.name.toLowerCase(),
-        item,
-      ]),
+
+    /**
+     * What each line means on these shelves, decided when the recipe was added
+     * to the cookbook rather than re-guessed here.
+     *
+     * This used to be a lowercased name lookup, which is why a recipe calling
+     * for "firm tofu" against a row called "Tofu" flagged as an ingredient the
+     * kitchen has never held - and why the same recipe could behave
+     * differently in two kitchens for no reason anybody could see. The link is
+     * a person's answer; a line nobody was asked about falls through to the
+     * resolver, which happens when a recipe gains an ingredient after it was
+     * adopted.
+     */
+    const linkResult = await tx.execute({
+      sql: `SELECT cl.ingredient_id, cl.item_id
+            FROM cookbook_links cl
+            JOIN recipe_ingredients ri ON ri.id = cl.ingredient_id
+            WHERE cl.kitchen_id = ? AND ri.recipe_id = ?`,
+      args: [access.kitchen.id, recipeId],
+    });
+    const links = new Map<number, number | null>(
+      (linkResult.rows as unknown as { ingredient_id: number; item_id: number | null }[]).map(
+        (row) => [row.ingredient_id, row.item_id],
+      ),
     );
+    const stockIndex = indexStock(stock);
 
     const applied: CookLineResult[] = [];
     const flagged: CookLineResult[] = [];
@@ -132,7 +154,7 @@ export async function cookRecipe(
       const swapId = substitutions[line.id];
       const item = swapId
         ? stockById.get(swapId)
-        : itemsByName.get(line.item_name.toLowerCase());
+        : (resolveWithLinks(line, links, stockIndex, stockById).item ?? undefined);
       if (!item) {
         flagged.push({ item_name: line.item_name, issue: "not-in-pantry" });
         continue;

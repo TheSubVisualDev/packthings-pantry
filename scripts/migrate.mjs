@@ -317,3 +317,55 @@ const sourced = await client.execute(`
     AND EXISTS (SELECT 1 FROM products p WHERE p.item_id = items.id)
 `);
 console.log(`nutrition_source: ${sourced.rowsAffected} existing figures marked as scanned`);
+
+/**
+ * Fills the cookbook, so nobody loses access to a recipe they could cook
+ * yesterday.
+ *
+ * Adopting is normally a decision somebody makes. There is no way to ask
+ * retrospectively, and a migration that leaves every kitchen with an empty
+ * cookbook takes a feature away, so the two populations that are obviously
+ * already adopted are taken as adopted: recipes this kitchen has actually
+ * cooked, and recipes written by one of its members.
+ *
+ * INSERT OR IGNORE against the primary key, so re-running adds nothing and a
+ * recipe removed from a cookbook by hand stays removed only until the next
+ * migration - which is the one wrinkle here, and the reason removal is worth
+ * making a rarer act than adding.
+ */
+const cookedIn = await client.execute(`
+  INSERT OR IGNORE INTO cookbook (kitchen_id, recipe_id, added_by)
+  SELECT DISTINCT ce.kitchen_id, ce.recipe_id, ce.cooked_by
+  FROM cook_events ce
+  WHERE ce.kitchen_id IS NOT NULL
+`);
+console.log(`cookbook: ${cookedIn.rowsAffected} adopted from what has been cooked`);
+
+const authored = await client.execute(`
+  INSERT OR IGNORE INTO cookbook (kitchen_id, recipe_id, added_by)
+  SELECT DISTINCT km.kitchen_id, r.id, r.author_id
+  FROM recipes r
+  JOIN kitchen_members km ON km.user_id = r.author_id
+  WHERE r.author_id IS NOT NULL
+`);
+console.log(`cookbook: ${authored.rowsAffected} adopted from what members wrote`);
+
+/**
+ * Salvages the old per-recipe link into the new per-kitchen one.
+ *
+ * recipe_ingredients.item_id points at exactly one kitchen's stock - whichever
+ * kitchen was current when it was written - and that kitchen is discoverable
+ * from the item itself. So the old value is not wrong, it was only ever
+ * ambiguous about who it was for, and joining through items answers that.
+ * Lines pointing at a kitchen that has not adopted the recipe are dropped,
+ * which is the ambiguity finally being resolved rather than data being lost.
+ */
+const salvaged = await client.execute(`
+  INSERT OR IGNORE INTO cookbook_links (kitchen_id, ingredient_id, item_id)
+  SELECT i.kitchen_id, ri.id, ri.item_id
+  FROM recipe_ingredients ri
+  JOIN items i ON i.id = ri.item_id
+  JOIN cookbook cb ON cb.recipe_id = ri.recipe_id AND cb.kitchen_id = i.kitchen_id
+  WHERE ri.item_id IS NOT NULL AND i.kitchen_id IS NOT NULL
+`);
+console.log(`cookbook_links: ${salvaged.rowsAffected} carried over from recipe_ingredients.item_id`);

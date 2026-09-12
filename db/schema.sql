@@ -374,3 +374,51 @@ CREATE TABLE IF NOT EXISTS item_shops (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_shops_kitchen_name ON shops(kitchen_id, LOWER(name));
 CREATE INDEX IF NOT EXISTS idx_item_shops_shop ON item_shops(shop_id);
+
+-- The cookbook: recipes this kitchen has adopted, as opposed to recipes
+-- somebody wrote down. Authoring and cooking are different acts - a recipe you
+-- typed up once is not a recipe you make - so your own work is offered for
+-- adding rather than added for you.
+--
+-- Per kitchen rather than per person, because what it really holds is the
+-- links below, and those describe a particular set of shelves that a household
+-- shares.
+--
+-- "In rotation" is deliberately NOT a column here. What you actually cook is
+-- already in cook_events, so rotation is this table sorted by recency and
+-- frequency - a view, not a second thing to keep true.
+CREATE TABLE IF NOT EXISTS cookbook (
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+  added_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  added_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (kitchen_id, recipe_id)
+);
+
+-- Which row on THESE shelves an ingredient line means.
+--
+-- recipe_ingredients.item_id tried to hold this and could not: it is one
+-- column on a recipe that many kitchens can see, resolved against whichever
+-- kitchen happened to be current when the recipe was written. Share a recipe
+-- or fork one and the link points at somebody else's cupboard. Which jar an
+-- ingredient means is a fact about (kitchen, recipe line), and it has never
+-- had anywhere to live until now. The old column is left exactly where it is,
+-- unread, the way items.category and items.shop were.
+--
+-- Written when a recipe is added to the cookbook: lib/pantry-match.ts resolves
+-- every line, the confident ones link silently, and the rest are the one
+-- prompt anybody sees. Once, at the point of adopting, rather than at the
+-- stove.
+--
+-- A NULL item_id is a real answer, meaning "asked, and this kitchen has no
+-- such thing" - which is different from never having asked, and that is a
+-- missing row. Same distinction as products.nutrition_checked_at.
+CREATE TABLE IF NOT EXISTS cookbook_links (
+  kitchen_id    INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  ingredient_id INTEGER NOT NULL REFERENCES recipe_ingredients(id) ON DELETE CASCADE,
+  item_id       INTEGER REFERENCES items(id) ON DELETE CASCADE,
+  PRIMARY KEY (kitchen_id, ingredient_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cookbook_recipe ON cookbook(recipe_id);
+CREATE INDEX IF NOT EXISTS idx_cookbook_links_item ON cookbook_links(item_id);

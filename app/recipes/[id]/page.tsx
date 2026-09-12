@@ -4,6 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { RecipeVisibility } from "@/components/recipe-visibility";
 import { RemixButton } from "@/components/remix-button";
+import { CookbookButton } from "@/components/cookbook-button";
+import { isInCookbook } from "@/lib/cookbook";
 import { Lineage } from "@/components/lineage";
 import { CookHistory } from "@/components/cook-history";
 import { RecipeNutrition } from "@/components/recipe-nutrition";
@@ -42,9 +44,10 @@ export default async function RecipePage({
   // Readable without a kitchen - the cook panel is what needs one.
   const kitchen = context.kitchen;
 
-  const [recipe, items] = await Promise.all([
+  const [recipe, items, inCookbook] = await Promise.all([
     getRecipe(recipeId, context.user.id),
     getItems(kitchen?.id ?? null),
+    isInCookbook(kitchen?.id ?? null, recipeId),
   ]);
   if (!recipe) notFound();
 
@@ -281,7 +284,18 @@ export default async function RecipePage({
           lines={lines}
           steps={steps}
           hasKitchen={kitchen !== null}
+          inCookbook={inCookbook}
         />
+
+        {/* Adopting comes before cooking, because adopting is where the app is
+            allowed to ask which jar an ingredient means. Above the visibility
+            and remix controls: it is the thing to do with a recipe you have
+            just found, and those are things to do with one you already keep. */}
+        {kitchen && kitchen.role !== "viewer" && (
+          <div className="mt-5">
+            <CookbookButton recipeId={recipe.id} inCookbook={inCookbook} />
+          </div>
+        )}
 
         <div className="mt-5">
           {isAuthor ? (

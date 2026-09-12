@@ -193,6 +193,7 @@ export function CookPanel({
   lines,
   steps,
   hasKitchen,
+  inCookbook,
 }: {
   recipeId: number;
   baseServings: number;
@@ -201,6 +202,14 @@ export function CookPanel({
   steps: CookStep[];
   /** Cooking spends stock, so without a kitchen there's nothing to spend. */
   hasKitchen: boolean;
+  /**
+   * Whether this kitchen has adopted the recipe.
+   *
+   * Cooking is gated on it because the links that decide what comes off the
+   * shelf are written when a recipe is adopted. Cooking one that has not been
+   * would have to guess at the stove, which is the one place guessing is worst.
+   */
+  inCookbook: boolean;
 }) {
   const [servings, setServings] = useState(baseServings);
   const [result, setResult] = useState<CookResult | null>(null);
@@ -411,7 +420,7 @@ export function CookPanel({
           </div>
         )}
 
-      {hasKitchen ? (
+      {hasKitchen && inCookbook ? (
         <button
           type="button"
           onClick={onCook}
@@ -420,6 +429,11 @@ export function CookPanel({
         >
           {pending ? "Cooking…" : `Cook for ${servings}`}
         </button>
+      ) : hasKitchen ? (
+        <p className="rounded-[14px] bg-chip px-4 py-3.5 text-center text-sm font-semibold text-muted-foreground">
+          Add it to your cookbook below and this becomes Cook. That is where the
+          ingredients get linked to your shelves.
+        </p>
       ) : (
         <p className="rounded-[14px] bg-chip px-4 py-3.5 text-center text-sm font-semibold text-muted-foreground">
           Cooking takes things off a shelf, so it needs{" "}

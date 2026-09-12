@@ -1,11 +1,6 @@
 import { getDb } from "./db";
-import {
-  countStocked,
-  indexStock,
-  isConfident,
-  resolveLines,
-  type StockIndex,
-} from "./pantry-match";
+import { indexStock } from "./pantry-match";
+import { countStockedLines, getLinks, resolveWithLinks } from "./cookbook";
 import { VISIBLE_TO_VIEWER, viewerArgs } from "./social";
 import type {
   Item,
@@ -183,55 +178,109 @@ export async function getRecipe(
   return { ...recipe, ingredients, steps };
 }
 
-/**
- * The kitchen's stock, tokenised once, ready to resolve recipe lines against.
- *
- * This replaces getStockedItemNames, which returned a Set of lowercased names
- * and compared against it with `===`. That is why a recipe calling for "firm
- * tofu" read as unstocked against a row called "Tofu": the ranking put it below
- * recipes that could not be made, and the rescue for expiring tofu never fired
- * at all. lib/pantry-match.ts is the one answer now.
- *
- * Every row, not only the ones with something in them. Whether a line *means*
- * a row and whether that row has anything left are different questions, and
- * the shortfall list is made entirely of lines where the answers differ.
- */
-async function getStockIndex(kitchenId: number | null): Promise<StockIndex> {
-  return indexStock(await getItems(kitchenId));
-}
-
 export interface RecipeWithMatch extends RecipeWithAuthor {
   /** Ingredient lines whose item is currently in stock. */
   have: number;
   total: number;
+  /** Whether this kitchen has adopted it, and can therefore cook it. */
+  in_cookbook: boolean;
+}
+
+/**
+ * Recipes in this kitchen's cookbook, newest adoption first.
+ *
+ * The visibility clause still applies: somebody can make a recipe private
+ * after you adopted it, and the cookbook is not a way around that. The row
+ * stays, so it comes back if they change their mind.
+ */
+export async function getCookbookRecipes(
+  kitchenId: number | null,
+  viewerId: number,
+): Promise<RecipeWithAuthor[]> {
+  if (kitchenId === null) return [];
+
+  const result = await getDb().execute({
+    sql: `${RECIPE_WITH_AUTHOR}
+          JOIN cookbook cb ON cb.recipe_id = r.id AND cb.kitchen_id = ?
+          WHERE ${VISIBLE_TO_VIEWER}
+          ORDER BY r.times_cooked DESC, r.name`,
+    args: [kitchenId, ...viewerArgs(viewerId)],
+  });
+  return result.rows as unknown as RecipeWithAuthor[];
+}
+
+/**
+ * Everything a readiness count needs, fetched once.
+ *
+ * Ingredient lines, the agreed links, and the stock they point at. Pulled out
+ * because four callers want exactly this and each round trip is a hop to
+ * Nuremberg.
+ */
+async function readinessContext(kitchenId: number | null) {
+  const [items, links, ingredientRows] = await Promise.all([
+    getItems(kitchenId),
+    getLinks(kitchenId),
+    getDb().execute(
+      "SELECT id, recipe_id, item_name, unit FROM recipe_ingredients ORDER BY position, id",
+    ),
+  ]);
+
+  const byRecipe = new Map<number, RecipeIngredient[]>();
+  for (const row of ingredientRows.rows as unknown as RecipeIngredient[]) {
+    const bucket = byRecipe.get(row.recipe_id);
+    if (bucket) bucket.push(row);
+    else byRecipe.set(row.recipe_id, [row]);
+  }
+
+  return {
+    stock: indexStock(items),
+    byId: new Map(items.map((item) => [item.id, item])),
+    links,
+    byRecipe,
+  };
 }
 
 /**
  * Recipes ranked for the "cook with what you have" panel, each with a count of
- * how many of its lines are stocked *in this kitchen*. One query for all
- * ingredient lines rather than one per recipe.
+ * how many of its lines are stocked *in this kitchen*.
+ *
+ * Reads the cookbook rather than everything you have ever written. A recipe
+ * you typed up once and never made is not a suggestion, and ranking it
+ * alongside the things you actually cook is how a suggestion panel stops being
+ * worth looking at. It also means the counts come from links a person agreed
+ * to, rather than from a guess recomputed on every page load.
  */
 export async function getRecipesWithMatches(
   kitchenId: number | null,
-  authorId: number,
+  viewerId: number,
   term = "",
 ): Promise<RecipeWithMatch[]> {
-  const [recipes, stock, ingredientRows] = await Promise.all([
-    getMyRecipes(authorId, term),
-    getStockIndex(kitchenId),
-    getDb().execute("SELECT recipe_id, item_name FROM recipe_ingredients"),
+  const [recipes, context] = await Promise.all([
+    getCookbookRecipes(kitchenId, viewerId),
+    readinessContext(kitchenId),
   ]);
 
-  const byRecipe = new Map<number, string[]>();
-  for (const row of ingredientRows.rows as unknown as RecipeIngredient[]) {
-    const bucket = byRecipe.get(row.recipe_id);
-    if (bucket) bucket.push(row.item_name);
-    else byRecipe.set(row.recipe_id, [row.item_name]);
-  }
+  const needle = term.trim().toLowerCase();
+  const matching = needle
+    ? recipes.filter(
+        (recipe) =>
+          recipe.name.toLowerCase().includes(needle) ||
+          (recipe.description ?? "").toLowerCase().includes(needle) ||
+          (context.byRecipe.get(recipe.id) ?? []).some((line) =>
+            line.item_name.toLowerCase().includes(needle),
+          ),
+      )
+    : recipes;
 
-  return recipes.map((recipe) => ({
+  return matching.map((recipe) => ({
     ...recipe,
-    ...countStocked(byRecipe.get(recipe.id) ?? [], stock),
+    in_cookbook: true,
+    ...countStockedLines(
+      context.byRecipe.get(recipe.id) ?? [],
+      context.links,
+      context.stock,
+      context.byId,
+    ),
   }));
 }
 
@@ -471,23 +520,15 @@ export async function getRescues(
 ): Promise<Rescue[]> {
   if (kitchenId === null) return [];
 
-  const [expiring, recipes, stock, ingredientRows] = await Promise.all([
+  const [expiring, recipes, context] = await Promise.all([
     getExpiring(kitchenId, withinDays),
-    getMyRecipes(authorId),
-    getStockIndex(kitchenId),
-    getDb().execute("SELECT recipe_id, item_name FROM recipe_ingredients"),
+    getCookbookRecipes(kitchenId, authorId),
+    readinessContext(kitchenId),
   ]);
   if (expiring.length === 0) return [];
 
-  const names = new Map<number, string[]>();
-  for (const row of ingredientRows.rows as unknown as RecipeIngredient[]) {
-    const bucket = names.get(row.recipe_id);
-    if (bucket) bucket.push(row.item_name);
-    else names.set(row.recipe_id, [row.item_name]);
-  }
-
   const scored = recipes.map((recipe) => {
-    const lines = names.get(recipe.id) ?? [];
+    const lines = context.byRecipe.get(recipe.id) ?? [];
     /**
      * Which stock rows this recipe actually calls for.
      *
@@ -497,10 +538,15 @@ export async function getRescues(
      * is the failure this whole panel exists to prevent.
      */
     const uses = new Set<number>();
-    for (const resolution of resolveLines(lines, stock).values()) {
-      if (resolution.item && isConfident(resolution)) uses.add(resolution.item.id);
+    for (const line of lines) {
+      const { item } = resolveWithLinks(line, context.links, context.stock, context.byId);
+      if (item) uses.add(item.id);
     }
-    return { recipe, uses, ...countStocked(lines, stock) };
+    return {
+      recipe,
+      uses,
+      ...countStockedLines(lines, context.links, context.stock, context.byId),
+    };
   });
 
   return expiring
@@ -514,7 +560,12 @@ export async function getRescues(
           return readiness !== 0 ? readiness : b.recipe.times_cooked - a.recipe.times_cooked;
         })
         .slice(0, 2)
-        .map((entry) => ({ ...entry.recipe, have: entry.have, total: entry.total }));
+        .map((entry) => ({
+          ...entry.recipe,
+          have: entry.have,
+          total: entry.total,
+          in_cookbook: true,
+        }));
 
       return { item, recipes: uses };
     })
@@ -607,28 +658,25 @@ export async function getNeglected(
   const idle = result.rows as unknown as Omit<Neglected, "recipes">[];
   if (idle.length === 0) return [];
 
-  const [recipes, stock, ingredientRows] = await Promise.all([
-    getMyRecipes(authorId),
-    getStockIndex(kitchenId),
-    getDb().execute("SELECT recipe_id, item_name FROM recipe_ingredients"),
+  const [recipes, context] = await Promise.all([
+    getCookbookRecipes(kitchenId, authorId),
+    readinessContext(kitchenId),
   ]);
-
-  const names = new Map<number, string[]>();
-  for (const row of ingredientRows.rows as unknown as RecipeIngredient[]) {
-    const bucket = names.get(row.recipe_id);
-    if (bucket) bucket.push(row.item_name);
-    else names.set(row.recipe_id, [row.item_name]);
-  }
 
   // Scored once, not once per neglected item: resolving is the expensive part
   // and the answer does not depend on which jar is being asked about.
   const scored = recipes.map((recipe) => {
-    const lines = names.get(recipe.id) ?? [];
+    const lines = context.byRecipe.get(recipe.id) ?? [];
     const uses = new Set<number>();
-    for (const resolution of resolveLines(lines, stock).values()) {
-      if (resolution.item && isConfident(resolution)) uses.add(resolution.item.id);
+    for (const line of lines) {
+      const { item } = resolveWithLinks(line, context.links, context.stock, context.byId);
+      if (item) uses.add(item.id);
     }
-    return { recipe, uses, ...countStocked(lines, stock) };
+    return {
+      recipe,
+      uses,
+      ...countStockedLines(lines, context.links, context.stock, context.byId),
+    };
   });
 
   return idle.map((item) => {
@@ -636,7 +684,12 @@ export async function getNeglected(
       .filter((entry) => entry.uses.has(item.id))
       .sort((a, b) => b.have / Math.max(1, b.total) - a.have / Math.max(1, a.total))
       .slice(0, 2)
-      .map((entry) => ({ ...entry.recipe, have: entry.have, total: entry.total }));
+      .map((entry) => ({
+        ...entry.recipe,
+        have: entry.have,
+        total: entry.total,
+        in_cookbook: true,
+      }));
 
     return { ...item, recipes: uses };
   });
