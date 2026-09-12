@@ -585,7 +585,11 @@ export function AddItemForm({
 
       </div>
 
-      {state.error && (
+      {/* The duplicate case is already said, better, beside the name field -
+          with a link to the row you actually want. Saying it again down here
+          in red, without the link, is the same fact twice and the worse half
+          is the one nearest the button. */}
+      {state.error && !(duplicate && state.error.includes("already on a shelf")) && (
         <p role="alert" className="text-sm font-bold text-destructive">
           {state.error}
         </p>

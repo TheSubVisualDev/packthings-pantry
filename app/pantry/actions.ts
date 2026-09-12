@@ -154,7 +154,11 @@ export async function addItem(
     const message = error instanceof Error ? error.message : "";
     // items.name is UNIQUE - adding more of something you have is an adjust.
     if (message.includes("UNIQUE")) {
-      return { error: `"${name}" is already in stock. Use Quick adjust instead.` };
+      // "Use Quick adjust instead" named a control that is nowhere on this
+      // screen, which is an instruction you cannot follow. The item's own page
+      // is where you add to what is there, and the field above already links
+      // to it.
+      return { error: `"${name}" is already on a shelf. Open it and add to what is there.` };
     }
     return { error: message || "Couldn't add that item." };
   }

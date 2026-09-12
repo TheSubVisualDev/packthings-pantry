@@ -145,7 +145,17 @@ export function SoftSelect({
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-[14px] border border-border bg-card py-1 shadow-[0_12px_28px_-12px_rgba(60,44,30,0.45)]"
+          /*
+           * With nothing to choose, the panel is a sentence rather than a
+           * list - and a sentence floating over the Add button below swallowed
+           * the tap that submitted the form. Seen on the shopping list, where
+           * every new name matches nothing by definition, so the one case the
+           * message exists for was the one case you could not get past it.
+           * The message stays; the taps go through it to what it is covering.
+           */
+          className={`absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-[14px] border border-border bg-card py-1 shadow-[0_12px_28px_-12px_rgba(60,44,30,0.45)] ${
+            matches.length === 0 ? "pointer-events-none" : ""
+          }`}
         >
           {matches.length === 0 ? (
             <li className="px-4 py-2.5 text-sm font-semibold text-muted-foreground">
