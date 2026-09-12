@@ -355,11 +355,19 @@ matter of opinion. `npm run check:receipt` covers parsing, not recognition.
 
 ---
 
-## M10 · Design pass, mobile first — handoff, runs alongside
+## M10 · Design pass, mobile first — HANDED OFF 12 Sep 2026
 
 Blocked by nothing and blocking nothing, so it runs in parallel from the start.
 Mobile first, desktop second; the current layouts were drawn phone-first and
 then stretched.
+
+**The brief is `docs/DESIGN-BRIEF.md`.** Luna's call, 12 Sep: the layout and
+hierarchy work goes to Claude Design rather than being ground out here, because
+the engineering side has taken it as far as it usefully can and Design is
+better at it. The brief frames what is left as design problems - the stock page
+being six things stacked before the stock, the recipe editor having 18 inputs
+and no shape, selection mode never having been designed - rather than as a
+style guide.
 
 What the designer needs to know:
 
