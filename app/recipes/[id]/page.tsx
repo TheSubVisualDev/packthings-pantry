@@ -14,7 +14,7 @@ import {
   derivedTags,
   getRecipeTags,
   getTagsByRecipe,
-  suggestCuisines,
+  suggestTags,
 } from "@/lib/recipe-tags";
 import { Lineage } from "@/components/lineage";
 import { CookHistory } from "@/components/cook-history";
@@ -338,7 +338,7 @@ export default async function RecipePage({
           tags={recipeTagsByRecipe.get(recipe.id) ?? []}
           derived={derivedTags(recipe, recipe.ingredients, recipe.steps)}
           suggestions={[
-            ...suggestCuisines(recipe.ingredients),
+            ...suggestTags(recipe.ingredients, recipe.steps),
             ...myRecipeTags.map((tag) => tag.name),
           ]}
           canEdit={isAuthor}

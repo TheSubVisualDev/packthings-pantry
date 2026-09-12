@@ -8,7 +8,12 @@
 // suggested only when the ingredients nearly prove it. A wrong suggestion
 // accepted with one tap is worse than no suggestion.
 
-import { derivedTags, suggestCuisines, totalMinutes } from "../lib/recipe-tags.ts";
+import {
+  derivedTags,
+  suggestCuisines,
+  suggestTags,
+  totalMinutes,
+} from "../lib/recipe-tags.ts";
 
 let failures = 0;
 function check(what, got, expected) {
@@ -152,6 +157,78 @@ check(
     line("Basil"),
   ])[0],
   "Asian",
+);
+
+/* ---------- method and meal, phase 5's P8 ---------- */
+
+
+// Method comes from the doing. No list of ingredients can say whether they end
+// up in an oven, which is the whole reason this reads the steps.
+check(
+  "an oven in the method suggests roasting",
+  suggestTags([line("Potatoes")], [step("Roast at gas mark 6 for an hour")]).includes("Roast"),
+  true,
+);
+check(
+  "the same ingredients with no oven do not",
+  suggestTags([line("Potatoes")], [step("Boil until tender, then mash")]).includes("Roast"),
+  false,
+);
+
+// "No cook" has to be earned by an absence, and only when there are steps to
+// read: a recipe nobody has written the method for is unknown, not raw.
+check(
+  "nothing heated reads as no cook",
+  suggestTags([line("Tomatoes"), line("Cucumber")], [step("Slice everything and dress it")]).includes(
+    "No cook",
+  ),
+  true,
+);
+check(
+  "a recipe with no method written is not called raw",
+  suggestTags([line("Tomatoes")], []).includes("No cook"),
+  false,
+);
+check(
+  "a word containing heat is not heat",
+  suggestTags([line("Flour")], [step("Stir the wheat flour through")]).includes("No cook"),
+  true,
+);
+
+// The bias to miss rather than invent, still holding for the new tables.
+check(
+  "one weak method word proves nothing",
+  suggestTags([line("Butter")], [step("Serve with a grill pan on the side")]).includes("Baking"),
+  false,
+);
+
+// Cuisine still leads, because it is what people file by.
+check(
+  "cuisine comes first when several fit",
+  suggestTags(
+    [line("Gochujang"), line("Soy sauce")],
+    [step("Roast in the oven at 200c for 20 minutes")],
+  )[0],
+  "Asian",
+);
+
+// Six is the cap: a row of suggestions long enough to scroll is one nobody reads.
+check(
+  "never more than six suggestions",
+  suggestTags(
+    [
+      line("Gochujang"),
+      line("Miso"),
+      line("Parmesan"),
+      line("Basil"),
+      line("Tahini"),
+      line("Chickpeas"),
+      line("Oats"),
+      line("Custard"),
+    ],
+    [step("Roast in the oven, then grill, then bake in the cake tin with sugar")],
+  ).length <= 6,
+  true,
 );
 
 if (failures > 0) {

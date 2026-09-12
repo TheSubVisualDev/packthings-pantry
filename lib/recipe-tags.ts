@@ -201,6 +201,142 @@ const CUISINE_MARKERS: { cuisine: string; strong: string[]; weak: string[] }[] =
 ];
 
 /**
+ * How it is cooked, from the words in the method - phase 5's P8.
+ *
+ * Cuisine comes from the shopping; method comes from the doing, and no list of
+ * ingredients can tell you whether they end up in an oven. The same bias
+ * applies: `strong` is one-is-enough, and everything else needs two to agree.
+ *
+ * "No cook" is the one that has to be earned by an absence rather than a
+ * presence, so it is worked out separately below - a recipe that never says
+ * heat, and nothing in this table saying it does.
+ */
+const METHOD_MARKERS: { tag: string; strong: string[]; weak: string[] }[] = [
+  {
+    tag: "Roast",
+    strong: ["roast", "roasting tin", "gas mark"],
+    weak: ["oven", "baking tray", "180", "200c", "220"],
+  },
+  {
+    tag: "One pan",
+    strong: ["one pan", "one pot", "same pan", "sheet pan"],
+    weak: ["large pan", "wipe the pan", "return to the pan"],
+  },
+  {
+    tag: "Slow",
+    strong: ["slow cooker", "low and slow", "3 hours", "four hours"],
+    weak: ["simmer for 1", "simmer for 2", "cover and cook", "braise"],
+  },
+  {
+    tag: "Grill",
+    strong: ["griddle", "barbecue", "under the grill"],
+    weak: ["grill", "char", "scorch"],
+  },
+  {
+    tag: "Baking",
+    strong: ["preheat the oven", "cake tin", "knead", "prove", "batter"],
+    weak: ["flour", "sugar", "butter", "oven", "whisk"],
+  },
+];
+
+/**
+ * What meal it is, from words people only use about one.
+ *
+ * Deliberately the shortest table of the three. "Dinner" is not a suggestion
+ * worth making - almost everything is dinner - so the only ones here are the
+ * ones that carry information when they turn up.
+ */
+const MEAL_MARKERS: { tag: string; strong: string[]; weak: string[] }[] = [
+  {
+    tag: "Breakfast",
+    strong: ["porridge", "granola", "pancake batter", "overnight oats"],
+    weak: ["oats", "eggs", "toast", "yoghurt", "banana"],
+  },
+  {
+    tag: "Packed lunch",
+    strong: ["lunchbox", "packed lunch", "keeps in the fridge for"],
+    weak: ["cold", "wrap", "sandwich", "leftover"],
+  },
+  {
+    tag: "Pudding",
+    strong: ["custard", "icing sugar", "whipped cream", "sponge"],
+    weak: ["sugar", "vanilla", "chocolate", "cream"],
+  },
+];
+
+/** Words that mean heat happened, for deciding whether a recipe is cooked. */
+const HEAT_WORDS =
+  /\b(bake[ds]?|roast(ed|ing)?|fry|fried|frying|boil(ed|ing)?|simmer(ed|ing)?|grill(ed|ing)?|saut[eé]|steam(ed|ing)?|toast(ed)?|microwave|heat|warm|oven|hob|poach(ed)?)\b/i;
+
+/**
+ * Every marker table is matched the same way: whole words, in one haystack.
+ *
+ * Padded with spaces on both sides rather than tested as a substring, which is
+ * the lesson "garam masala" taught the cuisine list by suggesting Mexican -
+ * "masa" is inside "masala".
+ */
+function hits(haystack: string, markers: { tag: string; strong: string[]; weak: string[] }[]) {
+  const has = (marker: string) => haystack.includes(` ${marker.toLowerCase()} `);
+
+  return markers
+    .map(({ tag, strong, weak }) => {
+      const strongHits = strong.filter(has).length;
+      const weakHits = weak.filter(has).length;
+      return { tag, score: strongHits * 2 + weakHits, convinced: strongHits >= 1 || weakHits >= 2 };
+    })
+    .filter((candidate) => candidate.convinced)
+    .sort((a, b) => b.score - a.score)
+    .map((candidate) => candidate.tag);
+}
+
+/** One lowercased, space-padded string to test whole words against. */
+function haystackOf(parts: string[]): string {
+  return parts
+    .map((part) => ` ${part.toLowerCase().replace(/[^a-z0-9'\s]/g, " ")} `)
+    .join(" ")
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Everything the recipe suggests about itself: cuisine, method, meal.
+ *
+ * Proposed, never applied - the rule the cuisine version has always followed
+ * and the reason this can be widened at all. A suggestion accepted with one
+ * tap is the point; a tag that appears on its own is the app deciding what you
+ * cooked, which it does not know.
+ *
+ * Ordered cuisine first because it is the one people actually file by, then
+ * method, then meal. Capped at six, because a row of suggestions long enough
+ * to scroll is a row nobody reads.
+ */
+export function suggestTags(
+  ingredients: Pick<RecipeIngredient, "item_name">[],
+  steps: Pick<RecipeStep, "body">[] = [],
+): string[] {
+  const fromIngredients = haystackOf(ingredients.map((line) => line.item_name));
+  const fromSteps = haystackOf(steps.map((step) => step.body));
+  const everything = `${fromIngredients} ${fromSteps}`;
+
+  const suggestions = [
+    ...suggestCuisines(ingredients),
+    ...hits(fromSteps, METHOD_MARKERS),
+    ...hits(everything, MEAL_MARKERS),
+  ];
+
+  /**
+   * "No cook" is an absence, so it cannot come from a marker list.
+   *
+   * Only offered when there are steps to read and none of them mentions heat -
+   * a recipe nobody has written the method for yet is unknown, not raw.
+   */
+  if (steps.length > 0 && !steps.some((step) => HEAT_WORDS.test(step.body))) {
+    suggestions.push("No cook");
+  }
+
+  return [...new Set(suggestions)].slice(0, 6);
+}
+
+/**
  * Cuisines the ingredients point at, best evidence first.
  *
  * Proposed, never applied. A suggestion accepted with one tap is the point;
