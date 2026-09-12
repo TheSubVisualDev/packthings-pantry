@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { getDb, plainRows } from "./db";
 
 export interface Tag {
   id: number;
@@ -37,7 +37,7 @@ export async function getTags(kitchenId: number | null): Promise<TagInUse[]> {
           ORDER BY item_count DESC, t.name COLLATE NOCASE`,
     args: [kitchenId],
   });
-  return result.rows as unknown as TagInUse[];
+  return plainRows<TagInUse>(result);
 }
 
 /**

@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { getDb, plainRows } from "./db";
 import { indexStock } from "./pantry-match";
 import { countStockedLines, getLinks, resolveWithLinks } from "./cookbook";
 import { inStock } from "./containers";
@@ -24,7 +24,9 @@ export async function getItems(kitchenId: number | null): Promise<Item[]> {
     sql: "SELECT * FROM items WHERE kitchen_id = ? ORDER BY category NULLS LAST, name",
     args: [kitchenId],
   });
-  return result.rows as unknown as Item[];
+  // Plain objects: these reach client components, and a libSQL Row does not
+  // survive that boundary quietly. See plainRows in lib/db.ts.
+  return plainRows<Item>(result);
 }
 
 /**

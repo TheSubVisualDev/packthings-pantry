@@ -56,3 +56,28 @@ export function connectionProtocol(): string | null {
     return null;
   }
 }
+
+/**
+ * libSQL rows as plain objects.
+ *
+ * `result.rows` are libSQL `Row` instances - array-like, with the columns
+ * hung off them as named properties and a prototype of their own. Every
+ * query in here casts them straight to an interface and hands them on, which
+ * is fine until one crosses into a client component: React refuses to
+ * serialise anything that is not a plain object, and the stock page was
+ * logging one console error per row - fifty-five of them on a twenty-eight
+ * item pantry - before it fell back to serialising them the slow way.
+ *
+ * Built from `columns` rather than by spreading, because spreading a Row
+ * carries the numeric indices across as well and doubles the payload.
+ */
+export function plainRows<T>(result: {
+  columns: string[];
+  rows: unknown[];
+}): T[] {
+  return (result.rows as Record<string, unknown>[]).map((row) => {
+    const out: Record<string, unknown> = {};
+    for (const column of result.columns) out[column] = row[column];
+    return out as Record<string, unknown>;
+  }) as T[];
+}

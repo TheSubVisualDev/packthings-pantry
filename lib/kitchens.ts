@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { getDb, plainRows } from "./db";
 import { DEFAULT_LOCATIONS } from "./locations";
 
 /**
@@ -50,7 +50,7 @@ export async function getKitchensFor(userId: number): Promise<KitchenMembership[
           ORDER BY (k.owner_id = ?) DESC, k.name`,
     args: [userId, userId],
   });
-  return result.rows as unknown as KitchenMembership[];
+  return plainRows<KitchenMembership>(result);
 }
 
 /**

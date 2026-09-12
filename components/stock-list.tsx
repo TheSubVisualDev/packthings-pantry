@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { BulkBar } from "@/components/bulk-bar";
+import { RowAdjust } from "@/components/row-adjust";
 import { describeStock, labelSaysOpen } from "@/lib/containers";
 import type { TagInUse } from "@/lib/tags";
 import type { Item } from "@/lib/types";
@@ -29,14 +29,32 @@ export function StockList({
   places,
   tags,
   canEdit,
+  groupControl,
 }: {
   groups: [string, Item[]][];
   places: string[];
   tags: TagInUse[];
   canEdit: boolean;
+  /**
+   * The group-by switch, rendered by the page because it is a set of links.
+   *
+   * It sits on this row rather than a row of its own: "how is this filed" and
+   * "let me pick several" are both things you do TO the list, and the design
+   * pass deleted a stacked control for every one of them.
+   */
+  groupControl?: React.ReactNode;
 }) {
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  /**
+   * Which row is open for adjusting - board `1t`.
+   *
+   * One at a time. Several open steppers would push the row you were aiming
+   * at off the screen between deciding and tapping, which is the whole reason
+   * this is inline rather than a screen of its own.
+   */
+  const [adjusting, setAdjusting] = useState<number | null>(null);
 
   const all = groups.flatMap(([, items]) => items);
 
@@ -67,14 +85,21 @@ export function StockList({
     setSelected(new Set());
   }
 
+  function startSelecting() {
+    setAdjusting(null);
+    setSelecting(true);
+  }
+
   return (
     <>
       {canEdit && (
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="mb-3 flex items-center gap-3">
+          {!selecting && groupControl}
+          <div className="flex-grow" />
           <button
             type="button"
-            onClick={() => (selecting ? leave() : setSelecting(true))}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-bold ${
+            onClick={() => (selecting ? leave() : startSelecting())}
+            className={`flex h-9 shrink-0 items-center rounded-full px-3.5 text-xs font-bold ${
               selecting ? "bg-ink text-background" : "bg-chip text-muted-foreground"
             }`}
           >
@@ -147,7 +172,7 @@ export function StockList({
                         line up down the edge and can be compared without
                         reading the names again. */}
                     <span
-                      className={`shrink-0 text-right text-[13px] font-bold tabular-nums ${
+                      className={`shrink-0 text-right font-mono text-[13px] font-bold tabular-nums ${
                         picked ? "" : "text-quantity"
                       }`}
                     >
@@ -160,7 +185,9 @@ export function StockList({
                 // than a gap between them - a divider reads as one list where
                 // gaps read as a pile of separate things.
                 const shape =
-                  "flex min-h-11 w-full items-center gap-3 border-b border-border px-3.5 py-2 text-left text-sm font-semibold transition-colors last:border-b-0 sm:min-h-0 sm:py-1.5";
+                  "flex min-h-11 w-full items-center gap-3 border-b border-border px-3.5 text-left text-sm font-semibold transition-colors last:border-b-0 sm:min-h-9";
+
+                const open = adjusting === item.id;
 
                 return (
                   <li key={item.id}>
@@ -178,12 +205,21 @@ export function StockList({
                         {body}
                       </button>
                     ) : (
-                      <Link
-                        href={`/pantry/item/${item.id}`}
-                        className={`${shape} hover:bg-chip`}
+                      /* A tap adjusts rather than navigates. Opening the item
+                         is one chip inside, because changing how much there is
+                         happens ten times for every time you want its dates. */
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        onClick={() => setAdjusting(open ? null : item.id)}
+                        className={`${shape} ${open ? "bg-chip/60" : "hover:bg-chip"}`}
                       >
                         {body}
-                      </Link>
+                      </button>
+                    )}
+
+                    {open && !selecting && canEdit && (
+                      <RowAdjust item={item} onClose={() => setAdjusting(null)} />
                     )}
                   </li>
                 );

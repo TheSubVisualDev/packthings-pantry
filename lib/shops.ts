@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { getDb, plainRows } from "./db";
 
 /**
  * Shops: where things get bought.
@@ -45,7 +45,7 @@ export async function getShops(kitchenId: number | null): Promise<ShopInUse[]> {
           ORDER BY item_count DESC, s.name COLLATE NOCASE`,
     args: [kitchenId],
   });
-  return result.rows as unknown as ShopInUse[];
+  return plainRows<ShopInUse>(result);
 }
 
 /** One item's shops. */
