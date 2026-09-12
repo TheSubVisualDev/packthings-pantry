@@ -45,6 +45,32 @@ export function ShoppingList({
   const [seq, setSeq] = useState(0);
 
   /**
+   * Ticks, held here until the server catches up.
+   *
+   * The database is in Nuremberg and a supermarket is the worst place in the
+   * world for a round trip: half a bar of signal, a moving thumb, and six
+   * things to tick in a row. The circle fills on the press; if the write
+   * fails the tick goes back and says so.
+   */
+  const [ticked, setTicked] = useState<Record<number, boolean>>({});
+  const [tickError, setTickError] = useState<string | null>(null);
+
+  const isBought = (line: ShoppingLine) =>
+    ticked[line.id] ?? Boolean(line.bought_at);
+
+  function setBought(line: ShoppingLine, next: boolean) {
+    setTicked((current) => ({ ...current, [line.id]: next }));
+    setTickError(null);
+    startTransition(async () => {
+      const result = await tick(line.id, next);
+      if (!result?.ok) {
+        setTicked((current) => ({ ...current, [line.id]: !next }));
+        setTickError(result?.error ?? "Couldn't save that tick.");
+      }
+    });
+  }
+
+  /**
    * The unit follows the name, the same way it does on the add form.
    *
    * Grams was the default for everything, so a line for bread went on the list
@@ -79,7 +105,7 @@ export function ShoppingList({
    */
   const byShop = (() => {
     const groups = new Map<string, ShoppingLine[]>();
-    for (const line of lines.filter((entry) => !entry.bought_at)) {
+    for (const line of lines.filter((entry) => !isBought(entry))) {
       /**
        * Under a filter, anything with a shop is here by definition - the query
        * only kept lines this shop sells - so it groups under the shop you are
@@ -94,34 +120,48 @@ export function ShoppingList({
     return [...groups.entries()];
   })();
 
-  const done = lines.filter((line) => line.bought_at);
+  const done = lines.filter((line) => isBought(line));
+  const inBasket = done.length;
+  const total = lines.length;
 
   function row(line: ShoppingLine) {
-    const bought = Boolean(line.bought_at);
+    const bought = isBought(line);
 
     return (
       <li
         key={line.id}
-        className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0"
+        className="flex min-h-[52px] items-center gap-3 border-b border-border px-4 last:border-b-0"
       >
+        {/*
+          A 32px circle in a 52px row.
+
+          This is the one screen in the app used while walking, holding a
+          basket, with one thumb - and the old 24px tick was drawn for a desk.
+          Missing it means un-ticking something else, which is worse than
+          missing it.
+        */}
         <button
           type="button"
           aria-pressed={bought}
           aria-label={bought ? `Un-tick ${line.item_name}` : `Tick off ${line.item_name}`}
-          onClick={() => startTransition(async () => { await tick(line.id, !bought); })}
-          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-extrabold ${
-            bought ? "bg-primary text-primary-foreground" : "bg-chip text-transparent"
+          onClick={() => setBought(line, !bought)}
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${
+            bought
+              ? "bg-primary text-primary-foreground"
+              : "border-2 border-border text-transparent"
           }`}
         >
           ✓
         </button>
 
-        <span className={`min-w-0 flex-1 ${bought ? "opacity-50" : ""}`}>
-          <span className={`block font-bold break-words ${bought ? "line-through" : ""}`}>
+        <span className={`min-w-0 flex-1 py-2 ${bought ? "opacity-50" : ""}`}>
+          <span
+            className={`block text-[15px] font-bold break-words ${bought ? "line-through" : ""}`}
+          >
             {line.item_name}
           </span>
           {line.quantity !== null && (
-            <span className="block text-sm font-semibold text-quantity">
+            <span className="block font-mono text-sm font-semibold text-quantity">
               {formatQuantity(line.quantity)}
               {line.unit && line.unit !== "count" ? line.unit : ""}
             </span>
@@ -132,7 +172,7 @@ export function ShoppingList({
           type="button"
           aria-label={`Remove ${line.item_name}`}
           onClick={() => startTransition(async () => { await drop(line.id); })}
-          className="shrink-0 rounded-full px-2 py-1 text-xs font-bold text-muted-foreground hover:text-destructive"
+          className="shrink-0 self-stretch px-2 text-xs font-bold text-muted-foreground hover:text-destructive"
         >
           ✕
         </button>
@@ -142,6 +182,37 @@ export function ShoppingList({
 
   return (
     <div className="space-y-5">
+      {/*
+        Where you are in the trip.
+
+        A shopping list is the one screen with a finish line, and knowing you
+        are three off it is the difference between checking the list again and
+        going to the till. The bar is the count, not a decoration - it says the
+        same thing twice because one of them is readable at arm's length.
+      */}
+      {total > 0 && (
+        <div>
+          <div className="mb-1.5 flex items-baseline justify-between gap-3">
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-label">
+              {inBasket === total
+                ? "That is everything"
+                : `${inBasket} of ${total} in the basket`}
+            </p>
+            {inBasket < total && (
+              <p className="font-mono text-xs font-semibold text-muted-foreground">
+                {total - inBasket} to go
+              </p>
+            )}
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-chip">
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-300"
+              style={{ width: `${total === 0 ? 0 : (inBasket / total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <form action={submit} className="flex flex-wrap gap-2">
         {/* Offers what the kitchen already calls things, so a line matches the
             stock row it means rather than becoming a second name for it. Still
@@ -190,9 +261,9 @@ export function ShoppingList({
         </button>
       </form>
 
-      {state.error && (
+      {(state.error || tickError) && (
         <p role="alert" className="text-sm font-bold text-destructive">
-          {state.error}
+          {state.error ?? tickError}
         </p>
       )}
 
@@ -221,7 +292,7 @@ export function ShoppingList({
           {done.length > 0 && (
             <section>
               <h2 className="mb-1.5 text-xs font-bold uppercase tracking-[0.08em] text-label">
-                In the trolley
+                In the basket &middot; {done.length}
               </h2>
               <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
                 {done.map(row)}
