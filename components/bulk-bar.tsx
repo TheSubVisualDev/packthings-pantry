@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { MapPin, Sliders, Tag, Trash2, X } from "lucide-react";
+import { Check, MapPin, Sliders, Tag, Trash2 } from "lucide-react";
 import {
   bulkDelete,
   bulkLocation,
@@ -206,57 +206,66 @@ export function BulkBar({
           </p>
         )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-sm font-extrabold tabular-nums">{noun}</span>
+        {/*
+          A labelled grid, not a row of pills.
 
+          The bar used to be seven chips of the same size and colour wrapping
+          onto two lines, so "what can I do to these" had to be read left to
+          right every time and the destructive one sat in the middle of it. A
+          grid of four named actions says what the bar is for at a glance, and
+          Delete is the only thing in the destructive colour, at the end, where
+          nothing else is.
+        */}
+        <p className="mt-3 mb-2 text-xs font-bold uppercase tracking-[0.08em] text-label">
+          Do to all {noun}
+        </p>
+
+        <div className="grid grid-cols-4 gap-1.5">
           <Action
-            icon={<MapPin className="h-4 w-4" strokeWidth={2.5} />}
+            icon={<MapPin className="h-5 w-5" strokeWidth={2.5} />}
             label="Move"
             active={panel === "place"}
             onClick={() => setPanel(panel === "place" ? null : "place")}
           />
           <Action
-            icon={<Tag className="h-4 w-4" strokeWidth={2.5} />}
-            label="Tag"
-            active={panel === "tag"}
+            icon={<Tag className="h-5 w-5" strokeWidth={2.5} />}
+            label={panel === "untag" ? "Untag" : "Tag"}
+            active={panel === "tag" || panel === "untag"}
             onClick={() => setPanel(panel === "tag" ? null : "tag")}
           />
-          {tags.length > 0 && (
-            <Action
-              icon={<X className="h-4 w-4" strokeWidth={3} />}
-              label="Untag"
-              active={panel === "untag"}
-              onClick={() => setPanel(panel === "untag" ? null : "untag")}
-            />
-          )}
-
-          <button
-            type="button"
+          <Action
+            icon={<Check className="h-5 w-5" strokeWidth={2.5} />}
+            label="Opened"
             disabled={pending}
             onClick={() => run(() => bulkOpened(ids, true))}
-            className="rounded-full bg-chip px-3.5 py-2 text-xs font-bold disabled:opacity-50"
-          >
-            Opened
-          </button>
-
-          <button
-            type="button"
-            onClick={() => router.push(`/pantry/adjust?ids=${ids.join(",")}`)}
-            className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-xs font-extrabold text-primary-foreground"
-          >
-            <Sliders className="h-4 w-4" strokeWidth={2.5} />
-            Adjust these
-          </button>
-
-          <button
-            type="button"
+          />
+          <Action
+            icon={<Trash2 className="h-5 w-5" strokeWidth={2.5} />}
+            label="Delete"
+            destructive
+            active={panel === "delete"}
             onClick={() => setPanel(panel === "delete" ? null : "delete")}
-            aria-label={`Delete ${noun}`}
-            className="ml-auto rounded-full p-2 text-muted-foreground hover:text-destructive"
-          >
-            <Trash2 className="h-4 w-4" strokeWidth={2.5} />
-          </button>
+          />
         </div>
+
+        {tags.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setPanel(panel === "untag" ? null : "untag")}
+            className="mt-2 text-xs font-bold text-muted-foreground underline underline-offset-2"
+          >
+            Take a tag off instead
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => router.push(`/pantry/adjust?ids=${ids.join(",")}`)}
+          className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-primary text-[15px] font-extrabold text-primary-foreground"
+        >
+          <Sliders className="h-4 w-4" strokeWidth={2.75} />
+          Adjust these
+        </button>
       </div>
     </div>
   );
@@ -266,19 +275,29 @@ function Action({
   icon,
   label,
   onClick,
-  active,
+  active = false,
+  destructive = false,
+  disabled = false,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
-  active: boolean;
+  active?: boolean;
+  /** The one action that cannot be taken back, coloured as such. */
+  destructive?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold ${
-        active ? "bg-ink text-background" : "bg-chip"
+      disabled={disabled}
+      className={`flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[14px] text-xs font-bold disabled:opacity-50 ${
+        active
+          ? "bg-ink text-background"
+          : destructive
+            ? "bg-chip text-destructive"
+            : "bg-chip"
       }`}
     >
       {icon}

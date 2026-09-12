@@ -117,6 +117,14 @@
  * steps aside rather than fighting for the space - the way a tab bar does when
  * you start picking photos.
  */
-[data-bulk="on"] [data-fab] {
+/*
+ * The whole bar, not just the button that used to float over it.
+ *
+ * [data-fab] was the raised add button when it lived on its own; it has been
+ * part of the tab bar for a while, and the rule was quietly matching nothing -
+ * so the action bar for a selection sat UNDER the nav on a phone and its
+ * primary button was the half you could not press.
+ */
+[data-bulk="on"] [data-nav] {
   display: none;
 }

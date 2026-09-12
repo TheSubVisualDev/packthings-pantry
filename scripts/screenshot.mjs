@@ -53,9 +53,35 @@ await ctx.addCookies([
 
 const page = await ctx.newPage();
 
+/**
+ * Things to press before the picture is taken.
+ *
+ * Half this app only exists after a tap - selection mode, an open stepper, a
+ * sheet - and none of it could be looked at, which is the same reason the
+ * three bugs above survived. Comma-separated, in order; each one is text to
+ * click ("Select") or a CSS selector when prefixed with `css:`.
+ *
+ *   SHOT_CLICK="Select,css:li:first-child button"
+ */
+const clicks = (process.env.SHOT_CLICK ?? "")
+  .split(",")
+  .map((each) => each.trim())
+  .filter(Boolean);
+
 for (const p of paths) {
   const name = p.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "home";
   await page.goto(`http://localhost:${PORT}${p}`, { waitUntil: "networkidle" });
+
+  for (const click of clicks) {
+    const target = click.startsWith("css:")
+      ? page.locator(click.slice(4)).first()
+      : page.getByText(click, { exact: true }).first();
+    await target.click();
+    // Long enough for a transition to land, short enough not to be a sleep
+    // anybody notices.
+    await page.waitForTimeout(400);
+  }
+
   await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: process.env.SHOT_FULL === "1" });
   console.log(name, page.url());
 }

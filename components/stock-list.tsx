@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check, X } from "lucide-react";
 import { BulkBar } from "@/components/bulk-bar";
 import { RowAdjust } from "@/components/row-adjust";
 import { describeStock, labelSaysOpen } from "@/lib/containers";
@@ -92,40 +93,55 @@ export function StockList({
 
   return (
     <>
-      {canEdit && (
+      {canEdit && !selecting && (
         <div className="mb-3 flex items-center gap-3">
-          {!selecting && groupControl}
+          {groupControl}
           <div className="flex-grow" />
           <button
             type="button"
-            onClick={() => (selecting ? leave() : startSelecting())}
-            className={`flex h-9 shrink-0 items-center rounded-full px-3.5 text-xs font-bold ${
-              selecting ? "bg-ink text-background" : "bg-chip text-muted-foreground"
-            }`}
+            onClick={startSelecting}
+            className="flex h-9 shrink-0 items-center rounded-full bg-chip px-3.5 text-xs font-bold text-muted-foreground"
           >
-            {selecting ? "Done" : "Select"}
+            Select
           </button>
+        </div>
+      )}
 
-          {selecting && (
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-muted-foreground tabular-nums">
-                {selected.size} selected
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setSelected(
-                    selected.size === all.length
-                      ? new Set()
-                      : new Set(all.map((item) => item.id)),
-                  )
-                }
-                className="text-xs font-bold text-primary"
-              >
-                {selected.size === all.length ? "None" : "All"}
-              </button>
-            </div>
-          )}
+      {/*
+        A dark bar in place of the controls, not beside them.
+
+        Selection mode used to announce itself with one chip going dark while
+        the group-by row stayed put, so the screen looked the same and a tap
+        did something different - the worst way a mode can behave. Replacing
+        the row says plainly that this is somewhere else, and the ✕ is the way
+        back rather than a button labelled Done that reads like "apply".
+      */}
+      {canEdit && selecting && (
+        <div className="mb-3 flex h-11 items-center gap-3 rounded-full bg-ink px-2 pr-4 text-background">
+          <button
+            type="button"
+            onClick={leave}
+            aria-label="Stop selecting"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10"
+          >
+            <X className="h-4 w-4" strokeWidth={3} />
+          </button>
+          <span className="flex-1 text-sm font-extrabold tabular-nums">
+            {selected.size} selected
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              setSelected(
+                selected.size === all.length
+                  ? new Set()
+                  : new Set(all.map((item) => item.id)),
+              )
+            }
+            className="shrink-0 text-xs font-bold whitespace-nowrap"
+          >
+            {selected.size === all.length ? "Select none" : "Select all"}
+          </button>
         </div>
       )}
 
@@ -192,16 +208,26 @@ export function StockList({
                 return (
                   <li key={item.id}>
                     {selecting ? (
+                      /* A circle on every row, filled on the ones you have
+                         picked. Tinting the row alone left nothing to aim at
+                         and no way to tell a selectable list from a normal
+                         one until you had already tapped something. */
                       <button
                         type="button"
                         aria-pressed={picked}
                         onClick={() => toggle(item.id)}
-                        className={`${shape} ${
-                          picked
-                            ? "bg-primary text-primary-foreground"
-                            : "hover:bg-chip"
-                        }`}
+                        className={`${shape} ${picked ? "bg-primary/12" : "hover:bg-chip"}`}
                       >
+                        <span
+                          aria-hidden
+                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                            picked
+                              ? "bg-primary text-primary-foreground"
+                              : "border-2 border-border"
+                          }`}
+                        >
+                          {picked && <Check className="h-3.5 w-3.5" strokeWidth={3.5} />}
+                        </span>
                         {body}
                       </button>
                     ) : (

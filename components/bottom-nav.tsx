@@ -57,6 +57,7 @@ export function BottomNav({ onAdd }: { onAdd: () => void }) {
   return (
     <nav
       aria-label="Sections"
+      data-nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-raised/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
     >
       <div className="flex items-stretch justify-around">
