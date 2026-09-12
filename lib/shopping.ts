@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { getDb, plainRows } from "./db";
 
 /**
  * The shopping list.
@@ -70,7 +70,8 @@ export async function getList(
                    s.created_at, s.id`,
     args: [kitchenId, filter, filter],
   });
-  return result.rows as unknown as ShoppingLine[];
+  // Plain objects: the list is a client component. See plainRows in lib/db.ts.
+  return plainRows<ShoppingLine>(result);
 }
 
 /** Returns the new line id, which is what lets a caller take it off again. */

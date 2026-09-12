@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { getDb, plainRows } from "./db";
 import type { Recipe, RecipeIngredient, RecipeStep } from "./types";
 
 /**
@@ -246,7 +246,8 @@ export async function getRecipeTags(ownerId: number): Promise<RecipeTagInUse[]> 
           ORDER BY recipe_count DESC, t.name COLLATE NOCASE`,
     args: [ownerId],
   });
-  return result.rows as unknown as RecipeTagInUse[];
+  // Plain objects: the tag editor is a client component. See plainRows.
+  return plainRows<RecipeTagInUse>(result);
 }
 
 /**

@@ -73,7 +73,7 @@ export async function getMyRecipes(
           ORDER BY r.times_cooked DESC, r.name`,
     args: filtered ? [authorId, needle, needle, needle] : [authorId],
   });
-  return result.rows as unknown as RecipeWithAuthor[];
+  return plainRows<RecipeWithAuthor>(result);
 }
 
 /**
@@ -118,7 +118,7 @@ export async function getSavedRecipes(
       ? [viewerId, viewerId, ...viewerArgs(viewerId), needle, needle, needle]
       : [viewerId, viewerId, ...viewerArgs(viewerId)],
   });
-  return result.rows as unknown as RecipeWithAuthor[];
+  return plainRows<RecipeWithAuthor>(result);
 }
 
 /**
@@ -144,7 +144,7 @@ export async function browseRecipes(
       options.limit ?? 60,
     ],
   });
-  return result.rows as unknown as RecipeWithAuthor[];
+  return plainRows<RecipeWithAuthor>(result);
 }
 
 /**
@@ -257,7 +257,7 @@ export async function getCookbookRecipes(
           ORDER BY r.times_cooked DESC, r.name`,
     args: [kitchenId, ...viewerArgs(viewerId)],
   });
-  return result.rows as unknown as RecipeWithAuthor[];
+  return plainRows<RecipeWithAuthor>(result);
 }
 
 /**
@@ -357,7 +357,7 @@ export async function getFeed(
           LIMIT ?`,
     args: [...viewerArgs(viewerId), viewerId, viewerId, limit],
   });
-  return result.rows as unknown as RecipeWithAuthor[];
+  return plainRows<RecipeWithAuthor>(result);
 }
 
 /**
@@ -390,7 +390,7 @@ export async function searchRecipes(
           LIMIT ?`,
     args: [...viewerArgs(viewerId), needle, needle, needle, needle, limit],
   });
-  return result.rows as unknown as RecipeWithAuthor[];
+  return plainRows<RecipeWithAuthor>(result);
 }
 
 export interface RecipeSocial {
@@ -529,7 +529,7 @@ export async function getExpiring(
           ORDER BY use_by`,
     args: [kitchenId, withinDays],
   });
-  return result.rows as unknown as ExpiringItem[];
+  return plainRows<ExpiringItem>(result);
 }
 
 export async function getItem(
