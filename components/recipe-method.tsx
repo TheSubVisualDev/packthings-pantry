@@ -2,6 +2,9 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { AlarmClock } from "lucide-react";
+import { splitStep } from "@/lib/step-timers";
+import { TimerTray, useCookTimers } from "@/components/cook-timers";
 
 export interface CookStep {
   id: number;
@@ -66,6 +69,18 @@ function useKeepAwake(on: boolean) {
   }, [on]);
 }
 
+/**
+ * What a running timer calls itself.
+ *
+ * The opening words of the step, because by the time it rings the step
+ * that started it is usually off screen and "20:00" on its own says
+ * nothing about which pan.
+ */
+function stepLabel(body: string): string {
+  const trimmed = body.trim();
+  return trimmed.length > 44 ? `${trimmed.slice(0, 44)}\u2026` : trimmed;
+}
+
 export function RecipeMethod({
   steps,
   labels,
@@ -76,6 +91,7 @@ export function RecipeMethod({
 }) {
   const [done, setDone] = useState<Record<number, boolean>>({});
   const [awake, setAwake] = useState(false);
+  const { timers, now, start, stop } = useCookTimers();
 
   useKeepAwake(awake);
 
@@ -107,9 +123,12 @@ export function RecipeMethod({
         </button>
       </div>
 
+      <TimerTray timers={timers} now={now} onStop={stop} />
+
       <ol className="space-y-2.5">
         {rows.map(({ step, index, showSection }) => {
           const isChecked = done[step.id] === true;
+          const hasTiming = splitStep(step.body).some((p) => p.kind === "timing");
 
           return (
             <li key={step.id}>
@@ -119,34 +138,57 @@ export function RecipeMethod({
                 </h3>
               )}
 
-              <button
-                type="button"
-                aria-pressed={isChecked}
-                onClick={() =>
-                  setDone((current) => ({ ...current, [step.id]: !current[step.id] }))
-                }
-                className={`flex w-full gap-3.5 rounded-[20px] p-4 text-left shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-opacity sm:p-5 ${
+              {/* The card was one big button, which made the whole step a
+                  tick target - good with wet hands, and impossible once a
+                  timing inside the text needs to be a button too, since a
+                  button cannot contain one. The tick moved to the left rail,
+                  padded out to stay a large target, and the text is free. */}
+              <div
+                className={`flex gap-1 rounded-[20px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-opacity sm:p-5 ${
                   isChecked ? "bg-chip opacity-55" : "bg-card"
                 }`}
               >
-                <span
-                  className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${
-                    isChecked
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-chip text-muted-foreground"
-                  }`}
+                <button
+                  type="button"
+                  aria-pressed={isChecked}
+                  aria-label={`Step ${index + 1} done`}
+                  onClick={() =>
+                    setDone((current) => ({ ...current, [step.id]: !current[step.id] }))
+                  }
+                  className="-my-2 -ml-2 flex shrink-0 items-start self-stretch px-2 py-2"
                 >
-                  {isChecked ? "✓" : index + 1}
-                </span>
-
-                <span className="min-w-0 flex-1">
                   <span
-                    className={`block text-[15px] leading-relaxed font-medium ${
+                    className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-extrabold ${
+                      isChecked
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-chip text-muted-foreground"
+                    }`}
+                  >
+                    {isChecked ? "✓" : index + 1}
+                  </span>
+                </button>
+
+                <div className="ml-2.5 min-w-0 flex-1">
+                  <p
+                    className={`text-[15px] leading-relaxed font-medium ${
                       isChecked ? "line-through" : ""
                     }`}
                   >
-                    {step.body}
-                  </span>
+                    {splitStep(step.body).map((piece, at) =>
+                      piece.kind === "text" ? (
+                        <span key={at}>{piece.text}</span>
+                      ) : (
+                        <button
+                          key={at}
+                          type="button"
+                          onClick={() => start(stepLabel(step.body), piece.seconds)}
+                          className="mx-0.5 inline-flex items-baseline gap-1 rounded-full bg-[oklch(0.94_0.06_75)] px-2 py-0.5 text-[14px] font-bold text-[oklch(0.42_0.1_60)] hover:bg-[oklch(0.90_0.08_75)]"
+                        >
+                          {piece.text}
+                        </button>
+                      ),
+                    )}
+                  </p>
 
                   {step.photo_url && (
                     <span className="relative mt-3 block aspect-[16/10] w-full overflow-hidden rounded-[14px]">
@@ -160,12 +202,21 @@ export function RecipeMethod({
                     </span>
                   )}
 
-                  {(step.uses.length > 0 || step.minutes) && (
+                  {(step.uses.length > 0 || step.minutes !== null) && (
                     <span className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                      {step.minutes && (
-                        <span className="rounded-full bg-[oklch(0.94_0.06_75)] px-2.5 py-1 text-xs font-bold text-[oklch(0.42_0.1_60)]">
+                      {/* Only when the text did not already offer one. A step
+                          reading "simmer for 20 minutes" that also has
+                          recipe_steps.minutes set would otherwise show the
+                          same timer twice. */}
+                      {step.minutes !== null && !hasTiming && (
+                        <button
+                          type="button"
+                          onClick={() => start(stepLabel(step.body), step.minutes! * 60)}
+                          className="flex items-center gap-1 rounded-full bg-[oklch(0.94_0.06_75)] px-2.5 py-1 text-xs font-bold text-[oklch(0.42_0.1_60)] hover:bg-[oklch(0.90_0.08_75)]"
+                        >
+                          <AlarmClock className="h-3 w-3" strokeWidth={3} />
                           {step.minutes} min
-                        </span>
+                        </button>
                       )}
                       {step.uses.map((id) =>
                         labels[id] ? (
@@ -179,8 +230,8 @@ export function RecipeMethod({
                       )}
                     </span>
                   )}
-                </span>
-              </button>
+                </div>
+              </div>
             </li>
           );
         })}

@@ -266,7 +266,7 @@ no extra work.
 
 ---
 
-## M6 · Clickable timers — three quarters of a day
+## M6 · Clickable timers — DONE 12 Sep 2026
 
 **"Simmer for 20 minutes" is a button.**
 
