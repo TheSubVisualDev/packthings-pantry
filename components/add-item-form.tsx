@@ -6,6 +6,7 @@ import { ChevronDown, Sparkles, Undo2 } from "lucide-react";
 import { addItem, type AddItemState } from "@/app/pantry/actions";
 import { ChipPicker } from "@/components/chip-picker";
 import { CountStepper, Vessel, vesselKindFor, vesselModeFor } from "@/components/vessel";
+import { plural } from "@/lib/containers";
 import { dimensionOf, UNITS_BY_DIMENSION } from "@/lib/units";
 import { probableDuplicate, suggestFor, type ItemProfile } from "@/lib/suggest";
 import type { Dimension } from "@/lib/types";
@@ -152,6 +153,21 @@ export function AddItemForm({
   const location = valueOf("location", prefill.location, suggestion.location, "");
   const packSize = valueOf("pack_size", prefill.pack_size, suggestion.pack_size, "");
   const shelfLife = valueOf("shelf_life_days", undefined, suggestion.shelf_life_days, "");
+
+  /**
+   * What the count counts, when it counts anything nameable.
+   *
+   * The picker's count units are already the answer for tins, packs and jars,
+   * so those seed the field; "count" itself seeds nothing, because the thing
+   * you count is usually the item - four onions, not four counts - and the
+   * bare number reads fine there. Cloves and rashers get typed.
+   */
+  const countNoun = valueOf(
+    "count_noun",
+    undefined,
+    undefined,
+    unit === "count" ? "" : unit,
+  );
 
   // A scan arrives knowing the pack, and so does anything copied from a jar you
   // already own; typing it by hand is still opt-in.
@@ -363,6 +379,34 @@ export function AddItemForm({
           </select>
         </div>
       </div>
+
+      {/* A count with no noun on it prints as a bare number on the shelf, in a
+          column beside "400ml" and "1000g", and there is no reading of "3"
+          that says tomatoes. Only asked for when there is a count to name. */}
+      {dimension === "count" && (
+        <div>
+          <label htmlFor="count_noun" className={LABEL}>
+            Counted in (optional)
+          </label>
+          <input
+            id="count_noun"
+            name="count_noun"
+            type="text"
+            maxLength={20}
+            autoComplete="off"
+            placeholder="tin, clove, rasher"
+            value={countNoun}
+            onChange={(event) => set("count_noun", event.target.value)}
+            className={FIELD}
+          />
+          <p className="mt-1 text-sm font-semibold text-muted-foreground">
+            One of them, singular. The shelf says &ldquo;
+            {amount || "3"}{" "}
+            {countNoun ? (Number(amount) === 1 ? countNoun : plural(countNoun)) : "…"}
+            &rdquo;.
+          </p>
+        </div>
+      )}
 
       {/* Everything below is optional, guessed where it can be, and folded
           away until asked for. */}

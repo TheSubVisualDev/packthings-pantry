@@ -48,6 +48,10 @@ const ADDED_COLUMNS = [
   // Once-opened tracking: the date on the packet stops applying when it's open.
   { table: "items", column: "opened_at", definition: "TIMESTAMP" },
   { table: "items", column: "shelf_life_days", definition: "INTEGER" },
+  // What a count counts. Nothing to back-fill it from: the unit picked at the
+  // door was converted to 'count' and the word discarded, so old rows stay
+  // bare numbers until somebody says what they are.
+  { table: "items", column: "count_noun", definition: "TEXT" },
 
   // Recipes became documents rather than lists: a blurb, timings, a source.
   { table: "recipes", column: "description", definition: "TEXT" },

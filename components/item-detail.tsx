@@ -156,6 +156,26 @@ export function ItemDetail({
                   className={FIELD}
                 />
               </div>
+              {/* Editable here even though the unit is not, because this is
+                  the label on the number rather than what the number means -
+                  "4" becoming "4 cloves" reinterprets nothing on the shelf. */}
+              {item.canonical_unit === "count" && (
+                <div className="min-w-28 flex-1">
+                  <label htmlFor="count_noun" className={LABEL}>
+                    Counted in
+                  </label>
+                  <input
+                    id="count_noun"
+                    name="count_noun"
+                    type="text"
+                    maxLength={20}
+                    autoComplete="off"
+                    placeholder="tin, clove"
+                    defaultValue={item.count_noun ?? ""}
+                    className={FIELD}
+                  />
+                </div>
+              )}
               <div className="min-w-28 flex-1">
                 <label htmlFor="shelf_life_days" className={LABEL}>
                   Keeps once open

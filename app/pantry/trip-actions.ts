@@ -70,11 +70,31 @@ export async function gotEverything(): Promise<TripResult & { ticked?: number }>
   return { ok: true, ticked: result.rowsAffected };
 }
 
+/**
+ * A line the put-away could not finish, and what would finish it.
+ *
+ * A sentence was not enough. "Parmesan - not a thing on your shelves yet"
+ * told you the trip had a loose end and gave you nowhere to go with it, so
+ * the line sat ticked on the list until somebody happened to add the item by
+ * hand. The reason is a code now, and the screen turns each one into the tap
+ * that fixes it.
+ */
+export interface LeftBehind {
+  /** What the list calls it, which is what the fix should be seeded with. */
+  name: string;
+  /** "unknown": no stock row at all. "no-pack": a row that never said what one pack holds. */
+  reason: "unknown" | "no-pack";
+  /** The stock row to go and finish, when there is one. */
+  itemId: number | null;
+  quantity: number | null;
+  unit: string | null;
+}
+
 export interface PutAwayResult extends TripResult {
   /** Items a pack went onto, by name. */
   stocked?: string[];
   /** Lines that could not become stock, and why they are still on the list. */
-  left?: string[];
+  left?: LeftBehind[];
 }
 
 /**
@@ -118,15 +138,27 @@ export async function putAwayBought(): Promise<PutAwayResult> {
   if (lines.length === 0) return { ok: false, error: "Nothing in the basket." };
 
   const stocked: string[] = [];
-  const left: string[] = [];
+  const left: LeftBehind[] = [];
 
   for (const line of lines) {
     if (line.item_id === null || line.stock_name === null) {
-      left.push(`${line.item_name} — not a thing on your shelves yet`);
+      left.push({
+        name: line.item_name,
+        reason: "unknown",
+        itemId: null,
+        quantity: line.quantity,
+        unit: line.unit,
+      });
       continue;
     }
     if (line.pack_size === null) {
-      left.push(`${line.stock_name} — no pack size, so no amount to add`);
+      left.push({
+        name: line.stock_name,
+        reason: "no-pack",
+        itemId: line.item_id,
+        quantity: line.quantity,
+        unit: line.unit,
+      });
       continue;
     }
 

@@ -16,6 +16,7 @@ export type StockLevel = Pick<
   | "pack_size"
   | "pack_unit"
   | "unspecified"
+  | "count_noun"
 >;
 
 /**
@@ -64,9 +65,36 @@ export function openFraction(item: StockLevel): number | null {
   return Math.max(0, Math.min(1, item.quantity / pack.size));
 }
 
-/** The unit to print after a number. Counts read as bare numbers. */
-function unitLabel(item: StockLevel): string {
-  return item.canonical_unit === "count" ? "" : item.canonical_unit;
+/**
+ * Turns a singular noun into however many there are of it.
+ *
+ * Regular English only, and knowingly so: this is printing "tins" and "cloves"
+ * and "boxes", not conjugating anything. A kitchen that keeps geese can type
+ * the word it wants and get "2 goose" - the wrong plural of a word somebody
+ * chose is a smaller problem than a shelf that will not say what it holds.
+ */
+export function plural(noun: string): string {
+  if (/(s|x|z|ch|sh)$/i.test(noun)) return `${noun}es`;
+  if (/[^aeiou]y$/i.test(noun)) return `${noun.slice(0, -1)}ies`;
+  return `${noun}s`;
+}
+
+/**
+ * The unit to print after a number.
+ *
+ * A count carries its noun when it has one - "3 tins", "4 cloves" - because
+ * "count" is a fact about the database rather than about the shelf. Without
+ * one it is still a bare number: "4" for four of something obvious is how
+ * anybody would write it on paper.
+ *
+ * Mass and volume butt straight up against the number, "400ml"; a counted noun
+ * gets a space, because "4cloves" is not a thing anybody writes.
+ */
+function unitLabel(item: StockLevel, quantity: number): string {
+  if (item.canonical_unit !== "count") return item.canonical_unit;
+  const noun = item.count_noun?.trim();
+  if (!noun) return "";
+  return ` ${quantity === 1 ? noun : plural(noun)}`;
 }
 
 /**
@@ -80,10 +108,10 @@ export function describeStock(item: StockLevel): string {
 
   const pack = packOf(item);
   if (!pack) {
-    return `${formatQuantity(item.quantity)}${unitLabel(item)}`;
+    return `${formatQuantity(item.quantity)}${unitLabel(item, item.quantity)}`;
   }
 
-  const open = `${formatQuantity(item.quantity)}${unitLabel(item)} open`;
+  const open = `${formatQuantity(item.quantity)}${unitLabel(item, item.quantity)} open`;
   if (item.sealed_count === 0) {
     return item.quantity > 0 ? open : "none left";
   }

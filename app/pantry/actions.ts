@@ -98,6 +98,22 @@ export async function addItem(
   const dimension = dimensionOf(unit);
   if (!dimension) return { error: `"${unit}" isn't a unit I know.` };
 
+  /**
+   * What the count counts.
+   *
+   * "tin", "pack" and "jar" all canonicalise to 'count', and until now the
+   * word went in the bin at this line - so three tins of tomatoes landed on
+   * the shelf as "3". The word the form offers is the default; a typed one
+   * wins, because "clove" and "rasher" are not units anybody would put in
+   * the picker.
+   */
+  const typedNoun = String(formData.get("count_noun") ?? "").trim().toLowerCase();
+  const countNoun =
+    dimension !== "count" ? null : typedNoun || (unit === "count" ? null : unit);
+  if (countNoun !== null && countNoun.length > 20) {
+    return { error: "That is a long word for a thing to be counted in." };
+  }
+
   const converted = toCanonical(quantity, unit, dimension);
   if (!converted.ok) return { error: "That quantity couldn't be converted." };
 
@@ -125,8 +141,8 @@ export async function addItem(
   try {
     const inserted = await getDb().execute({
       sql: `INSERT INTO items (kitchen_id, name, quantity, canonical_unit, dimension, location, expiry_date, pack_size, pack_unit, sealed_count,
-              shelf_life_days, restock_target, unspecified, opened_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+              shelf_life_days, restock_target, unspecified, count_noun, opened_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     -- Stamped now when the thing arrives already open, which is
                     -- what "it's already open" on the form means.
                     CASE WHEN ? THEN CURRENT_TIMESTAMP END) RETURNING id`,
@@ -146,6 +162,7 @@ export async function addItem(
         shelfLife,
         convertedTarget && convertedTarget.ok ? convertedTarget.quantity : null,
         unspecified,
+        countNoun,
         alreadyOpen ? 1 : 0,
       ],
     });
@@ -322,6 +339,14 @@ export async function updateItem(
   const places = await getLocations(access.kitchen.id);
   const location = String(formData.get("location") ?? "").trim();
 
+  // Editable even though the unit is not: this is the label on the number
+  // rather than the number's meaning, so "4" becoming "4 cloves" reinterprets
+  // nothing. Blank puts it back to a bare count.
+  const countNoun = String(formData.get("count_noun") ?? "").trim().toLowerCase();
+  if (countNoun.length > 20) {
+    return { ok: false, error: "That is a long word for a thing to be counted in." };
+  }
+
   // The unit and dimension aren't editable: changing them would reinterpret a
   // number already on the shelf, and "800" meaning grams one minute and
   // millilitres the next is how stock counts quietly go wrong. Delete and
@@ -331,7 +356,12 @@ export async function updateItem(
       // category is deliberately absent: tags replaced it, and leaving the old
       // string where it is keeps the only way back if that turns out to be wrong.
       sql: `UPDATE items SET name = ?, quantity = ?, location = ?,
-              expiry_date = ?, shelf_life_days = ?, updated_at = CURRENT_TIMESTAMP
+              expiry_date = ?, shelf_life_days = ?,
+              -- Guarded rather than trusted: a noun on a row measured in
+              -- grams would print "400g cloves", and the form that could post
+              -- one is not the only thing that can post here.
+              count_noun = CASE WHEN canonical_unit = 'count' THEN ? ELSE count_noun END,
+              updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND kitchen_id = ?`,
       args: [
         name,
@@ -339,6 +369,7 @@ export async function updateItem(
         isKnownLocation(location, places) ? location : null,
         /^\d{4}-\d{2}-\d{2}$/.test(expiry) ? expiry : null,
         shelfLife,
+        countNoun || null,
         itemId,
         access.kitchen.id,
       ],

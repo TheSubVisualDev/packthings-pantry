@@ -39,6 +39,7 @@ export interface SubstituteOption {
     | "pack_size"
     | "pack_unit"
     | "unspecified"
+    | "count_noun"
     | "dimension"
   >;
 }
@@ -69,6 +70,7 @@ export interface CookLine {
     | "pack_size"
     | "pack_unit"
     | "unspecified"
+    | "count_noun"
   > | null;
   /** What else is in that could stand in, best first. Empty is common. */
   substitutes: SubstituteOption[];

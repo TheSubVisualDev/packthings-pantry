@@ -151,7 +151,20 @@ export function StockList({
             key={name}
             className="sm:rounded-[20px] sm:bg-card sm:p-5 sm:shadow-[0_1px_3px_rgba(0,0,0,0.05)]"
           >
-            <div className="mb-2.5 flex items-center justify-between gap-2 sm:mb-3">
+            {/*
+              A heading over the only group is a label with nothing to
+              distinguish it from. A new kitchen has no tags, so every item
+              lands under "UNTAGGED" and the first thing the shelf says is a
+              word about filing rather than about food. The heading comes
+              back the moment there is a second group to tell apart - and it
+              stays while selecting, because "Pick all" needs to say all of
+              what.
+            */}
+            <div
+              className={`mb-2.5 items-center justify-between gap-2 sm:mb-3 ${
+                groups.length === 1 && !selecting ? "hidden" : "flex"
+              }`}
+            >
               <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-label">
                 {name}
               </h2>

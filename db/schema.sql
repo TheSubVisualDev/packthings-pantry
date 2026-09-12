@@ -43,6 +43,12 @@ CREATE TABLE IF NOT EXISTS items (
   nutrition_source TEXT,
   -- "Some, I do not know how much": read nothing into quantity when this is 1.
   unspecified    INTEGER NOT NULL DEFAULT 0,
+  -- What a count is a count OF, singular: 'tin', 'clove', 'egg'.
+  -- canonical_unit is 'count' for all of them, so the word the user picked was
+  -- thrown away at the door and a shelf read "1000g / 3 / 4 / 400ml" - a column
+  -- you cannot run an eye down because two of the rows do not say what they
+  -- are. Null means an unqualified count, which still prints as a bare number.
+  count_noun     TEXT,
   updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   -- Per kitchen, not global. A name unique across the whole database meant the
   -- second household to buy milk could not write it down. Changing this on an

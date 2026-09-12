@@ -266,7 +266,9 @@ export async function getContents(kitchenId: number): Promise<KitchenContents> {
             (SELECT COUNT(*) FROM kitchen_members WHERE kitchen_id = ?) AS members`,
     args: [kitchenId, kitchenId, kitchenId, kitchenId, kitchenId],
   });
-  return result.rows[0] as unknown as KitchenContents;
+  // Plain object: the counts are handed to the delete confirmation, which is a
+  // client component, and a libSQL Row is not serialisable. See plainRows.
+  return plainRows<KitchenContents>(result)[0];
 }
 
 /**

@@ -141,8 +141,10 @@ export default async function KitchensPage({
           {youAreOwner && (
             <>
               <section className={CARD}>
-                <h2 className={LABEL}>Places</h2>
-                <div className="mt-3">
+                {/* The form's own label says "Places, in the order you'd walk
+                    them", which is the heading and the instruction in one, so
+                    a bare "Places" above it was the same word twice. */}
+                <div>
                   <EditLocations locations={locations} />
                 </div>
               </section>

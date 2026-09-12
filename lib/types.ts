@@ -52,6 +52,14 @@ export interface Item {
    * case as an unmatched line and already handled by the cook flow.
    */
   unspecified: number;
+  /**
+   * What a count is a count of, singular: "tin", "clove", "egg".
+   *
+   * canonical_unit says "count" for every one of them, so without this a shelf
+   * prints "3" beside "400ml" and only one of the two answers the question.
+   * Null is an unqualified count and still prints bare.
+   */
+  count_noun: string | null;
 
   /** Per 100g or 100ml, as Open Food Facts reports it. Null until scanned. */
   kcal_100: number | null;

@@ -164,6 +164,7 @@ export default async function RecipePage({
           pack_size: option.item.pack_size,
           pack_unit: option.item.pack_unit,
           unspecified: option.item.unspecified,
+          count_noun: option.item.count_noun,
           dimension: option.item.dimension,
         },
       })),
@@ -178,6 +179,7 @@ export default async function RecipePage({
             pack_size: item.pack_size,
             pack_unit: item.pack_unit,
             unspecified: item.unspecified,
+            count_noun: item.count_noun,
           }
         : null,
     };

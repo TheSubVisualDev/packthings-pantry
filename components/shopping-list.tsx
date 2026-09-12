@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useMemo, useState, useTransition } from "react";
 import { SoftSelect } from "@/components/soft-select";
 import { suggestFor, type ItemProfile } from "@/lib/suggest";
@@ -11,6 +12,7 @@ import {
   type ListResult,
 } from "@/app/pantry/list/actions";
 import { gotEverything, putAwayBought } from "@/app/pantry/trip-actions";
+import type { LeftBehind } from "@/app/pantry/trip-actions";
 import { ENTRY_UNITS, formatQuantity, unitSuffix } from "@/lib/units";
 import type { ShoppingLine } from "@/lib/shopping";
 
@@ -57,6 +59,14 @@ export function ShoppingList({
   const [tickError, setTickError] = useState<string | null>(null);
   /** What putting the basket away did, said once and left on screen. */
   const [putAway, setPutAway] = useState<string | null>(null);
+  /**
+   * The lines the put-away could not finish.
+   *
+   * Kept apart from the sentence above because each one is a thing to do
+   * rather than a thing to read, and a tap that fixes it beats a tap that
+   * dismisses it.
+   */
+  const [leftBehind, setLeftBehind] = useState<LeftBehind[]>([]);
 
   const isBought = (line: ShoppingLine) =>
     ticked[line.id] ?? Boolean(line.bought_at);
@@ -287,6 +297,43 @@ export function ShoppingList({
         </p>
       )}
 
+      {/* Each loose end with the tap that ties it. An item the pantry has
+          never heard of needs adding, with the name and amount off the list
+          already in the boxes; one that never said what a pack holds needs
+          that said on its own page. Both leave the line where it is until
+          the next put-away, so nothing is lost by ignoring this. */}
+      {leftBehind.length > 0 && (
+        <ul className="space-y-2">
+          {leftBehind.map((line) => (
+            <li
+              key={`${line.reason}-${line.name}`}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-[14px] bg-chip px-4 py-3 text-sm font-semibold"
+            >
+              <span>
+                {line.name} &mdash;{" "}
+                {line.reason === "unknown"
+                  ? "not on your shelves yet"
+                  : "nobody has said what one pack holds"}
+              </span>
+              <Link
+                href={
+                  line.reason === "unknown"
+                    ? `/pantry/add?${new URLSearchParams({
+                        name: line.name,
+                        ...(line.quantity ? { quantity: String(line.quantity) } : {}),
+                        ...(line.unit ? { unit: line.unit } : {}),
+                      })}`
+                    : `/pantry/item/${line.itemId}`
+                }
+                className="shrink-0 rounded-full bg-ink px-4 py-2 text-xs font-extrabold text-background"
+              >
+                {line.reason === "unknown" ? "Add it" : "Say the pack size"}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {lines.length === 0 ? (
         <p className="rounded-[20px] bg-card p-6 text-sm font-semibold text-muted-foreground shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
           Nothing on the list. Cooking something you&apos;re short of will offer
@@ -331,15 +378,11 @@ export function ShoppingList({
                       }
                       setTicked({});
                       setPutAway(
-                        [
-                          result.stocked?.length
-                            ? `${result.stocked.length} put away.`
-                            : null,
-                          ...(result.left ?? []),
-                        ]
-                          .filter(Boolean)
-                          .join(" "),
+                        result.stocked?.length
+                          ? `${result.stocked.length} put away.`
+                          : null,
                       );
+                      setLeftBehind(result.left ?? []);
                     })
                   }
                   className="min-h-9 rounded-full bg-ink px-4 text-xs font-extrabold text-background disabled:opacity-60 print:hidden"
