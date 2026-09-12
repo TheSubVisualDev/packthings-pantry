@@ -185,6 +185,17 @@ export async function addItem(
       args: [barcode, access.kitchen.id, itemId, name, converted.quantity, CANONICAL_FOR[dimension]],
     });
 
+    // The per-kitchen half of the same fact. See kitchen_products in
+    // db/schema.sql for why the mapping left the product row.
+    await getDb().execute({
+      sql: `INSERT INTO kitchen_products (kitchen_id, barcode, item_id, seen_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(kitchen_id, barcode) DO UPDATE SET
+              item_id = excluded.item_id,
+              seen_at = CURRENT_TIMESTAMP`,
+      args: [access.kitchen.id, barcode, itemId],
+    });
+
     // Same cache as the link flow: asked once per barcode, then never again.
     const macros = await macrosForBarcode(barcode);
     await copyMacrosToItem(access.kitchen.id, itemId, macros);

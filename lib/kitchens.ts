@@ -260,7 +260,7 @@ export async function getContents(kitchenId: number): Promise<KitchenContents> {
   const result = await getDb().execute({
     sql: `SELECT
             (SELECT COUNT(*) FROM items WHERE kitchen_id = ?) AS items,
-            (SELECT COUNT(*) FROM products WHERE kitchen_id = ?) AS products,
+            (SELECT COUNT(*) FROM kitchen_products WHERE kitchen_id = ?) AS products,
             (SELECT COUNT(*) FROM cook_events WHERE kitchen_id = ?) AS cooks,
             (SELECT COUNT(*) FROM shopping_list WHERE kitchen_id = ?) AS shopping,
             (SELECT COUNT(*) FROM kitchen_members WHERE kitchen_id = ?) AS members`,

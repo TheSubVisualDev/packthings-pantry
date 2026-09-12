@@ -79,12 +79,23 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
     return { ok: false, error: `"${code}" doesn't look like a barcode.` };
   }
 
+  /**
+   * The product is everybody's; the mapping is this kitchen's.
+   *
+   * A barcode row used to carry both, so two kitchens scanning the same tin
+   * shared one row and the last one to scan it silently owned the other's
+   * mapping. `products` is now what is true of the tin anywhere, and
+   * `kitchen_products` is what this kitchen decided it means.
+   */
   const stored = await getDb().execute({
-    sql: `SELECT p.name, p.brand, p.pack_size, p.pack_unit, p.item_id,
+    sql: `SELECT p.name, p.brand, p.pack_size, p.pack_unit, kp.item_id,
                  i.name AS item_name, i.quantity AS item_quantity, i.canonical_unit
-          FROM products p LEFT JOIN items i ON i.id = p.item_id
-          WHERE p.barcode = ? AND p.kitchen_id = ?`,
-    args: [code, access.kitchen.id],
+          FROM products p
+          LEFT JOIN kitchen_products kp
+            ON kp.barcode = p.barcode AND kp.kitchen_id = ?
+          LEFT JOIN items i ON i.id = kp.item_id AND i.kitchen_id = ?
+          WHERE p.barcode = ?`,
+    args: [access.kitchen.id, access.kitchen.id, code],
   });
 
   const row = stored.rows[0] as unknown as
@@ -241,6 +252,10 @@ export async function linkBarcode(
     if (converted.ok) packCanonical = converted.quantity;
   }
 
+  // What the tin is, which is true for everyone. kitchen_id and item_id are
+  // still written for now: they are frozen rather than dropped, and a column
+  // that stops being maintained while it still exists is a trap for whoever
+  // reads it next.
   await db.execute({
     sql: `INSERT INTO products (barcode, kitchen_id, item_id, name, brand, pack_size, pack_unit, seen_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -260,6 +275,17 @@ export async function linkBarcode(
       packCanonical,
       packCanonical === null ? null : item.canonical_unit,
     ],
+  });
+
+  // And what this kitchen decided it means, which is the half that used to be
+  // overwritten by whoever scanned the same tin last.
+  await db.execute({
+    sql: `INSERT INTO kitchen_products (kitchen_id, barcode, item_id, seen_at)
+          VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(kitchen_id, barcode) DO UPDATE SET
+            item_id = excluded.item_id,
+            seen_at = CURRENT_TIMESTAMP`,
+    args: [access.kitchen.id, code, itemId],
   });
 
   let quantity = item.quantity;
@@ -303,9 +329,11 @@ export async function restockBarcode(
   if (!isBarcode(code)) return { ok: false, error: "Bad barcode" };
 
   const result = await getDb().execute({
-    sql: `SELECT p.item_id, p.pack_size, i.canonical_unit
-          FROM products p JOIN items i ON i.id = p.item_id
-          WHERE p.barcode = ? AND p.kitchen_id = ?`,
+    sql: `SELECT kp.item_id, p.pack_size, i.canonical_unit
+          FROM kitchen_products kp
+          JOIN items i ON i.id = kp.item_id AND i.kitchen_id = kp.kitchen_id
+          LEFT JOIN products p ON p.barcode = kp.barcode
+          WHERE kp.barcode = ? AND kp.kitchen_id = ?`,
     args: [code, access.kitchen.id],
   });
 

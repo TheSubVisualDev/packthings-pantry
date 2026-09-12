@@ -178,6 +178,24 @@ for (const statement of statements.filter(isIndex)) {
 console.log(`indexes: ${statements.filter(isIndex).length} ensured`);
 
 /**
+ * Moves each kitchen's barcode mapping out of `products` and into
+ * `kitchen_products`.
+ *
+ * Additive in both directions: products.kitchen_id and products.item_id are
+ * left exactly where they are - frozen, the way items.category is - so this
+ * can be re-run, and a rollback is deleting a table rather than reconstructing
+ * a column. INSERT OR IGNORE means the second run is a no-op even if somebody
+ * has since re-linked a barcode by hand.
+ */
+const mapped = await client.execute(`
+  INSERT OR IGNORE INTO kitchen_products (kitchen_id, barcode, item_id, seen_at)
+  SELECT kitchen_id, barcode, item_id, COALESCE(seen_at, CURRENT_TIMESTAMP)
+  FROM products
+  WHERE kitchen_id IS NOT NULL
+`);
+console.log(`kitchen_products: ${mapped.rowsAffected} mappings carried over`);
+
+/**
  * Turns every existing `category` string into a tag, and files the item under
  * it.
  *

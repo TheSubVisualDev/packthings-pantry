@@ -177,6 +177,43 @@ CREATE TABLE IF NOT EXISTS products (
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_item ON products(item_id);
+
+-- Which of YOUR rows a barcode means, per kitchen.
+--
+-- products.barcode is a global primary key while the row also carried
+-- kitchen_id and item_id, so two kitchens scanning the same tin of beans got
+-- one row and whoever scanned last silently replaced the other's mapping. It
+-- never fired because there is one active household; asking "which baked bean
+-- is best" - a question about a barcode across everybody - is what forces it.
+--
+-- So the split: `products` keeps what is true of the product everywhere (name,
+-- brand, pack size, nutrition) and belongs to nobody, and this table holds
+-- what one kitchen decided about it. The old columns on `products` are frozen
+-- in place rather than dropped, the way items.category was.
+CREATE TABLE IF NOT EXISTS kitchen_products (
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  barcode    TEXT NOT NULL,
+  item_id    INTEGER REFERENCES items(id) ON DELETE SET NULL,
+  seen_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (kitchen_id, barcode)
+);
+
+CREATE INDEX IF NOT EXISTS idx_kitchen_products_item ON kitchen_products(item_id);
+
+-- What people made of a particular product, across every kitchen.
+--
+-- Keyed by barcode rather than by item, because "is Aldi's better than Tesco's"
+-- is a question about the tin, and one kitchen's "Baked beans" row is another's
+-- "beans". One rating per person per product: a household that disagrees about
+-- a brand should be able to say so twice.
+CREATE TABLE IF NOT EXISTS product_ratings (
+  barcode    TEXT NOT NULL,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating     INTEGER NOT NULL,
+  note       TEXT,
+  rated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (barcode, user_id)
+);
 CREATE INDEX IF NOT EXISTS idx_items_kitchen ON items(kitchen_id);
 CREATE INDEX IF NOT EXISTS idx_products_kitchen ON products(kitchen_id);
 CREATE INDEX IF NOT EXISTS idx_cook_events_kitchen ON cook_events(kitchen_id);
