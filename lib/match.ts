@@ -30,8 +30,19 @@ const NOISE = new Set([
   "brand", "pack", "multipack", "original",
 ]);
 
-/** Strips a plural so "Onions" and "Onion" meet in the middle. */
+/**
+ * Strips a plural so "Onions" and "Onion" meet in the middle.
+ *
+ * The -es cases are here because stripping only the s left "tomatoes" as
+ * "tomatoe", which meets "tomato" nowhere - so a recipe calling for tomatoes
+ * scored zero against a pantry row called "Plum tomatoes". Restricted to the
+ * endings where -es is genuinely the plural (-oes, -ses, -xes, -zes, -ches,
+ * -shes); a blanket -es would turn "cheese" into "chee".
+ */
 function stem(token: string): string {
+  if (token.length > 4 && /(?:o|s|x|z|ch|sh)es$/.test(token)) {
+    return token.slice(0, -2);
+  }
   if (token.length > 3 && token.endsWith("s") && !token.endsWith("ss")) {
     return token.slice(0, -1);
   }
@@ -70,8 +81,13 @@ export function tokenise(name: string, brand?: string | null): string[] {
  * Dice coefficient over the two token sets, with a floor for one name wholly
  * containing the other - "spaghetti" inside "wholewheat spaghetti" is a better
  * match than the raw overlap suggests.
+ *
+ * Exported because lib/pantry-match.ts scores recipe lines against stock and
+ * must not grow a second opinion about what two names being the same thing
+ * means. It caches its own tokens across lines, which is why it wants the
+ * scorer rather than rankItems.
  */
-function similarity(a: string[], b: string[]): number {
+export function nameSimilarity(a: string[], b: string[]): number {
   if (a.length === 0 || b.length === 0) return 0;
 
   const setA = new Set(a);
@@ -116,7 +132,7 @@ export function rankItems(
 
   return items
     .map((item) => {
-      let score = similarity(product, tokenise(item.name));
+      let score = nameSimilarity(product, tokenise(item.name));
       if (packDimension && packDimension !== item.dimension) score *= 0.75;
       return { item, score };
     })

@@ -1,4 +1,11 @@
 import { getDb } from "./db";
+import {
+  countStocked,
+  indexStock,
+  isConfident,
+  resolveLines,
+  type StockIndex,
+} from "./pantry-match";
 import { VISIBLE_TO_VIEWER, viewerArgs } from "./social";
 import type {
   Item,
@@ -176,22 +183,21 @@ export async function getRecipe(
   return { ...recipe, ingredients, steps };
 }
 
-/** Item names currently in stock, lowercased, for recipe match indicators. */
-export async function getStockedItemNames(
-  kitchenId: number | null,
-): Promise<Set<string>> {
-  if (kitchenId === null) return new Set();
-
-  const result = await getDb().execute({
-    // sealed_count as well as quantity: an unopened tin is still in the
-    // cupboard, and 'quantity' has meant "what is in the OPEN one" since
-    // containers arrived. Without this, three sealed tins read as none.
-    sql: "SELECT name FROM items WHERE kitchen_id = ? AND (quantity > 0 OR sealed_count > 0)",
-    args: [kitchenId],
-  });
-  return new Set(
-    (result.rows as unknown as { name: string }[]).map((r) => r.name.toLowerCase()),
-  );
+/**
+ * The kitchen's stock, tokenised once, ready to resolve recipe lines against.
+ *
+ * This replaces getStockedItemNames, which returned a Set of lowercased names
+ * and compared against it with `===`. That is why a recipe calling for "firm
+ * tofu" read as unstocked against a row called "Tofu": the ranking put it below
+ * recipes that could not be made, and the rescue for expiring tofu never fired
+ * at all. lib/pantry-match.ts is the one answer now.
+ *
+ * Every row, not only the ones with something in them. Whether a line *means*
+ * a row and whether that row has anything left are different questions, and
+ * the shortfall list is made entirely of lines where the answers differ.
+ */
+async function getStockIndex(kitchenId: number | null): Promise<StockIndex> {
+  return indexStock(await getItems(kitchenId));
 }
 
 export interface RecipeWithMatch extends RecipeWithAuthor {
@@ -210,9 +216,9 @@ export async function getRecipesWithMatches(
   authorId: number,
   term = "",
 ): Promise<RecipeWithMatch[]> {
-  const [recipes, stocked, ingredientRows] = await Promise.all([
+  const [recipes, stock, ingredientRows] = await Promise.all([
     getMyRecipes(authorId, term),
-    getStockedItemNames(kitchenId),
+    getStockIndex(kitchenId),
     getDb().execute("SELECT recipe_id, item_name FROM recipe_ingredients"),
   ]);
 
@@ -223,14 +229,10 @@ export async function getRecipesWithMatches(
     else byRecipe.set(row.recipe_id, [row.item_name]);
   }
 
-  return recipes.map((recipe) => {
-    const names = byRecipe.get(recipe.id) ?? [];
-    return {
-      ...recipe,
-      have: names.filter((name) => stocked.has(name.toLowerCase())).length,
-      total: names.length,
-    };
-  });
+  return recipes.map((recipe) => ({
+    ...recipe,
+    ...countStocked(byRecipe.get(recipe.id) ?? [], stock),
+  }));
 }
 
 /**
@@ -469,10 +471,10 @@ export async function getRescues(
 ): Promise<Rescue[]> {
   if (kitchenId === null) return [];
 
-  const [expiring, recipes, stocked, ingredientRows] = await Promise.all([
+  const [expiring, recipes, stock, ingredientRows] = await Promise.all([
     getExpiring(kitchenId, withinDays),
     getMyRecipes(authorId),
-    getStockedItemNames(kitchenId),
+    getStockIndex(kitchenId),
     getDb().execute("SELECT recipe_id, item_name FROM recipe_ingredients"),
   ]);
   if (expiring.length === 0) return [];
@@ -486,19 +488,25 @@ export async function getRescues(
 
   const scored = recipes.map((recipe) => {
     const lines = names.get(recipe.id) ?? [];
-    return {
-      recipe,
-      lines: lines.map((name) => name.toLowerCase()),
-      have: lines.filter((name) => stocked.has(name.toLowerCase())).length,
-      total: lines.length,
-    };
+    /**
+     * Which stock rows this recipe actually calls for.
+     *
+     * Ids rather than lowercased names, because "does this recipe use the
+     * coriander that dies on Thursday" was previously asked as a string
+     * equality - so a recipe saying "fresh coriander" rescued nothing, which
+     * is the failure this whole panel exists to prevent.
+     */
+    const uses = new Set<number>();
+    for (const resolution of resolveLines(lines, stock).values()) {
+      if (resolution.item && isConfident(resolution)) uses.add(resolution.item.id);
+    }
+    return { recipe, uses, ...countStocked(lines, stock) };
   });
 
   return expiring
     .map((item) => {
-      const wanted = item.name.toLowerCase();
       const uses = scored
-        .filter((entry) => entry.lines.includes(wanted))
+        .filter((entry) => entry.uses.has(item.id))
         .sort((a, b) => {
           // Proportion rather than count: a recipe with three of four is a
           // better bet than one with four of twelve.
@@ -599,9 +607,9 @@ export async function getNeglected(
   const idle = result.rows as unknown as Omit<Neglected, "recipes">[];
   if (idle.length === 0) return [];
 
-  const [recipes, stocked, ingredientRows] = await Promise.all([
+  const [recipes, stock, ingredientRows] = await Promise.all([
     getMyRecipes(authorId),
-    getStockedItemNames(kitchenId),
+    getStockIndex(kitchenId),
     getDb().execute("SELECT recipe_id, item_name FROM recipe_ingredients"),
   ]);
 
@@ -612,19 +620,20 @@ export async function getNeglected(
     else names.set(row.recipe_id, [row.item_name]);
   }
 
+  // Scored once, not once per neglected item: resolving is the expensive part
+  // and the answer does not depend on which jar is being asked about.
+  const scored = recipes.map((recipe) => {
+    const lines = names.get(recipe.id) ?? [];
+    const uses = new Set<number>();
+    for (const resolution of resolveLines(lines, stock).values()) {
+      if (resolution.item && isConfident(resolution)) uses.add(resolution.item.id);
+    }
+    return { recipe, uses, ...countStocked(lines, stock) };
+  });
+
   return idle.map((item) => {
-    const wanted = item.name.toLowerCase();
-    const uses = recipes
-      .map((recipe) => {
-        const lines = names.get(recipe.id) ?? [];
-        return {
-          recipe,
-          lines: lines.map((name) => name.toLowerCase()),
-          have: lines.filter((name) => stocked.has(name.toLowerCase())).length,
-          total: lines.length,
-        };
-      })
-      .filter((entry) => entry.lines.includes(wanted))
+    const uses = scored
+      .filter((entry) => entry.uses.has(item.id))
       .sort((a, b) => b.have / Math.max(1, b.total) - a.have / Math.max(1, a.total))
       .slice(0, 2)
       .map((entry) => ({ ...entry.recipe, have: entry.have, total: entry.total }));

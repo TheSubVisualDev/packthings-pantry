@@ -13,7 +13,8 @@
     "probe": "node --env-file=.env.local scripts/probe-db.mjs",
     "check:cascade": "node scripts/check-cascade.mjs",
     "check:estimates": "node --import ./scripts/ts-imports.mjs scripts/check-estimates.mjs",
-    "check:receipt": "node --import ./scripts/ts-imports.mjs scripts/check-receipt.mjs"
+    "check:receipt": "node --import ./scripts/ts-imports.mjs scripts/check-receipt.mjs",
+    "check:match": "node --import ./scripts/ts-imports.mjs scripts/check-match.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
