@@ -16,8 +16,8 @@
  * - `wide`  the stock page, which is genuinely a lot of rows
  *
  * The bottom padding is large on every one of them and deliberately so: the
- * FAB floats over the end of the page, and a last row it covers is a row you
- * cannot press.
+ * navigation bar sits over the end of the page on a phone, and a last row it
+ * covers is a row you cannot press.
  */
 
 const WIDTHS = {

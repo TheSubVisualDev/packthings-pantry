@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Undo2 } from "lucide-react";
+import { ChevronDown, Sparkles, Undo2 } from "lucide-react";
 import { addItem, type AddItemState } from "@/app/pantry/actions";
 import { ChipPicker } from "@/components/chip-picker";
 import { dimensionOf, UNITS_BY_DIMENSION } from "@/lib/units";
@@ -107,6 +107,21 @@ export function AddItemForm({
    * over something and watching it change back is the failure mode that makes
    * people distrust every clever form they meet afterwards.
    */
+  /**
+   * Whether the optional half of the form is showing.
+   *
+   * Closed by default, and that is the whole point of the guessing. Adding
+   * pasta used to cost twelve fields - name, amount, unit, two checkboxes, a
+   * restock target, tags, shops, a location, an expiry date, a shelf life and
+   * an "already open" box - of which eleven are optional and most are now
+   * answered from the nearest thing you already own. Leaving them on screen
+   * meant reading eleven questions to answer one.
+   *
+   * The fields are hidden rather than unmounted, so everything guessed still
+   * posts with the form. What is not shown is still true.
+   */
+  const [showAll, setShowAll] = useState(false);
+
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [overrides, setOverrides] = useState<Record<string, string>>({});
 
@@ -175,6 +190,20 @@ export function AddItemForm({
   // An unrecognised prefill unit falls back to mass rather than blanking the
   // label; the action rejects it on submit either way.
   const dimension = dimensionOf(unit) ?? "mass";
+
+  /**
+   * What the form already knows, said in one line.
+   *
+   * Reading it is how you check the guess without opening anything, which is
+   * the only reason hiding the fields is safe.
+   */
+  const summary = [
+    location || null,
+    packed && packSize ? `${packSize}${unit} packs` : null,
+    (touched.tags ? null : suggestion.tags?.join(", ")) || null,
+    (touched.shops ? null : suggestion.shops?.[0]) || null,
+    shelfLife ? `keeps ${shelfLife}d open` : null,
+  ].filter(Boolean);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -268,6 +297,32 @@ export function AddItemForm({
         </div>
       </div>
 
+      {/* Everything below is optional, guessed where it can be, and folded
+          away until asked for. */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setShowAll((value) => !value)}
+          aria-expanded={showAll}
+          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[14px] bg-chip px-4 text-left text-sm font-bold"
+        >
+          <span className="min-w-0 flex-1 truncate">
+            {summary.length > 0 ? (
+              <span className="font-semibold text-muted-foreground">
+                {summary.join(" · ")}
+              </span>
+            ) : (
+              "Tags, shop, location, dates"
+            )}
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 transition-transform ${showAll ? "rotate-180" : ""}`}
+            strokeWidth={3}
+          />
+        </button>
+      </div>
+
+      <div hidden={!showAll} className="space-y-4">
       <label className="flex items-center gap-2.5 text-sm font-bold">
         <input
           type="checkbox"
@@ -393,8 +448,13 @@ export function AddItemForm({
         />
       </div>
 
-      <div className="flex gap-3">
-        <div className="flex-1">
+      {/* These three were one flex row with an unclosed div, so the shelf-life
+          block ended up as a third child of the location/expires row and all
+          three fought over a phone's width - the location select rendered as
+          "Ur". They are their own rows now, and only pair up once there is a
+          screen wide enough for two fields to share a line. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:gap-3">
+        <div className="min-w-0 flex-1">
           <label htmlFor="location" className={LABEL}>
             Location
           </label>
@@ -406,26 +466,33 @@ export function AddItemForm({
             className={FIELD}
           >
             <option value="">Unplaced</option>
-            {locations.map((location) => (
-              <option key={location} value={location}>
-                {location}
+            {locations.map((place) => (
+              <option key={place} value={place}>
+                {place}
               </option>
             ))}
           </select>
         </div>
-        <div className="flex-1">
+
+        <div className="min-w-0 flex-1">
           <label htmlFor="expiry_date" className={LABEL}>
             Expires
           </label>
-          <input id="expiry_date" name="expiry_date" type="date" className={FIELD} />
+          <input
+            id="expiry_date"
+            name="expiry_date"
+            type="date"
+            className={FIELD}
+          />
         </div>
+      </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-36 flex-1">
-          <label htmlFor="shelf_life_days" className={LABEL}>
-            Keeps once open{" "}
-            <span className="normal-case text-muted-foreground">days</span>
-          </label>
+      <div>
+        <label htmlFor="shelf_life_days" className={LABEL}>
+          Keeps once open{" "}
+          <span className="normal-case text-muted-foreground">days</span>
+        </label>
+        <div className="flex flex-wrap items-center gap-3">
           <input
             id="shelf_life_days"
             name="shelf_life_days"
@@ -436,18 +503,19 @@ export function AddItemForm({
             placeholder="—"
             value={shelfLife}
             onChange={(event) => set("shelf_life_days", event.target.value)}
-            className={FIELD}
+            className={`${FIELD} w-28 shrink-0`}
           />
+          <label className="flex min-h-11 items-center gap-2.5 text-sm font-bold">
+            <input
+              type="checkbox"
+              name="opened"
+              className="h-4 w-4 accent-[var(--color-primary)]"
+            />
+            It&apos;s already open
+          </label>
         </div>
-        <label className="flex min-w-36 flex-1 items-center gap-2.5 py-2.5 text-sm font-bold">
-          <input
-            type="checkbox"
-            name="opened"
-            className="h-4 w-4 accent-[var(--color-primary)]"
-          />
-          It&apos;s already open
-        </label>
       </div>
+
       </div>
 
       {state.error && (

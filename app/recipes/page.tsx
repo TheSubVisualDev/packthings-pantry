@@ -100,26 +100,17 @@ export default async function RecipesPage({
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
             Your cookbook
           </h1>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/cooked"
-              className="rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
-            >
-              Cooked
-            </Link>
-            <Link
-              href="/recipes/paste"
-              className="rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
-            >
-              Paste from Claude
-            </Link>
-            <Link
-              href="/recipes/new"
-              className="rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
-            >
-              New recipe
-            </Link>
-          </div>
+          {/* Three equally-weighted chips wrapped onto two lines on a phone
+              and read as the main thing on the page, which none of them is -
+              writing a recipe already has the FAB, and Cooked is a history you
+              visit occasionally. One quiet link, and the rest live where they
+              belong. */}
+          <Link
+            href="/cooked"
+            className="flex min-h-11 shrink-0 items-center text-sm font-bold text-muted-foreground hover:text-foreground"
+          >
+            Cooked →
+          </Link>
         </div>
 
         <Suspense>

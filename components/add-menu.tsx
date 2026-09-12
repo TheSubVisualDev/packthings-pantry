@@ -2,95 +2,91 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-
-/** Barcode glyph from the artboards - five bars of varying width. */
-function BarcodeIcon() {
-  return (
-    <span className="flex h-[15px] w-5 items-center gap-[1.5px]" aria-hidden>
-      {[2, 1, 3, 1, 2].map((width, i) => (
-        <span
-          key={i}
-          className="h-full bg-ink"
-          style={{ width: `${width}px` }}
-        />
-      ))}
-    </span>
-  );
-}
-
-const actions = [
-  { key: "scan", label: "Scan barcode", icon: <BarcodeIcon />, href: "/pantry/scan" },
-  { key: "receipt", label: "Scan receipt", icon: "🧾", href: "/pantry/receipt" },
-  { key: "add", label: "Add item", icon: "+", href: "/pantry/add" },
-  { key: "recipe", label: "New recipe", icon: "✎", href: "/recipes/new" },
-  { key: "adjust", label: "Quick adjust", icon: "↕", href: "/pantry/adjust" },
-  { key: "list", label: "Shopping list", icon: "≡", href: "/pantry/list" },
-] as const;
+import { useState } from "react";
+import {
+  ArrowUpDown,
+  Barcode,
+  ListChecks,
+  NotebookPen,
+  Plus,
+  Receipt,
+  ShoppingBasket,
+} from "lucide-react";
+import { BottomNav } from "@/components/bottom-nav";
+import { Sheet } from "@/components/ui/sheet";
 
 /**
- * Floating add menu from artboards 2a/2b. Every action goes somewhere now.
+ * Everything you can add, and the two ways to reach it.
+ *
+ * On a phone the opener is the raised button in the middle of the bottom bar,
+ * because that is where a thumb rests and this is the most-pressed control in
+ * the app. On a desktop it stays a floating button in the corner, which is
+ * where a pointer expects one.
+ *
+ * The menu itself was a small panel hanging off the button, which on a phone
+ * meant a 230px-wide list of six things sitting over the page in the corner
+ * furthest from anywhere. It is a sheet now - the same sheet as everywhere
+ * else, so it closes on Escape, traps focus and does not scroll the page
+ * behind it - and the actions are two across rather than six down, which fits
+ * without scrolling and makes each one a square you can hit rather than a
+ * 40px-tall strip.
  */
+
+const actions = [
+  { key: "add", label: "Add item", Icon: Plus, href: "/pantry/add" },
+  { key: "adjust", label: "Quick adjust", Icon: ArrowUpDown, href: "/pantry/adjust" },
+  { key: "scan", label: "Scan barcode", Icon: Barcode, href: "/pantry/scan" },
+  { key: "receipt", label: "Scan receipt", Icon: Receipt, href: "/pantry/receipt" },
+  { key: "list", label: "Shopping list", Icon: ShoppingBasket, href: "/pantry/list" },
+  { key: "recipe", label: "New recipe", Icon: NotebookPen, href: "/recipes/new" },
+  { key: "cooked", label: "Cooked log", Icon: ListChecks, href: "/cooked" },
+] as const;
+
 export function AddMenu() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
-  // The layout renders this on every route, including the signed-out login
-  // screen, where an add button has nothing to add to.
-  if (pathname === "/login") return null;
+  // Rendered on every route, including the signed-out screens, where an add
+  // button has nothing to add to.
+  if (pathname === "/login" || pathname === "/setup") return null;
 
   return (
     <>
-      {open && (
-        <button
-          type="button"
-          aria-label="Close menu"
-          onClick={() => setOpen(false)}
-          className="fixed inset-0 z-40 bg-[rgba(28,26,23,0.28)] sm:bg-transparent"
-        />
-      )}
+      <BottomNav onAdd={() => setOpen(true)} />
 
-      {open && (
-        <div
-          data-fab
-          className="fixed right-5 bottom-24 z-50 w-58 rounded-[18px] border border-border bg-white p-2 shadow-[0_18px_40px_-18px_rgba(60,44,30,0.5)] sm:right-8 sm:bottom-26">
-          {actions.map((action) => (
+      {/* Desktop keeps a corner button: the bottom bar is a phone answer, and
+          a wide screen has neither the thumb nor the shortage of room that
+          makes it the right one. */}
+      <button
+        type="button"
+        aria-label="Open add menu"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        className="fixed right-8 bottom-8 z-40 hidden h-15 w-15 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_28px_-8px_oklch(0.55_0.13_35/0.7)] transition-transform hover:scale-105 sm:flex"
+      >
+        <Plus className="h-7 w-7" strokeWidth={3} />
+      </button>
+
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Add"
+        description="Everything that puts something into the pantry."
+      >
+        <div className="grid grid-cols-2 gap-2">
+          {actions.map(({ key, label, Icon, href }) => (
             <Link
-              key={action.key}
-              href={action.href}
+              key={key}
+              href={href}
               onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold transition-colors hover:bg-chip"
+              className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-[16px] bg-chip px-3 py-4 text-center text-[13px] font-bold transition-colors hover:bg-border"
             >
-              <span className="flex w-5 justify-center font-extrabold text-primary">
-                {action.icon}
-              </span>
-              {action.label}
+              <Icon className="h-5 w-5 text-primary" strokeWidth={2.5} />
+              {label}
             </Link>
           ))}
         </div>
-      )}
-
-      <button
-        type="button"
-        aria-label={open ? "Close add menu" : "Open add menu"}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        data-fab
-        className="fixed right-5 bottom-6 z-50 flex h-[58px] w-[58px] items-center justify-center rounded-full bg-primary text-3xl leading-none text-primary-foreground shadow-[0_12px_28px_-8px_oklch(0.55_0.13_35/0.7)] transition-transform hover:scale-105 sm:right-8 sm:bottom-8 sm:h-15 sm:w-15"
-      >
-        <span className={open ? "rotate-45 transition-transform" : "transition-transform"}>
-          +
-        </span>
-      </button>
+      </Sheet>
     </>
   );
 }

@@ -19,10 +19,13 @@ const tabs = [
  * mobile (muted track, white active pill) and as standalone pills on desktop
  * (dark active pill), matching the two artboards.
  *
- * Everything that isn't navigation sits in one menu on the right. Three tabs, a
- * kitchen switcher, a settings link and a sign-out button did not fit on a
- * phone, and none of the last three is something you reach for often enough to
- * earn permanent space.
+ * Everything that isn't navigation sits in one menu on the right.
+ *
+ * **The sections are not here on a phone.** They moved to a bar along the
+ * bottom, where a thumb is - see components/bottom-nav.tsx. What is left up
+ * here on a phone is identity and context: which kitchen you are in, and how
+ * much is in it. A desktop keeps the tabs, because a pointer has no reach
+ * problem and a wide screen has room to spare at the top.
  */
 export async function SiteHeader({
   active,
@@ -47,14 +50,10 @@ export async function SiteHeader({
             <PantryMark className="h-[26px] w-[23px] text-primary" />
             {/* The wordmark is the first thing to go when space is tight - the
                 mark alone still says where you are. */}
-            <span className="hidden sm:inline">Pantry</span>
+            <span className="hidden lg:inline">Pantry</span>
           </Link>
 
-          {/* One control, scrolling sideways when it has to. The nav used to
-              be a pill track on a phone and standalone pills on a desktop -
-              two treatments to keep in step, and neither of them survived
-              gaining a fourth tab on a 360px screen. */}
-          <nav className="min-w-0">
+          <nav className="hidden min-w-0 sm:block">
             <Segmented
               label="Sections"
               active={active}
@@ -65,6 +64,16 @@ export async function SiteHeader({
               }))}
             />
           </nav>
+
+          {/* The phone gets the count instead, which the tabs were crowding
+              out - it was desktop-only before, which is backwards: knowing
+              there are 29 items matters most on the screen that can only show
+              eight of them. */}
+          {meta && (
+            <span className="truncate text-sm font-semibold text-muted-foreground sm:hidden">
+              {meta}
+            </span>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-3">

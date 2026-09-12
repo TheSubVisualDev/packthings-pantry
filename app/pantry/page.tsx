@@ -162,10 +162,6 @@ export default async function PantryPage({
               Shopping{toBuy > 0 ? ` · ${toBuy}` : ""}
             </Link>
           </div>
-          <div className="mb-1 text-[13px] font-bold text-muted-foreground sm:hidden">
-            {items.length} items · cook something?
-          </div>
-
           {best ? (
             <div className="mt-2 space-y-3 sm:mt-0">
               <TonightCard suggestion={best} servings={2} />

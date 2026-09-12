@@ -11,10 +11,18 @@ import type { Item } from "@/lib/types";
  * The stock list, with a selection mode over it.
  *
  * Selecting is a mode rather than a checkbox beside every row: a checkbox on
- * each chip would be permanent clutter for something you do occasionally, and
- * the chips are small. In normal use a tap opens the item, which is what a tap
- * has always done; in selection mode a tap picks it. Nothing moves position
- * between the two, so the list does not reflow when you switch.
+ * each row would be permanent clutter for something you do occasionally. In
+ * normal use a tap opens the item, which is what a tap has always done; in
+ * selection mode a tap picks it. Nothing moves position between the two, so the
+ * list does not reflow when you switch.
+ *
+ * Rows, not chips. This was a wrapping row of pills, which reads well with two
+ * or three words in each and falls apart with real stock: "Extra thick double
+ * cream 1 sealed + 300ml open" is most of a phone's width on its own, so every
+ * pill took a line anyway and 29 items came to six screens of scrolling. Rows
+ * are shorter, and putting the amount in its own right-aligned column means
+ * "how much have I got" can be answered by running an eye down one edge
+ * instead of reading every line to its end.
  */
 export function StockList({
   groups,
@@ -119,26 +127,40 @@ export function StockList({
               )}
             </div>
 
-            <ul className="flex flex-wrap gap-2">
+            <ul className="overflow-hidden rounded-[16px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:rounded-[12px] sm:bg-transparent sm:shadow-none">
               {groupItems.map((item) => {
                 const picked = selected.has(item.id);
                 const body = (
                   <>
-                    {item.name}{" "}
-                    <span className="font-bold text-quantity">{describeStock(item)}</span>
-                    {item.opened_at && !labelSaysOpen(item) && (
-                      <span
-                        title="Opened"
-                        className="ml-1.5 text-xs font-bold text-muted-foreground"
-                      >
-                        open
-                      </span>
-                    )}
+                    <span className="min-w-0 flex-1 truncate">
+                      {item.name}
+                      {item.opened_at && !labelSaysOpen(item) && (
+                        <span
+                          title="Opened"
+                          className="ml-1.5 text-xs font-bold text-muted-foreground"
+                        >
+                          open
+                        </span>
+                      )}
+                    </span>
+                    {/* Its own column, right-aligned and tabular, so amounts
+                        line up down the edge and can be compared without
+                        reading the names again. */}
+                    <span
+                      className={`shrink-0 text-right text-[13px] font-bold tabular-nums ${
+                        picked ? "" : "text-quantity"
+                      }`}
+                    >
+                      {describeStock(item)}
+                    </span>
                   </>
                 );
 
+                // 44px of row, which is the thumb floor, and a hairline rather
+                // than a gap between them - a divider reads as one list where
+                // gaps read as a pile of separate things.
                 const shape =
-                  "block rounded-[14px] px-3 py-2.5 text-left text-sm font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-colors sm:rounded-xl sm:px-3 sm:py-2 sm:shadow-none";
+                  "flex min-h-11 w-full items-center gap-3 border-b border-border px-3.5 py-2 text-left text-sm font-semibold transition-colors last:border-b-0 sm:min-h-0 sm:py-1.5";
 
                 return (
                   <li key={item.id}>
@@ -150,7 +172,7 @@ export function StockList({
                         className={`${shape} ${
                           picked
                             ? "bg-primary text-primary-foreground"
-                            : "bg-card hover:bg-chip sm:bg-chip sm:hover:bg-border"
+                            : "hover:bg-chip"
                         }`}
                       >
                         {body}
@@ -158,7 +180,7 @@ export function StockList({
                     ) : (
                       <Link
                         href={`/pantry/item/${item.id}`}
-                        className={`${shape} bg-card hover:bg-chip sm:bg-chip sm:hover:bg-border`}
+                        className={`${shape} hover:bg-chip`}
                       >
                         {body}
                       </Link>

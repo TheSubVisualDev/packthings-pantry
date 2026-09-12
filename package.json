@@ -19,7 +19,8 @@
     "check:recipe-tags": "node --import ./scripts/ts-imports.mjs scripts/check-recipe-tags.mjs",
     "check:tonight": "node --import ./scripts/ts-imports.mjs scripts/check-tonight.mjs",
     "check:step-timers": "node --import ./scripts/ts-imports.mjs scripts/check-step-timers.mjs",
-    "check:suggest": "node --import ./scripts/ts-imports.mjs scripts/check-suggest.mjs"
+    "check:suggest": "node --import ./scripts/ts-imports.mjs scripts/check-suggest.mjs",
+    "shots": "node --env-file=.env.local scripts/screenshot.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -44,6 +45,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
+    "playwright": "^1.63.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
