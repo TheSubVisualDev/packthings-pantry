@@ -18,7 +18,8 @@
     "check:cookbook": "node --import ./scripts/ts-imports.mjs scripts/check-cookbook.mjs",
     "check:recipe-tags": "node --import ./scripts/ts-imports.mjs scripts/check-recipe-tags.mjs",
     "check:tonight": "node --import ./scripts/ts-imports.mjs scripts/check-tonight.mjs",
-    "check:step-timers": "node --import ./scripts/ts-imports.mjs scripts/check-step-timers.mjs"
+    "check:step-timers": "node --import ./scripts/ts-imports.mjs scripts/check-step-timers.mjs",
+    "check:suggest": "node --import ./scripts/ts-imports.mjs scripts/check-suggest.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

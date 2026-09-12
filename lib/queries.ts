@@ -4,6 +4,7 @@ import { countStockedLines, getLinks, resolveWithLinks } from "./cookbook";
 import { inStock } from "./containers";
 import { totalMinutes } from "./recipe-tags";
 import type { RecipeFacts } from "./tonight";
+import type { ItemProfile } from "./suggest";
 import { VISIBLE_TO_VIEWER, viewerArgs } from "./social";
 import type {
   Item,
@@ -784,4 +785,57 @@ export async function getTonightFacts(
       daysSinceCooked: sinceByRecipe.get(recipe.id) ?? null,
     };
   });
+}
+
+/**
+ * This kitchen's stock, trimmed to the fields an add form can copy.
+ *
+ * Narrower than getItems on purpose: it is handed to the browser so a new
+ * item can inherit the unit, shelf and tags of the nearest thing you already
+ * own, and a kitchen's full rows carry nutrition figures, expiry dates and
+ * quantities that have no business being suggestions.
+ */
+export async function getItemProfiles(
+  kitchenId: number | null,
+): Promise<ItemProfile[]> {
+  if (kitchenId === null) return [];
+
+  const result = await getDb().execute({
+    // One query with the tags and shops folded in as grouped strings, rather
+    // than three queries plus stitching. The names cannot contain the
+    // separator: both are cleaned to collapsed whitespace on the way in.
+    sql: `SELECT i.id, i.name, i.canonical_unit, i.dimension, i.location,
+                 i.pack_size, i.pack_unit, i.shelf_life_days,
+                 (SELECT GROUP_CONCAT(t.name, '\u001f')
+                    FROM item_tags it JOIN tags t ON t.id = it.tag_id
+                   WHERE it.item_id = i.id) AS tag_names,
+                 (SELECT GROUP_CONCAT(s.name, '\u001f')
+                    FROM item_shops ish JOIN shops s ON s.id = ish.shop_id
+                   WHERE ish.item_id = i.id) AS shop_names
+          FROM items i
+          WHERE i.kitchen_id = ?
+          ORDER BY i.name`,
+    args: [kitchenId],
+  });
+
+  const split = (value: string | null) =>
+    value ? value.split("\u001f").filter(Boolean) : [];
+
+  return (
+    result.rows as unknown as (Omit<ItemProfile, "tags" | "shops"> & {
+      tag_names: string | null;
+      shop_names: string | null;
+    })[]
+  ).map((row) => ({
+    id: row.id,
+    name: row.name,
+    canonical_unit: row.canonical_unit,
+    dimension: row.dimension,
+    location: row.location,
+    pack_size: row.pack_size,
+    pack_unit: row.pack_unit,
+    shelf_life_days: row.shelf_life_days,
+    tags: split(row.tag_names),
+    shops: split(row.shop_names),
+  }));
 }

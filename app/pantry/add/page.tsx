@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 import { getTags } from "@/lib/tags";
 import { getShops } from "@/lib/shops";
 import { getLocations } from "@/lib/kitchens";
+import { getItemProfiles } from "@/lib/queries";
 import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -39,11 +40,12 @@ export default async function AddItemPage({
   if (!context.kitchen) redirect("/kitchens?need=stock");
   const { kitchen } = context;
 
-  const [prefill, tags, shops, places] = await Promise.all([
+  const [prefill, tags, shops, places, profiles] = await Promise.all([
     searchParams,
     getTags(kitchen.id),
     getShops(kitchen.id),
     getLocations(kitchen.id),
+    getItemProfiles(kitchen.id),
   ]);
 
   const tagNames = tags.map((tag) => tag.name);
@@ -61,8 +63,13 @@ export default async function AddItemPage({
         <h1 className="mt-2 mb-6 text-[26px] font-extrabold tracking-[-0.02em]">
           Add item
         </h1>
-        <AddItemForm prefill={prefill} tags={tagNames}
-          shops={shops.map((shop) => shop.name)} locations={places} />
+        <AddItemForm
+          prefill={prefill}
+          profiles={profiles}
+          tags={tagNames}
+          shops={shops.map((shop) => shop.name)}
+          locations={places}
+        />
       </main>
     </>
   );

@@ -1,9 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
+import Link from "next/link";
+import { Sparkles, Undo2 } from "lucide-react";
 import { addItem, type AddItemState } from "@/app/pantry/actions";
 import { ChipPicker } from "@/components/chip-picker";
 import { dimensionOf, UNITS_BY_DIMENSION } from "@/lib/units";
+import { probableDuplicate, suggestFor, type ItemProfile } from "@/lib/suggest";
 import type { Dimension } from "@/lib/types";
 
 const FIELD =
@@ -49,8 +52,17 @@ export function AddItemForm({
   tags,
   shops,
   locations,
+  profiles,
 }: {
   prefill: AddItemPrefill;
+  /**
+   * What this kitchen already holds, trimmed to the fields worth copying.
+   *
+   * Handed over at page load rather than asked for per keystroke: the database
+   * is in Nuremberg and a form that pauses while it thinks is a form that feels
+   * slower than typing the answer yourself.
+   */
+  profiles: ItemProfile[];
   /** Tags already used in this kitchen, offered so the vocabulary converges. */
   tags: string[];
   /** Shops this kitchen already buys from. */
@@ -62,10 +74,86 @@ export function AddItemForm({
     addItem,
     {},
   );
-  const [unit, setUnit] = useState(prefill.unit ?? "g");
-  // A scan arrives knowing the pack; typing it by hand is opt-in.
-  const [packed, setPacked] = useState(Boolean(prefill.pack_size));
+  const [name, setName] = useState(prefill.name ?? "");
   const [unspecified, setUnspecified] = useState(false);
+
+  /**
+   * What the kitchen reckons, from the name alone.
+   *
+   * Recomputed as you type rather than on blur, because the whole effect
+   * depends on the rest of the form being filled in by the time you look down
+   * at it. A scan already knows better than any guess, so its prefill wins.
+   */
+  const suggestion = useMemo(
+    () => (prefill.name ? { because: null } : suggestFor(name, profiles)),
+    [name, profiles, prefill.name],
+  );
+
+  /**
+   * The row this probably already is.
+   *
+   * A pantry holding both Tomatoes and Tomatos has every recipe match, rescue
+   * and shopping list quietly half right, and this is the one moment it costs
+   * nothing to stop.
+   */
+  const duplicate = useMemo(() => probableDuplicate(name, profiles), [name, profiles]);
+
+  /**
+   * Fields somebody has actually touched.
+   *
+   * A suggestion may only ever land in a field nobody has filled in. Typing
+   * over something and watching it change back is the failure mode that makes
+   * people distrust every clever form they meet afterwards.
+   */
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+
+  function set(field: string, value: string) {
+    setTouched((current) => ({ ...current, [field]: true }));
+    setOverrides((current) => ({ ...current, [field]: value }));
+  }
+
+  const valueOf = (field: string, suggested: string | undefined, fallback: string) =>
+    touched[field] ? (overrides[field] ?? fallback) : (suggested ?? fallback);
+
+  const unit = valueOf("unit", suggestion.unit, prefill.unit ?? "g");
+  const location = valueOf("location", suggestion.location, prefill.location ?? "");
+  const packSize = valueOf("pack_size", suggestion.pack_size, prefill.pack_size ?? "");
+  const shelfLife = valueOf("shelf_life_days", suggestion.shelf_life_days, "");
+
+  // A scan arrives knowing the pack, and so does anything copied from a jar you
+  // already own; typing it by hand is still opt-in.
+  const [packedOverride, setPackedOverride] = useState<boolean | null>(null);
+  const packed = packedOverride ?? Boolean(packSize);
+
+  /**
+   * Remounts the chip pickers when the guess changes.
+   *
+   * They keep their own state from defaultValue, which is right for typing and
+   * wrong for being handed a new answer. Keying on what the suggestion was
+   * based on re-seeds them exactly when the suggestion itself changed.
+   */
+  const chipKey = `${touched.tags ? "own" : (suggestion.because ?? "none")}`;
+
+  function forget() {
+    // Everything the guess filled in becomes yours, unchanged, so dismissing
+    // it never wipes a field you were about to keep.
+    setTouched({
+      unit: true,
+      location: true,
+      pack_size: true,
+      shelf_life_days: true,
+      tags: true,
+      shops: true,
+    });
+    setOverrides({
+      unit,
+      location,
+      pack_size: packSize,
+      shelf_life_days: shelfLife,
+    });
+    setPackedOverride(packed);
+  }
 
   // An unrecognised prefill unit falls back to mass rather than blanking the
   // label; the action rejects it on submit either way.
@@ -86,10 +174,39 @@ export function AddItemForm({
           type="text"
           required
           maxLength={80}
-          defaultValue={prefill.name ?? ""}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
           autoFocus={!prefill.name}
           className={FIELD}
         />
+
+        {duplicate && (
+          <p className="mt-2 rounded-[12px] bg-chip px-3 py-2 text-sm font-semibold">
+            You already have{" "}
+            <Link
+              href={`/pantry/item/${duplicate.id}`}
+              className="font-extrabold text-primary underline underline-offset-2"
+            >
+              {duplicate.name}
+            </Link>
+            . Add to that one instead of starting a second row?
+          </p>
+        )}
+
+        {!duplicate && suggestion.because && (
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-muted-foreground">
+            <Sparkles className="h-3.5 w-3.5 text-primary" strokeWidth={2.5} />
+            Filled in {suggestion.because}.
+            <button
+              type="button"
+              onClick={forget}
+              className="inline-flex items-center gap-1 font-bold text-foreground underline underline-offset-2"
+            >
+              <Undo2 className="h-3.5 w-3.5" strokeWidth={2.5} />
+              leave it to me
+            </button>
+          </p>
+        )}
       </div>
 
       <div className="flex gap-3">
@@ -118,7 +235,7 @@ export function AddItemForm({
             id="unit"
             name="unit"
             value={unit}
-            onChange={(event) => setUnit(event.target.value)}
+            onChange={(event) => set("unit", event.target.value)}
             className={FIELD}
           >
             {(Object.keys(UNITS_BY_DIMENSION) as Dimension[]).map((dimension) => (
@@ -150,7 +267,7 @@ export function AddItemForm({
           <input
             type="checkbox"
             checked={packed}
-            onChange={(event) => setPacked(event.target.checked)}
+            onChange={(event) => setPackedOverride(event.target.checked)}
             className="h-4 w-4 accent-[var(--color-primary)]"
           />
           It comes in packs, tins or bottles
@@ -171,7 +288,8 @@ export function AddItemForm({
                 min="0"
                 step="any"
                 inputMode="decimal"
-                defaultValue={prefill.pack_size ?? ""}
+                value={packSize}
+                onChange={(event) => set("pack_size", event.target.value)}
                 className={FIELD}
               />
             </div>
@@ -220,9 +338,11 @@ export function AddItemForm({
         {/* The first tag is the one it gets filed under, which is why the
             picker marks it rather than explaining it. */}
         <ChipPicker
+          key={`tags-${chipKey}`}
           name="tags"
           options={tags}
-          defaultValue={prefill.tags ?? ""}
+          onDirty={() => setTouched((c) => ({ ...c, tags: true }))}
+          defaultValue={prefill.tags ?? suggestion.tags?.join(", ") ?? ""}
           placeholder="Asian, sauce, soya…"
           primaryNote={(first) => (
             <>
@@ -241,9 +361,11 @@ export function AddItemForm({
             place. The first is where you usually go, which is what groups the
             shopping list. */}
         <ChipPicker
+          key={`shops-${chipKey}`}
           name="shops"
           options={shops}
-          defaultValue={prefill.shops ?? ""}
+          onDirty={() => setTouched((c) => ({ ...c, tags: true }))}
+          defaultValue={prefill.shops ?? suggestion.shops?.join(", ") ?? ""}
           placeholder="Tesco, the Asian supermarket…"
           primaryNote={(first) => (
             <>
@@ -262,7 +384,8 @@ export function AddItemForm({
           <select
             id="location"
             name="location"
-            defaultValue={prefill.location ?? ""}
+            value={location}
+            onChange={(event) => set("location", event.target.value)}
             className={FIELD}
           >
             <option value="">Unplaced</option>
@@ -294,6 +417,8 @@ export function AddItemForm({
             step="1"
             inputMode="numeric"
             placeholder="—"
+            value={shelfLife}
+            onChange={(event) => set("shelf_life_days", event.target.value)}
             className={FIELD}
           />
         </div>

@@ -24,6 +24,7 @@ export function ChipPicker({
   name,
   options,
   defaultValue = "",
+  onDirty,
   placeholder,
   primaryNote,
 }: {
@@ -32,6 +33,14 @@ export function ChipPicker({
   options: string[];
   /** Comma separated, as a barcode scan arrives with. */
   defaultValue?: string;
+  /**
+   * Called the first time somebody changes the set themselves.
+   *
+   * The add form seeds this from a guess and must stop re-seeding the moment
+   * anybody disagrees with it - a picker that keeps putting a tag back is
+   * worse than one that never suggested anything.
+   */
+  onDirty?: () => void;
   placeholder: string;
   /** What being first means here, said once the set is worth explaining. */
   primaryNote: (first: string) => React.ReactNode;
@@ -53,10 +62,12 @@ export function ChipPicker({
     const tag = cleanTagName(raw);
     setDraft("");
     if (!tag || taken.has(tag.toLowerCase())) return;
+    onDirty?.();
     setChosen((current) => [...current, tag]);
   }
 
   function drop(tag: string) {
+    onDirty?.();
     setChosen((current) => current.filter((entry) => entry !== tag));
   }
 
