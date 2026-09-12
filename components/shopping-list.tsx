@@ -10,6 +10,7 @@ import {
   tick,
   type ListResult,
 } from "@/app/pantry/list/actions";
+import { gotEverything, putAwayBought } from "@/app/pantry/trip-actions";
 import { ENTRY_UNITS, formatQuantity, unitSuffix } from "@/lib/units";
 import type { ShoppingLine } from "@/lib/shopping";
 
@@ -54,6 +55,8 @@ export function ShoppingList({
    */
   const [ticked, setTicked] = useState<Record<number, boolean>>({});
   const [tickError, setTickError] = useState<string | null>(null);
+  /** What putting the basket away did, said once and left on screen. */
+  const [putAway, setPutAway] = useState<string | null>(null);
 
   const isBought = (line: ShoppingLine) =>
     ticked[line.id] ?? Boolean(line.bought_at);
@@ -278,6 +281,12 @@ export function ShoppingList({
         </p>
       )}
 
+      {putAway && (
+        <p className="rounded-[14px] bg-chip px-4 py-3 text-sm font-semibold">
+          {putAway}
+        </p>
+      )}
+
       {lines.length === 0 ? (
         <p className="rounded-[20px] bg-card p-6 text-sm font-semibold text-muted-foreground shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
           Nothing on the list. Cooking something you&apos;re short of will offer
@@ -301,16 +310,73 @@ export function ShoppingList({
           ))}
 
           {done.length > 0 && (
-            <section>
-              <h2 className="mb-1.5 text-xs font-bold uppercase tracking-[0.08em] text-label">
-                In the basket &middot; {done.length}
-              </h2>
+            <section id="basket">
+              <div className="mb-1.5 flex items-center justify-between gap-3">
+                <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-label">
+                  In the basket &middot; {done.length}
+                </h2>
+                {/* The walk from the front door to the cupboard. Ticking
+                    something off says you are holding it and nothing about
+                    the shelf; this is the sentence that finishes the trip for
+                    anybody who did not scan a receipt. */}
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      const result = await putAwayBought();
+                      if (!result.ok) {
+                        setTickError(result.error ?? "Couldn't put those away.");
+                        return;
+                      }
+                      setTicked({});
+                      setPutAway(
+                        [
+                          result.stocked?.length
+                            ? `${result.stocked.length} put away.`
+                            : null,
+                          ...(result.left ?? []),
+                        ]
+                          .filter(Boolean)
+                          .join(" "),
+                      );
+                    })
+                  }
+                  className="min-h-9 rounded-full bg-ink px-4 text-xs font-extrabold text-background disabled:opacity-60"
+                >
+                  Put these away
+                </button>
+              </div>
               <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
                 {done.map(row)}
               </ul>
             </section>
           )}
         </div>
+      )}
+
+      {/*
+        The checkout, as one button.
+
+        Ticking eleven things off at the till is eleven taps in a queue with a
+        basket in one hand. The receipt scanner does this and the restocking
+        at once; this is for the shop that gave you a paper receipt, or none.
+      */}
+      {total > inBasket && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const result = await gotEverything();
+              if (!result.ok) setTickError(result.error ?? "Couldn't tick those off.");
+              else setTicked({});
+            })
+          }
+          className="min-h-12 w-full rounded-[14px] bg-ink text-[15px] font-extrabold text-background disabled:opacity-60"
+        >
+          Got everything · {total - inBasket} to tick
+        </button>
       )}
 
       {done.length > 0 && (

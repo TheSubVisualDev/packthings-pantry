@@ -9,6 +9,8 @@ import { GoingOff } from "@/components/going-off";
 import { EmptyShelves } from "@/components/empty-shelves";
 import { getItems, getTonightFacts } from "@/lib/queries";
 import { rankTonight } from "@/lib/tonight";
+import { getTrip } from "@/lib/trip";
+import { TripStrip } from "@/components/trip-strip";
 import { UNPLACED } from "@/lib/locations";
 import { getLocations } from "@/lib/kitchens";
 import { macroGroup } from "@/lib/nutrition";
@@ -109,12 +111,13 @@ export default async function PantryPage({
   if (!context.kitchen) redirect("/kitchens?need=stock");
   const { kitchen } = context;
 
-  const [items, facts, places, rescues, tags] = await Promise.all([
+  const [items, facts, places, rescues, tags, trip] = await Promise.all([
     getItems(kitchen.id),
     getTonightFacts(kitchen.id, context.user.id),
     getLocations(kitchen.id),
     getRescues(kitchen.id, context.user.id),
     getTags(kitchen.id),
+    getTrip(kitchen.id),
   ]);
 
   /**
@@ -140,10 +143,24 @@ export default async function PantryPage({
           sits on the same line as Select. Everything below is the stock,
           which is what the screen is called. */}
       <main className="mx-auto w-full max-w-[900px] px-5 pt-4 pb-32 sm:px-8 sm:pt-6">
-        {best && (
+        {/*
+          One row, and the trip wins it.
+
+          A suggestion and a trip are answers to the same question - what is
+          happening about dinner - and only one of them is true at a time.
+          Once you are shopping for something, another idea on top of it is
+          the app talking over you.
+        */}
+        {trip ? (
           <div className="mb-3">
-            <TonightStrip suggestion={best} />
+            <TripStrip trip={trip} />
           </div>
+        ) : (
+          best && (
+            <div className="mb-3">
+              <TonightStrip suggestion={best} />
+            </div>
+          )
         )}
 
         <GoingOff rescues={rescues} />

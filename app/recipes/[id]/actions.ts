@@ -10,6 +10,7 @@ import { indexStock } from "@/lib/pantry-match";
 import { resolveAmount, scaleQuantity } from "@/lib/units";
 import { ADJUST_SQL } from "@/lib/containers";
 import { addLine, pendingNames, removeLine } from "@/lib/shopping";
+import { unpinIf } from "@/lib/trip";
 import type {
   CookChange,
   CookEvent,
@@ -354,6 +355,16 @@ export async function cookRecipe(
     });
 
     await tx.commit();
+
+    /**
+     * Cooking it is the end of the trip.
+     *
+     * A pin that outlives the meal leaves the app shopping for last night's
+     * dinner. Undo deliberately does not put it back: by then you have either
+     * eaten or decided you had not, and the shopping is not the question
+     * either way.
+     */
+    await unpinIf(access.kitchen.id, recipeId);
 
     revalidatePath("/pantry");
     revalidatePath("/recipes");

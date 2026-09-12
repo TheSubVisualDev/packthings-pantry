@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { pin } from "@/lib/trip";
 import { requireKitchenRole } from "@/lib/session";
 import { getRecipe } from "@/lib/queries";
 import {
@@ -197,12 +198,25 @@ export async function addShortfall(
     added += 1;
   }
 
+  /**
+   * Asking what a recipe is short of is saying you intend to cook it.
+   *
+   * So it becomes the trip: the stock screen says what you are shopping for,
+   * the list is for it, and coming home offers to cook it. Pinned even when
+   * nothing needed adding - "I have everything for this" is still a decision
+   * about tonight, and it is the case where the ready-to-cook button is
+   * immediately true.
+   */
+  await pin(gate.kitchen.id, recipeId, gate.user.id);
+
   revalidatePath("/pantry/list");
+  revalidatePath("/pantry");
+  revalidatePath("/tonight");
 
   if (added > 0) {
     return {
       ok: true,
-      message: `${added} ${added === 1 ? "thing" : "things"} added to the list.`,
+      message: `${added} ${added === 1 ? "thing" : "things"} added. Shopping for ${recipe.name}.`,
     };
   }
 

@@ -9,6 +9,8 @@ import { currentKitchen } from "@/lib/session";
 import { getList, getRestockSuggestions } from "@/lib/shopping";
 import { getItemProfiles } from "@/lib/queries";
 import { getShops } from "@/lib/shops";
+import { getTrip } from "@/lib/trip";
+import { TripStrip } from "@/components/trip-strip";
 
 export const dynamic = "force-dynamic";
 
@@ -28,11 +30,12 @@ export default async function ShoppingPage({
   const { shop } = await searchParams;
   const filter = shop?.trim() || null;
 
-  const [lines, restock, profiles, shops] = await Promise.all([
+  const [lines, restock, profiles, shops, trip] = await Promise.all([
     getList(context.kitchen.id, filter),
     getRestockSuggestions(context.kitchen.id),
     getItemProfiles(context.kitchen.id),
     getShops(context.kitchen.id),
+    getTrip(context.kitchen.id),
   ]);
   const todo = lines.filter((line) => !line.bought_at).length;
 
@@ -55,6 +58,13 @@ export default async function ShoppingPage({
             ? `What ${filter} has, plus anything you can get anywhere.`
             : `Shared with everyone in ${context.kitchen.name}.`}
         </p>
+
+        {/* What the trip is for, at the top of the list that is for it. */}
+        {trip && (
+          <div className="mb-4">
+            <TripStrip trip={trip} />
+          </div>
+        )}
 
         <ShopFilter shops={shops} active={filter} />
         <RestockPanel suggestions={restock} />

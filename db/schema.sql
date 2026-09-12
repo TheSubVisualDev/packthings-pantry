@@ -332,6 +332,22 @@ CREATE TABLE IF NOT EXISTS shopping_list (
 
 CREATE INDEX IF NOT EXISTS idx_shopping_list_kitchen ON shopping_list(kitchen_id, bought_at);
 
+-- The trip a kitchen is on: one recipe, pinned, until it is cooked or dropped.
+--
+-- Deliberately one row rather than a state machine. Where you are in a shop is
+-- derivable from things that already exist - what is on the list, what is
+-- ticked, what is on the shelves - and a status column would be a second
+-- opinion about the same facts, free to disagree with them.
+--
+-- kitchen_id is the primary key: a kitchen is shopping for one thing at a
+-- time, and pinning a second recipe replaces the first rather than queueing.
+CREATE TABLE IF NOT EXISTS pinned_recipes (
+  kitchen_id INTEGER PRIMARY KEY REFERENCES kitchens(id) ON DELETE CASCADE,
+  recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+  pinned_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  pinned_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Tags, which replace the free-text `category` column on items.
 --
 -- Per kitchen rather than global: one household's vocabulary ("nan's cupboard",
