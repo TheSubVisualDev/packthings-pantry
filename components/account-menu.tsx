@@ -125,6 +125,13 @@ export function AccountMenu({
             {kitchens.length > 1 ? "Manage kitchens" : "Your kitchen"}
           </Link>
           <Link
+            href="/stats"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 text-sm font-semibold hover:bg-chip"
+          >
+            What you cook
+          </Link>
+          <Link
             href="/settings"
             onClick={() => setOpen(false)}
             className="block px-4 py-2.5 text-sm font-semibold hover:bg-chip"

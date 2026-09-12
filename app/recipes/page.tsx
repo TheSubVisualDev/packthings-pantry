@@ -165,12 +165,20 @@ export default async function RecipesPage({
               writing a recipe already has the FAB, and Cooked is a history you
               visit occasionally. One quiet link, and the rest live where they
               belong. */}
-          <Link
-            href="/cooked"
-            className="flex min-h-11 shrink-0 items-center text-sm font-bold text-muted-foreground hover:text-foreground"
-          >
-            Cooked →
-          </Link>
+          <div className="flex shrink-0 items-center gap-4">
+            <Link
+              href="/cooked"
+              className="flex min-h-11 items-center text-sm font-bold text-muted-foreground hover:text-foreground"
+            >
+              Cooked →
+            </Link>
+            <Link
+              href="/stats"
+              className="flex min-h-11 items-center text-sm font-bold text-muted-foreground hover:text-foreground"
+            >
+              Stats →
+            </Link>
+          </div>
         </div>
 
         <div className="mb-4">
