@@ -267,7 +267,7 @@ export async function getCookbookRecipes(
  * because four callers want exactly this and each round trip is a hop to
  * Nuremberg.
  */
-async function readinessContext(kitchenId: number | null) {
+export async function readinessContext(kitchenId: number | null) {
   const [items, links, ingredientRows] = await Promise.all([
     getItems(kitchenId),
     getLinks(kitchenId),

@@ -6,11 +6,22 @@ import { PersonChip } from "@/components/person-chip";
 import { RecipeBrowseCard } from "@/components/recipe-browse-card";
 import { SiteHeader } from "@/components/site-header";
 import { SearchBox } from "@/components/search-box";
-import { browseRecipes, getFeed, searchPeople, searchRecipes } from "@/lib/queries";
+import {
+  getFeed,
+  readinessContext,
+  searchPeople,
+  searchRecipes,
+} from "@/lib/queries";
 import Image from "next/image";
 import { Avatar } from "@/components/avatar";
 import { FollowButton } from "@/components/follow-button";
-import { getCookedByOthers, getSimilarCooks, getTrusted } from "@/lib/social";
+import {
+  getCookedByOthers,
+  getDiscoveries,
+  getSimilarCooks,
+  getTrusted,
+} from "@/lib/social";
+import { countStockedLines } from "@/lib/cookbook";
 import { shortDate } from "@/lib/dates";
 import { recipeTint } from "@/lib/tint";
 import { currentKitchen } from "@/lib/session";
@@ -23,7 +34,7 @@ export const metadata: Metadata = {
 
 const HEADING = "mb-3 text-xs font-bold uppercase tracking-[0.1em] text-label";
 
-function Grid({ recipes }: { recipes: Awaited<ReturnType<typeof browseRecipes>> }) {
+function Grid({ recipes }: { recipes: Awaited<ReturnType<typeof searchRecipes>> }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {recipes.map((recipe) => (
@@ -38,12 +49,13 @@ export default async function DiscoverPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  const context = await currentKitchen();
-  if (!context.ok) redirect("/login?next=%2Fdiscover");
+  const session = await currentKitchen();
+  if (!session.ok) redirect("/login?next=%2Fdiscover");
+  const kitchen = session.kitchen;
 
   const { q } = await searchParams;
   const term = q?.trim() ?? "";
-  const viewerId = context.user.id;
+  const viewerId = session.user.id;
 
   if (term) {
     const [recipes, people] = await Promise.all([
@@ -94,20 +106,34 @@ export default async function DiscoverPage({
     );
   }
 
-  const [feed, everything, cooked, trusted, similar] = await Promise.all([
+  /**
+   * Readiness is counted here and handed to the ranker.
+   *
+   * The context is one pass over the stock, the agreed links and every
+   * ingredient line; doing it per recipe inside the ranking would be the same
+   * work repeated twenty times, and doing it inside lib/social.ts would drag
+   * the whole pantry into a file about people.
+   */
+  const context = await readinessContext(kitchen?.id ?? null);
+  const countStocked = (recipeId: number) =>
+    countStockedLines(
+      context.byRecipe.get(recipeId) ?? [],
+      context.links,
+      context.stock,
+      context.byId,
+    );
+
+  const [feed, cooked, trusted, similar, ranked] = await Promise.all([
     getFeed(viewerId),
-    browseRecipes(viewerId),
     getCookedByOthers(viewerId),
     getTrusted(viewerId),
     getSimilarCooks(viewerId),
+    getDiscoveries(viewerId, kitchen?.id ?? null, countStocked),
   ]);
 
-  // Your own drafts aren't a discovery; they're already on /recipes. Anything
-  // already in the feed isn't worth showing twice either.
+  // Anything already in the follow feed is not worth a second card.
   const inFeed = new Set(feed.map((recipe) => recipe.id));
-  const rest = everything.filter(
-    (recipe) => recipe.author_id !== viewerId && !inFeed.has(recipe.id),
-  );
+  const rest = ranked.filter((recipe) => !inFeed.has(recipe.id));
 
   return (
     <>
@@ -233,7 +259,7 @@ export default async function DiscoverPage({
 
         <section>
           <h2 className={HEADING}>
-            {feed.length > 0 ? "Everything else" : "Shared with you"}
+            {feed.length > 0 ? "Everything else" : "Worth a look"}
           </h2>
 
           {rest.length === 0 ? (
@@ -252,7 +278,60 @@ export default async function DiscoverPage({
               </Link>
             </div>
           ) : (
-            <Grid recipes={rest} />
+            /*
+              Ranked, with your relationship to each one on it.
+              
+              Authored, saved and adopted are three different commitments and
+              only the last one used to show anywhere. A card that says "yours"
+              is also the only way to see what your own recipe looks like to
+              everybody else, which is why they are no longer filtered out.
+            */
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {rest.map((recipe) => (
+                <li key={recipe.id}>
+                  <Link
+                    href={`/recipes/${recipe.id}`}
+                    className="flex h-full items-center gap-3 rounded-[18px] bg-card p-3 shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_22px_-10px_rgba(60,44,30,0.45)]"
+                  >
+                    <span
+                      className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[12px]"
+                      style={
+                        recipe.photo_url ? undefined : { background: recipeTint(recipe.id) }
+                      }
+                    >
+                      {recipe.photo_url && (
+                        <Image
+                          src={recipe.photo_url}
+                          alt=""
+                          fill
+                          sizes="64px"
+                          className="object-cover"
+                        />
+                      )}
+                    </span>
+
+                    <span className="min-w-0 flex-1">
+                      <span className="line-clamp-2 text-[15px] leading-snug font-extrabold">
+                        {recipe.name}
+                      </span>
+                      <span className="mt-0.5 block text-xs font-semibold text-muted-foreground">
+                        {recipe.reason}
+                        {recipe.total > 0 ? ` · ${recipe.have}/${recipe.total} in stock` : ""}
+                      </span>
+
+                      <span className="mt-1.5 flex flex-wrap gap-1">
+                        {recipe.yours && <State label="yours" solid />}
+                        {recipe.inCookbook && <State label="in your cookbook" solid />}
+                        {recipe.saved && !recipe.inCookbook && <State label="saved" />}
+                        {!recipe.yours && recipe.author_handle && (
+                          <State label={`@${recipe.author_handle}`} />
+                        )}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
 
@@ -314,5 +393,26 @@ export default async function DiscoverPage({
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * One word about your relationship to a recipe.
+ *
+ * Solid for a commitment you have made - you wrote it, or your kitchen cooks
+ * it - and outline for everything else, which is the same rule the recipe page
+ * uses to tell an opinion from a measurement.
+ */
+function State({ label, solid = false }: { label: string; solid?: boolean }) {
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+        solid
+          ? "bg-primary text-primary-foreground"
+          : "border border-border text-muted-foreground"
+      }`}
+    >
+      {label}
+    </span>
   );
 }

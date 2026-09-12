@@ -367,6 +367,13 @@ export async function getTrusted(viewerId: number, limit = 6): Promise<Trusted[]
           LEFT JOIN users u ON u.id = r.author_id
           WHERE r.author_id <> ?
             AND ${VISIBLE_TO_VIEWER}
+            -- Trust has to come from somewhere. A recipe nobody has cooked or
+            -- saved is not distrusted, it is simply not evidence, and a card
+            -- reading "nobody has cooked it yet" under a heading about trust
+            -- is the app arguing with itself.
+            AND (r.times_cooked > 0
+                 OR EXISTS (SELECT 1 FROM recipe_likes WHERE recipe_id = r.id)
+                 OR EXISTS (SELECT 1 FROM recipe_ratings WHERE recipe_id = r.id))
           ORDER BY (r.times_cooked * 2
                     + (SELECT COUNT(*) FROM recipe_likes WHERE recipe_id = r.id)) DESC,
                    r.id DESC
@@ -420,4 +427,165 @@ export async function getSimilarCooks(
     args: [viewerId, viewerId, viewerId, viewerId, viewerId, limit],
   });
   return plainRows<SimilarCook>(result);
+}
+
+export interface Discovery {
+  id: number;
+  name: string;
+  photo_url: string | null;
+  prep_minutes: number | null;
+  cook_minutes: number | null;
+  base_servings: number;
+  author_handle: string | null;
+  author_id: number | null;
+  avg_rating: number | null;
+  /** Kitchens that have adopted it - the strongest signal in the app. */
+  adoptions: number;
+  /** Of those, kitchens belonging to people you follow. */
+  adoptedByFollowed: number;
+  /** How much of it your shelves can supply right now. */
+  have: number;
+  total: number;
+  /** Your relationship to it: the three states, made visible. */
+  yours: boolean;
+  saved: boolean;
+  inCookbook: boolean;
+  /** Days since your kitchen last cooked it, or null for never. */
+  daysSince: number | null;
+  score: number;
+  /** Why it is here, in words. Never empty. */
+  reason: string;
+}
+
+interface DiscoveryRow {
+  id: number;
+  name: string;
+  photo_url: string | null;
+  prep_minutes: number | null;
+  cook_minutes: number | null;
+  base_servings: number;
+  author_handle: string | null;
+  author_id: number | null;
+  avg_rating: number | null;
+  adoptions: number;
+  adopted_by_followed: number;
+  saved: number;
+  in_cookbook: number;
+  days_since: number | null;
+}
+
+/**
+ * Discover, ranked on what this kitchen can actually do with it - P6.
+ *
+ * It was a reverse-chronological list of everything visible, which is a
+ * filing order rather than an answer. The signals are all things the app has
+ * been computing or storing for phases and never reading together:
+ *
+ * - **Adopting is the strong one.** A like costs a tap; putting a recipe in
+ *   your cookbook means linking its ingredients to your own shelves, which
+ *   nobody does idly. Adoption by somebody you follow counts double again.
+ * - **Readiness against your stock**, the same count the cookbook shows.
+ * - **Ratings**, which have been averaged and unread since phase 2.
+ * - **Fatigue**: something this kitchen cooked last week is not a discovery.
+ *
+ * Your own recipes are included rather than filtered out - Luna asked, and it
+ * is the only way to see what one looks like to everybody else.
+ */
+export async function getDiscoveries(
+  viewerId: number,
+  kitchenId: number | null,
+  countStocked: (recipeId: number) => { have: number; total: number },
+  limit = 24,
+): Promise<Discovery[]> {
+  const result = await getDb().execute({
+    sql: `SELECT r.id, r.name, r.photo_url, r.prep_minutes, r.cook_minutes,
+                 r.base_servings, r.author_id,
+                 u.handle AS author_handle,
+                 (SELECT ROUND(AVG(rating), 1) FROM recipe_ratings WHERE recipe_id = r.id) AS avg_rating,
+                 (SELECT COUNT(*) FROM cookbook cb WHERE cb.recipe_id = r.id) AS adoptions,
+                 (SELECT COUNT(*) FROM cookbook cb
+                    JOIN kitchen_members km ON km.kitchen_id = cb.kitchen_id
+                   WHERE cb.recipe_id = r.id
+                     -- Not your own kitchen. You follow the people you share a
+                     -- kitchen with, so without this every recipe your own
+                     -- household had adopted came back as "somebody you follow
+                     -- cooks it", which is true and useless.
+                     AND cb.kitchen_id IS NOT ?
+                     AND km.user_id <> ?
+                     AND EXISTS (SELECT 1 FROM follows f
+                                  WHERE f.follower_id = ? AND f.followee_id = km.user_id)
+                 ) AS adopted_by_followed,
+                 EXISTS (SELECT 1 FROM recipe_likes rl
+                          WHERE rl.recipe_id = r.id AND rl.user_id = ?) AS saved,
+                 EXISTS (SELECT 1 FROM cookbook cb
+                          WHERE cb.recipe_id = r.id AND cb.kitchen_id = ?) AS in_cookbook,
+                 (SELECT CAST(julianday('now') - julianday(MAX(c.cooked_at)) AS INTEGER)
+                    FROM cook_events c
+                   WHERE c.recipe_id = r.id AND c.kitchen_id = ? AND c.undone_at IS NULL
+                 ) AS days_since
+          FROM recipes r
+          LEFT JOIN users u ON u.id = r.author_id
+          WHERE ${VISIBLE_TO_VIEWER}
+          ORDER BY r.id DESC
+          LIMIT ?`,
+    args: [
+      kitchenId,
+      viewerId,
+      viewerId,
+      viewerId,
+      kitchenId,
+      kitchenId,
+      ...viewerArgs(viewerId),
+      limit,
+    ],
+  });
+
+  return plainRows<DiscoveryRow>(result)
+    .map((row) => {
+      const { have, total } = countStocked(row.id);
+      const readiness = total === 0 ? 0 : have / total;
+
+      /**
+       * The weights, in one place with the reasoning written down - the same
+       * arrangement lib/tonight.ts uses, because the argument should be about
+       * the ordering rather than about where the numbers live.
+       */
+      const score =
+        readiness * 3 +
+        Math.min(row.adoptions, 4) * 2 +
+        row.adopted_by_followed * 4 +
+        (row.avg_rating ?? 0) +
+        // Fatigue. Something cooked this week is not a discovery; something
+        // cooked in March is a reminder, which is a kind of discovery.
+        (row.days_since !== null && row.days_since < 14 ? -6 : 0) +
+        // A nudge down for things you have already filed: they are not news.
+        (row.in_cookbook ? -2 : 0);
+
+      const reason =
+        row.adopted_by_followed > 0
+          ? "somebody you follow cooks it"
+          : row.adoptions > 1
+            ? `${row.adoptions} kitchens have adopted it`
+            : total > 0 && have === total
+              ? "you have everything for it"
+              : row.avg_rating !== null
+                ? `rated ${row.avg_rating}`
+                : row.author_id === viewerId
+                  ? "yours"
+                  : "shared here";
+
+      return {
+        ...row,
+        adoptedByFollowed: row.adopted_by_followed,
+        have,
+        total,
+        yours: row.author_id === viewerId,
+        saved: row.saved === 1,
+        inCookbook: row.in_cookbook === 1,
+        daysSince: row.days_since,
+        score,
+        reason,
+      };
+    })
+    .sort((a, b) => b.score - a.score || b.id - a.id);
 }
