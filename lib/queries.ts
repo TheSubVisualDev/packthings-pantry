@@ -540,7 +540,8 @@ export async function getItem(
     sql: "SELECT * FROM items WHERE id = ? AND kitchen_id = ?",
     args: [itemId, kitchenId],
   });
-  return (result.rows[0] as unknown as Item) ?? null;
+  // Plain object: the item page hands this straight to a client component.
+  return plainRows<Item>(result)[0] ?? null;
 }
 
 export interface Rescue {

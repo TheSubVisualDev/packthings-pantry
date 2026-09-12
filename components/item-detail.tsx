@@ -19,10 +19,19 @@ export function ItemDetail({
   item,
   locations,
   canEdit,
+  shelf,
 }: {
   item: Item;
   locations: string[];
   canEdit: boolean;
+  /**
+   * How much there is, rendered between the deadline and the paperwork.
+   *
+   * Passed in rather than imported because it is a server-rendered panel of
+   * its own, and because the order is the point: what is going off, then how
+   * much is left, then the fields you almost never change.
+   */
+  shelf?: React.ReactNode;
 }) {
   const [state, action, pending] = useActionState<ItemResult, FormData>(updateItem, {
     ok: true,
@@ -114,6 +123,8 @@ export function ItemDetail({
           </div>
         )}
       </section>
+
+      {shelf}
 
       {canEdit && (
         <form action={action} className={CARD}>

@@ -81,7 +81,8 @@ export async function getItemTags(itemId: number): Promise<Tag[]> {
           ORDER BY t.name COLLATE NOCASE`,
     args: [itemId],
   });
-  return result.rows as unknown as Tag[];
+  // Plain objects: these reach a client component. See plainRows in lib/db.ts.
+  return plainRows<Tag>(result);
 }
 
 /**

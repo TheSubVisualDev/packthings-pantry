@@ -58,7 +58,8 @@ export async function getItemShops(itemId: number): Promise<Shop[]> {
           ORDER BY s.name COLLATE NOCASE`,
     args: [itemId],
   });
-  return result.rows as unknown as Shop[];
+  // Plain objects: these reach a client component. See plainRows in lib/db.ts.
+  return plainRows<Shop>(result);
 }
 
 /** Finds a shop by name in a kitchen, creating it if it is new. */

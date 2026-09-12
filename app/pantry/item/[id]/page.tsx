@@ -61,16 +61,28 @@ export default async function ItemPage({
         </Link>
 
         <div className="mt-3 space-y-3">
-          <ItemDetail item={item} locations={locations} canEdit={canEdit} />
+          {/*
+            The order is the answer to why you opened this page.
 
-          {/* Its own card, above the edit form: a tag saves the moment you add
-              it, so putting it inside a form with a Save button would promise
-              something the form doesn't do. */}
-          {/* Above the tags: what is on the shelf is the thing you came to
-              check, and how it is filed is the thing you came to fix. */}
-          <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-            <Packaging item={item} canEdit={canEdit} />
-          </section>
+            What is going off, then how much is left, then the fields. The
+            shelf panel used to sit below the edit form, so the page opened on
+            a name field and a date picker and you scrolled past both to find
+            out how much soy sauce there was.
+
+            Tags keep their own card, below, because a tag saves the moment you
+            add it and putting it inside a form with a Save button would
+            promise something the form does not do.
+          */}
+          <ItemDetail
+            item={item}
+            locations={locations}
+            canEdit={canEdit}
+            shelf={
+              <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+                <Packaging item={item} canEdit={canEdit} />
+              </section>
+            }
+          />
 
           <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             <ItemTags

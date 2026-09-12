@@ -2,11 +2,12 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { Minus, Plus } from "lucide-react";
-import { adjustPacks, setPackaging } from "@/app/pantry/actions";
+import { adjustItem, adjustPacks, setPackaging } from "@/app/pantry/actions";
 import type { ItemResult } from "@/app/pantry/actions";
 import { StockBar } from "@/components/stock-bar";
 import { formatQuantity } from "@/lib/units";
-import { totalOnHand } from "@/lib/containers";
+import { applyDelta, totalOnHand } from "@/lib/containers";
+import { Vessel, vesselKindFor, vesselModeFor } from "@/components/vessel";
 import type { Item } from "@/lib/types";
 
 const LABEL = "mb-1.5 block text-xs font-bold uppercase tracking-[0.08em] text-label";
@@ -27,6 +28,8 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
   });
   // Held locally so the pips move on the press rather than after the round trip.
   const [sealed, setSealed] = useState(item.sealed_count);
+  /** What is in the open one, held locally so the liquid moves on the drag. */
+  const [open, setOpen] = useState(item.quantity);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [packed, setPacked] = useState(item.pack_size !== null);
@@ -60,6 +63,38 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
     return [{ label: `what's in now (${formatQuantity(onHand)})`, value: onHand }];
   })();
 
+  /**
+   * Sets the open container to a level, by saying how much that is.
+   *
+   * A delta rather than an assignment, because the cascade rule is written as
+   * one - and the optimistic number here has to be the number the server
+   * arrives at, which applyDelta is the JavaScript half of. Dragging the
+   * liquid from a fifth to a half of a bottle with two sealed ones behind it
+   * must not decide there is now half a bottle in total.
+   */
+  function pour(to: number) {
+    const delta = Math.round((to - open) * 1e6) / 1e6;
+    if (delta === 0) return;
+
+    const was = { quantity: open, sealedCount: sealed };
+    const next = applyDelta({ ...item, quantity: open, sealed_count: sealed }, delta);
+    setOpen(next.quantity);
+    setSealed(next.sealedCount);
+    setError(null);
+
+    startTransition(async () => {
+      const result = await adjustItem(item.id, delta);
+      if (!result.ok) {
+        setOpen(was.quantity);
+        setSealed(was.sealedCount);
+        setError(result.error ?? "Couldn't save that.");
+      } else if (result.quantity !== undefined && result.sealedCount !== undefined) {
+        setOpen(result.quantity);
+        setSealed(result.sealedCount);
+      }
+    });
+  }
+
   function movePacks(by: number) {
     if (sealed + by < 0) return;
     const was = sealed;
@@ -77,8 +112,20 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
     });
   }
 
-  const shown = { ...item, sealed_count: sealed, unspecified: unspecified ? 1 : 0 };
+  const shown = {
+    ...item,
+    quantity: open,
+    sealed_count: sealed,
+    unspecified: unspecified ? 1 : 0,
+  };
   const unitSuffix = item.canonical_unit === "count" ? "" : item.canonical_unit;
+
+  const capacity = item.pack_size !== null && item.pack_size > 0 ? item.pack_size : 0;
+  const mode = vesselModeFor({
+    dimension: item.dimension,
+    packSize: capacity > 0 ? capacity : null,
+    unspecified,
+  });
 
   return (
     <div>
@@ -86,9 +133,40 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
         On the shelf
       </h2>
 
-      <div className="mt-2.5">
-        <StockBar item={shown} />
-      </div>
+      {/*
+        The open container, as the thing it is.
+
+        The bar says what is on the shelf; the vessel is how you change it
+        without doing arithmetic. Only where there is a container to be a
+        fraction of - see vesselModeFor - and only for people who can edit,
+        because a control you cannot use is worse than a picture.
+      */}
+      {canEdit && mode === "fill" ? (
+        <div className="mt-2.5">
+          <Vessel
+            kind={vesselKindFor({
+              packUnit: item.pack_unit ?? item.canonical_unit,
+              name: item.name,
+              dimension: item.dimension,
+            })}
+            level={capacity > 0 ? Math.min(1, open / capacity) : 0}
+            onLevel={(level) => pour(Math.round(level * capacity * 100) / 100)}
+            capacity={capacity}
+            unit={item.canonical_unit}
+            label={`How full the open ${item.name} is`}
+          />
+          {sealed > 0 && (
+            <p className="mt-2 text-xs font-semibold text-muted-foreground">
+              {sealed} sealed behind it, {formatQuantity(item.pack_size ?? 0)}
+              {unitSuffix} each.
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="mt-2.5">
+          <StockBar item={shown} />
+        </div>
+      )}
 
       {canEdit && item.pack_size !== null && !unspecified && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
