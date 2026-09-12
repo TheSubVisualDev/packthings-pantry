@@ -156,4 +156,6 @@ export interface CookEvent {
   undone_at: string | null;
   /** JSON-encoded CookChange[]. */
   changes: string;
+  /** JSON-encoded string[] of lines left out, or null when none were. */
+  skipped: string | null;
 }

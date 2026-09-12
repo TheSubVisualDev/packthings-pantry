@@ -46,6 +46,8 @@ export interface CookResult {
   flagged: CookLineResult[];
   /** Row in cook_events, and the handle undo needs. Absent if nothing moved. */
   eventId?: number;
+  /** Lines deliberately left out, as the recipe words them. */
+  skipped: string[];
 }
 
 /**
@@ -72,18 +74,27 @@ export async function cookRecipe(
    * in this one cook, and the log records what actually left the shelf.
    */
   substitutions: Record<number, number> = {},
+  /**
+   * Lines the cook says they did not use, by ingredient line id.
+   *
+   * Nothing comes off the shelf for these and they are not flagged as
+   * problems - a skipped line is an answer, not a failure. Recorded on the
+   * event so the log says what actually left the kitchen rather than what the
+   * recipe asked for, which is the whole reason the checklist is worth ticking.
+   */
+  skipped: number[] = [],
 ): Promise<CookResult> {
   if (!Number.isInteger(recipeId) || recipeId <= 0) {
-    return { ok: false, error: "Invalid recipe", opened: [], applied: [], flagged: [] };
+    return { ok: false, error: "Invalid recipe", opened: [], applied: [], flagged: [], skipped: [] };
   }
   if (!Number.isFinite(servings) || servings <= 0 || servings > 100) {
-    return { ok: false, error: "Invalid serving count", opened: [], applied: [], flagged: [] };
+    return { ok: false, error: "Invalid serving count", opened: [], applied: [], flagged: [], skipped: [] };
   }
 
   // Cooking spends stock, so it needs a kitchen you're allowed to change.
   const access = await requireKitchenRole("editor");
   if (!access.ok) {
-    return { ok: false, error: access.error, opened: [], applied: [], flagged: [] };
+    return { ok: false, error: access.error, opened: [], applied: [], flagged: [], skipped: [] };
   }
 
   const tx = await getDb().transaction("write");
@@ -96,7 +107,7 @@ export async function cookRecipe(
     const recipe = recipeResult.rows[0] as unknown as Recipe | undefined;
     if (!recipe) {
       await tx.rollback();
-      return { ok: false, error: "Recipe not found", opened: [], applied: [], flagged: [] };
+      return { ok: false, error: "Recipe not found", opened: [], applied: [], flagged: [], skipped: [] };
     }
 
     const ingredientResult = await tx.execute({
@@ -140,10 +151,24 @@ export async function cookRecipe(
 
     const applied: CookLineResult[] = [];
     const flagged: CookLineResult[] = [];
+    const leftOut: string[] = [];
+    const skipping = new Set(skipped);
     const changes: CookChange[] = [];
     const opened: OpenedPack[] = [];
 
     for (const line of lines) {
+      /**
+       * A line the cook said they did not use.
+       *
+       * Checked before anything else, so an ingredient that is missing from
+       * the pantry AND was not used reads as not used - which is what the
+       * person said, and the more informative of the two.
+       */
+      if (skipping.has(line.id)) {
+        leftOut.push(line.item_name);
+        continue;
+      }
+
       /**
        * The substitute if one was picked, otherwise whatever the line names.
        *
@@ -272,14 +297,18 @@ export async function cookRecipe(
     // Written inside the same transaction as the decrements: a log that can be
     // committed separately from the change it describes is worse than none.
     const event = await tx.execute({
-      sql: `INSERT INTO cook_events (kitchen_id, cooked_by, recipe_id, servings, changes)
-            VALUES (?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO cook_events (kitchen_id, cooked_by, recipe_id, servings, changes, skipped)
+            VALUES (?, ?, ?, ?, ?, ?)`,
       args: [
         access.kitchen.id,
         access.user.id,
         recipeId,
         servings,
         JSON.stringify(changes),
+        // Null rather than "[]" when nothing was skipped, so a cook from
+        // before the checklist existed and a cook where everything was used
+        // read the same way - which they should, because they are the same.
+        leftOut.length > 0 ? JSON.stringify(leftOut) : null,
       ],
     });
 
@@ -294,6 +323,7 @@ export async function cookRecipe(
       opened,
       applied,
       flagged,
+      skipped: leftOut,
       eventId: event.lastInsertRowid ? Number(event.lastInsertRowid) : undefined,
     };
   } catch (error) {
@@ -305,6 +335,7 @@ export async function cookRecipe(
       opened: [],
       applied: [],
       flagged: [],
+      skipped: [],
     };
   }
 }

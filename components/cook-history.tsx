@@ -32,6 +32,15 @@ export function CookHistory({ entries }: { entries: CookedEntry[] }) {
             <span className="text-muted-foreground">
               for {entry.servings}
               {entry.cooked_by_name ? ` · ${entry.cooked_by_name}` : ""}
+              {/* A cook that left things out is a different cook. Saying so
+                  is the point of ticking - otherwise the log claims you used
+                  the whole recipe every time. */}
+              {entry.skipped.length > 0 && (
+                <span title={entry.skipped.join(", ")}>
+                  {" "}
+                  &middot; without {entry.skipped.length}
+                </span>
+              )}
             </span>
           </li>
         ))}

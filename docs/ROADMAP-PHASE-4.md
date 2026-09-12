@@ -236,7 +236,7 @@ a before and after rather than a feeling.
 
 ---
 
-## M5 · Cook as a checklist — one day
+## M5 · Cook as a checklist — DONE 12 Sep 2026
 
 **Cook fires when you are finished, not when you start.**
 

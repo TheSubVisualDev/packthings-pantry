@@ -140,7 +140,11 @@ CREATE TABLE IF NOT EXISTS cook_events (
   servings   INTEGER NOT NULL,
   cooked_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   undone_at  TIMESTAMP,             -- null until undone; guards double-undo
-  changes    TEXT NOT NULL          -- JSON: [{ item_id, delta, unit }]
+  changes    TEXT NOT NULL,         -- JSON: [{ item_id, delta, unit }]
+  -- JSON array of ingredient names the cook ticked off as not used. Null when
+  -- everything was used, which is also what every cook from before the
+  -- checklist existed looks like - correctly, because they are the same thing.
+  skipped    TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_cook_events_recipe ON cook_events(recipe_id, cooked_at DESC);

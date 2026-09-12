@@ -146,6 +146,12 @@ const ADDED_COLUMNS = [
 
   // Where you usually buy it, of however many places sell it.
   { table: "items", column: "preferred_shop_id", definition: "INTEGER REFERENCES shops(id) ON DELETE SET NULL" },
+
+  // What a cook deliberately left out. The checklist made "I did not use the
+  // paprika" an answer rather than an omission, and the log has to be able to
+  // say so - otherwise a short cook is indistinguishable from an ingredient
+  // the pantry never had.
+  { table: "cook_events", column: "skipped", definition: "TEXT" },
 ];
 
 for (const { table, column, definition } of ADDED_COLUMNS) {

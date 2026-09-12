@@ -585,6 +585,8 @@ export interface CookedEntry {
   cooked_at: string;
   cooked_by_handle: string | null;
   cooked_by_name: string | null;
+  /** Lines the cook said they did not use. Empty for an ordinary cook. */
+  skipped: string[];
 }
 
 /**
@@ -607,7 +609,8 @@ export async function getCookedLog(
 
   const result = await getDb().execute({
     sql: `SELECT c.id, c.recipe_id, r.name AS recipe_name, c.servings, c.cooked_at,
-                 u.handle AS cooked_by_handle, u.display_name AS cooked_by_name
+                 u.handle AS cooked_by_handle, u.display_name AS cooked_by_name,
+                 c.skipped
           FROM cook_events c
           JOIN recipes r ON r.id = c.recipe_id
           LEFT JOIN users u ON u.id = c.cooked_by
@@ -617,7 +620,14 @@ export async function getCookedLog(
           LIMIT ?`,
     args: [kitchenId, recipeId ?? null, recipeId ?? null, limit],
   });
-  return result.rows as unknown as CookedEntry[];
+  return (result.rows as unknown as (Omit<CookedEntry, "skipped"> & { skipped: string | null })[]).map(
+    (row) => ({
+      ...row,
+      // Parsed here rather than at every reader. A row written before the
+      // column existed, and one where nothing was skipped, both read as [].
+      skipped: row.skipped ? (JSON.parse(row.skipped) as string[]) : [],
+    }),
+  );
 }
 
 export interface Neglected {
