@@ -64,6 +64,14 @@ export function ReceiptScanner() {
 
         let text: string;
         try {
+          /**
+           * A canvas carries no DPI, so Tesseract guesses one - and its
+           * guidance is written in terms of 300dpi. Telling it outright costs
+           * nothing and removes the guess. It made no measurable difference on
+           * the test receipts; it is here so that a strange photo cannot make
+           * one.
+           */
+          await worker.setParameters({ user_defined_dpi: "300" });
           const { data } = await worker.recognize(canvas);
           text = data.text;
         } finally {
