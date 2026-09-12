@@ -38,18 +38,25 @@ const ctx = await browser.newContext({
 });
 // A session cookie minted with the app's own signing, so the pages render as
 // they do for a signed-in person. Dev server, own machine, own app.
-const secret = process.env.PANTRY_SESSION_SECRET || process.env.PANTRY_PASSWORD;
-const expiry = Math.floor(Date.now() / 1000) + 3600;
-const body = `v2.${process.env.SHOT_USER_ID ?? 1}.${expiry}`;
-const sig = createHmac("sha256", secret).update(body).digest("base64url");
-await ctx.addCookies([
-  {
-    name: "pantry_session",
-    value: `${body}.${sig}`,
-    domain: "localhost",
-    path: "/",
-  },
-]);
+//
+// SHOT_ANON=1 skips it, which is the only way to photograph the signed-out
+// screens: with a session in the jar, /login redirects and you get a picture
+// of the pantry instead, which is not a thing anybody notices until they have
+// shipped a login screen nobody looked at.
+if (process.env.SHOT_ANON !== "1") {
+  const secret = process.env.PANTRY_SESSION_SECRET || process.env.PANTRY_PASSWORD;
+  const expiry = Math.floor(Date.now() / 1000) + 3600;
+  const body = `v2.${process.env.SHOT_USER_ID ?? 1}.${expiry}`;
+  const sig = createHmac("sha256", secret).update(body).digest("base64url");
+  await ctx.addCookies([
+    {
+      name: "pantry_session",
+      value: `${body}.${sig}`,
+      domain: "localhost",
+      path: "/",
+    },
+  ]);
+}
 
 const page = await ctx.newPage();
 

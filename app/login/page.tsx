@@ -27,7 +27,12 @@ export default async function LoginPage({
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-[440px] flex-col justify-center px-5 py-10">
-      <PantryMark className="mb-4 h-11 w-10 text-primary" />
+      {/* The mark in a tile rather than loose on the background - board 1q.
+          A bare icon above a form reads as a stray glyph; the same mark on a
+          card reads as the front door of something. */}
+      <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+        <PantryMark className="h-9 w-8 text-primary" />
+      </div>
 
       {firstRun ? (
         <>
@@ -51,6 +56,16 @@ export default async function LoginPage({
             Sign in to see what&apos;s in the kitchen.
           </p>
           <LoginForm next={safeNextPath(next)} />
+
+          {/* The design asks for "Create an account" here, and there is no
+              such thing: this app has no public signup by decision. Saying so
+              is the useful version of that line - somebody standing at a door
+              with no handle should be told where the key is, not offered a
+              button that cannot work. */}
+          <p className="mt-6 text-center text-sm font-semibold text-muted-foreground">
+            No account? There is no signup — whoever runs the kitchen can send
+            you an invite link.
+          </p>
         </>
       )}
     </main>
