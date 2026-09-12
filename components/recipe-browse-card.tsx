@@ -1,23 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import { recipeTint } from "@/lib/tint";
 import type { RecipeWithAuthor } from "@/lib/types";
-
-/**
- * A stable colour for a recipe with no photo.
- *
- * Derived from the id so it never changes, and kept inside the warm half of
- * the wheel so a wall of these still looks like one app.
- *
- * A flat tint rather than the gradient-behind-a-mask this used to be. That
- * version rendered as a solid black block on iOS - a masked element whose only
- * content is a CSS gradient is exactly the combination Safari is worst at -
- * and a decoration that can fail closed to black is not worth the risk on the
- * one platform this app is mostly used on.
- */
-function placeholder(id: number): string {
-  const hue = 20 + ((id * 47) % 90);
-  return `oklch(0.88 0.06 ${hue})`;
-}
 
 /**
  * A recipe in a list, at the size a phone can actually show several of.
@@ -60,7 +44,7 @@ export function RecipeBrowseCard({
     >
       <div
         className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[12px] sm:h-20 sm:w-20"
-        style={recipe.photo_url ? undefined : { background: placeholder(recipe.id) }}
+        style={recipe.photo_url ? undefined : { background: recipeTint(recipe.id) }}
       >
         {recipe.photo_url && (
           <Image

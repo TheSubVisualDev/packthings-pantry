@@ -1,7 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
+import { RecipeMenu } from "@/components/recipe-menu";
 import { RecipeVisibility } from "@/components/recipe-visibility";
 import { RemixButton } from "@/components/remix-button";
 import { CookbookButton } from "@/components/cookbook-button";
@@ -31,6 +33,7 @@ import { getLineage, getRemixes } from "@/lib/social";
 import { rankSubstitutes } from "@/lib/substitutes";
 import { getTags, getTagsByItem } from "@/lib/tags";
 import { recipeMacros } from "@/lib/recipe-nutrition";
+import { recipeTint } from "@/lib/tint";
 import { currentKitchen } from "@/lib/session";
 import { myRating } from "@/lib/recipe-store";
 import { getUser } from "@/lib/users";
@@ -198,59 +201,91 @@ export default async function RecipePage({
       <SiteHeader active="recipes" />
 
       <div className="mx-auto w-full max-w-[760px] px-5 pt-6 pb-32 sm:px-9 sm:py-8">
-        <Link
-          href="/recipes"
-          className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+        {/*
+          One header whether or not there is a photo.
+
+          A recipe with a photo had a title on it and a recipe without had a
+          title above where the photo would be, so the two read as different
+          screens - and the second one opened on a wall of small grey text. The
+          flat per-id tint is the same colour the listing card gives it, so a
+          recipe you tapped is recognisably the thing you tapped.
+        */}
+        <header
+          className="relative -mx-5 -mt-6 overflow-hidden sm:mx-0 sm:mt-0 sm:rounded-[20px]"
+          style={recipe.photo_url ? undefined : { background: recipeTint(recipe.id) }}
         >
-          &larr; Recipes
-        </Link>
+          {/*
+            The photo fills the header rather than setting its height.
 
-        {recipe.photo_url && (
-          <div className="relative mt-3 aspect-[16/10] overflow-hidden rounded-[20px] sm:aspect-[2/1]">
-            <Image
-              src={recipe.photo_url}
-              alt=""
-              fill
-              priority
-              sizes="(max-width: 768px) 100vw, 760px"
-              className="object-cover"
-            />
-            {/* A scrim rather than a flat overlay: the title needs contrast at
-                the bottom and the photo deserves to be seen at the top. */}
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-5 pt-16">
-              <h1 className="text-[26px] font-extrabold tracking-[-0.02em] break-words text-white sm:text-[32px]">
-                {recipe.name}
-              </h1>
-              {recipe.description && (
-                <p className="mt-1 text-sm leading-relaxed font-medium text-white/85">
-                  {recipe.description}
-                </p>
+            Sized by the words on it, which is the only thing that cannot be
+            made to fit: a three-line title over a fixed 16:10 photo grew
+            upwards and straight through the back button. The photo crops, the
+            title never does.
+          */}
+          {recipe.photo_url && (
+            <>
+              <Image
+                src={recipe.photo_url}
+                alt=""
+                fill
+                priority
+                sizes="(max-width: 768px) 100vw, 760px"
+                className="object-cover"
+              />
+              {/* A scrim rather than a flat overlay: the title needs contrast at
+                  the bottom and the photo deserves to be seen at the top. */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/25" />
+            </>
+          )}
+
+          <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4">
+            <Link
+              href="/recipes"
+              aria-label="Back to your cookbook"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/85 text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.18)] backdrop-blur"
+            >
+              <ArrowLeft className="h-5 w-5" strokeWidth={2.5} />
+            </Link>
+
+            <RecipeMenu>
+              {isAuthor && (
+                <Link
+                  href={`/recipes/${recipe.id}/edit`}
+                  className="flex min-h-11 items-center rounded-[14px] bg-chip px-4 text-sm font-extrabold hover:bg-border"
+                >
+                  Edit this recipe
+                </Link>
               )}
-            </div>
+              {isAuthor ? (
+                <RecipeVisibility recipeId={recipe.id} current={recipe.visibility} />
+              ) : (
+                <RemixButton recipeId={recipe.id} yours={false} />
+              )}
+              {/* The author gets it too: trying a variation without losing the
+                  version that already works is the same operation. */}
+              {isAuthor && <RemixButton recipeId={recipe.id} yours />}
+            </RecipeMenu>
           </div>
-        )}
 
-        <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
-          {!recipe.photo_url && (
-            <h1 className="text-[28px] font-extrabold tracking-[-0.02em] break-words sm:text-[32px]">
+          <div className="relative flex min-h-[220px] flex-col justify-end px-5 pt-20 pb-5 sm:min-h-[260px]">
+            <h1
+              className={`text-[26px] font-extrabold tracking-[-0.02em] break-words sm:text-[32px] ${
+                recipe.photo_url ? "text-white" : ""
+              }`}
+            >
               {recipe.name}
             </h1>
-          )}
-          {isAuthor && (
-            <Link
-              href={`/recipes/${recipe.id}/edit`}
-              className="mt-1.5 shrink-0 rounded-full bg-chip px-4 py-2 text-sm font-bold hover:bg-border"
-            >
-              Edit
-            </Link>
-          )}
-        </div>
-
-        {recipe.description && !recipe.photo_url && (
-          <p className="mt-2 text-[15px] leading-relaxed font-medium text-muted-foreground">
-            {recipe.description}
-          </p>
-        )}
+            {recipe.description && (
+              <p
+                className={`mt-1 text-sm leading-relaxed font-medium ${
+                  recipe.photo_url ? "text-white/85" : "text-ink/70"
+                }`}
+              >
+                {recipe.description}
+              </p>
+            )}
+          </div>
+        </header>
 
         {(author || forkedAuthor) && (
           <p className="mt-2 text-sm font-semibold text-muted-foreground">
@@ -321,22 +356,6 @@ export default async function RecipePage({
             <CookbookButton recipeId={recipe.id} inCookbook={inCookbook} />
           </div>
         )}
-
-        <div className="mt-5">
-          {isAuthor ? (
-            <RecipeVisibility recipeId={recipe.id} current={recipe.visibility} />
-          ) : (
-            <RemixButton recipeId={recipe.id} yours={false} />
-          )}
-
-          {/* The author gets it too, quietly: trying a variation without
-              losing the version that already works is the same operation. */}
-          {isAuthor && (
-            <div className="mt-2">
-              <RemixButton recipeId={recipe.id} yours />
-            </div>
-          )}
-        </div>
 
         <RecipeSocial
           recipeId={recipe.id}

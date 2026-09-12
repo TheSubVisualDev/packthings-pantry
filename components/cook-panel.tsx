@@ -387,9 +387,27 @@ export function CookPanel({
       </section>
 
       <section>
-        <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-label">
-          Ingredients
-        </h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-label">
+            Ingredients
+          </h2>
+          {/* The answer to "can I make this", at the top where the question is
+              asked. The shortfall and its button stay under the list, which is
+              where you decide to do something about it. */}
+          {hasKitchen && (
+            <span
+              className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                blockers.length === 0
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-chip text-muted-foreground"
+              }`}
+            >
+              {blockers.length === 0
+                ? `you have everything for ${servings}`
+                : `${blockers.length} to buy`}
+            </span>
+          )}
+        </div>
         {sections.map((section) => (
           <div key={section.name ?? ""} className="mb-3 last:mb-0">
             {section.name && (

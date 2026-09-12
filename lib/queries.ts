@@ -441,7 +441,9 @@ export async function getComments(
           ORDER BY c.created_at, c.id`,
     args: [recipeId, viewerId, viewerId],
   });
-  return result.rows as unknown as Comment[];
+  // Plain objects: these reach a client component, and a libSQL Row does not
+  // survive that boundary quietly. See plainRows in lib/db.ts.
+  return plainRows<Comment>(result);
 }
 
 export async function searchPeople(viewerId: number, term: string) {
