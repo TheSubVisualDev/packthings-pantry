@@ -125,6 +125,7 @@ export function Vessel({
   kind,
   level,
   onLevel,
+  onCommit,
   capacity,
   unit,
   label,
@@ -132,7 +133,21 @@ export function Vessel({
   kind: VesselKind;
   /** How full, 0 to 1. */
   level: number;
+  /**
+   * Every change, including each frame of a drag. Cheap things only: this
+   * fires many times a second.
+   */
   onLevel: (level: number) => void;
+  /**
+   * The level somebody settled on - the finger lifting, a chip, a key press.
+   *
+   * Anything expensive belongs here rather than in onLevel. The item page
+   * writes to a database in Nuremberg, and doing that per frame produced a
+   * queue of round trips whose answers arrived out of order and fought each
+   * other: the liquid jerked between empty and full and would not stay where
+   * it was put. It is one write per drag now.
+   */
+  onCommit?: (level: number) => void;
   /** What a full one holds, in `unit`. */
   capacity: number;
   unit: string;
@@ -181,6 +196,19 @@ export function Vessel({
     onLevel(snap(raw));
   }
 
+  /** The finger has lifted: hand back the drawing, and save once. */
+  function settle() {
+    const last = live;
+    setLive(null);
+    onCommit?.(last === null ? level : snap(last));
+  }
+
+  /** A tap or a key: a level chosen outright, so it is both at once. */
+  function choose(next: number) {
+    onLevel(next);
+    onCommit?.(next);
+  }
+
   const amount = Math.round(level * capacity * 100) / 100;
   const step = stepFor(capacity, unit);
 
@@ -206,19 +234,19 @@ export function Vessel({
         // Letting go hands the drawing back to the saved level, which is the
         // snapped one - so the surface glides the last few millilitres onto
         // the number the app has actually written down.
-        onPointerUp={() => setLive(null)}
-        onPointerCancel={() => setLive(null)}
+        onPointerUp={settle}
+        onPointerCancel={settle}
         onKeyDown={(event) => {
           // One step per press, the same step a drag snaps to, so the keyboard
           // and the finger cannot disagree about what a nudge is worth.
           const by = capacity > 0 ? step / capacity : SNAP;
           if (event.key === "ArrowUp" || event.key === "ArrowRight") {
             event.preventDefault();
-            onLevel(Math.min(1, level + by));
+            choose(Math.min(1, level + by));
           }
           if (event.key === "ArrowDown" || event.key === "ArrowLeft") {
             event.preventDefault();
-            onLevel(Math.max(0, level - by));
+            choose(Math.max(0, level - by));
           }
         }}
         className="h-[140px] w-[100px] shrink-0 touch-none select-none focus:outline-none"
@@ -308,7 +336,7 @@ export function Vessel({
               key={mark.label}
               type="button"
               aria-pressed={on}
-              onClick={() => onLevel(mark.at)}
+              onClick={() => choose(mark.at)}
               className={`min-h-11 min-w-14 flex-1 rounded-full px-3 text-sm font-bold whitespace-nowrap ${
                 on
                   ? "bg-primary text-primary-foreground"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import { Minus, Plus } from "lucide-react";
 import { adjustItem, adjustPacks, setPackaging } from "@/app/pantry/actions";
 import type { ItemResult } from "@/app/pantry/actions";
@@ -30,6 +30,16 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
   const [sealed, setSealed] = useState(item.sealed_count);
   /** What is in the open one, held locally so the liquid moves on the drag. */
   const [open, setOpen] = useState(item.quantity);
+
+  /**
+   * What the server last told us it holds.
+   *
+   * The prop only changes when the page re-renders from the database, so a
+   * second drag before that lands would compute its delta against a stale
+   * number and move the stock twice. This is the last answer we actually
+   * have, updated by every write that succeeds.
+   */
+  const server = useRef({ quantity: item.quantity, sealed: item.sealed_count });
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [packed, setPacked] = useState(item.pack_size !== null);
@@ -64,33 +74,53 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
   })();
 
   /**
-   * Sets the open container to a level, by saying how much that is.
+   * The level while a finger is still on it: local only.
    *
-   * A delta rather than an assignment, because the cascade rule is written as
-   * one - and the optimistic number here has to be the number the server
-   * arrives at, which applyDelta is the JavaScript half of. Dragging the
-   * liquid from a fifth to a half of a bottle with two sealed ones behind it
-   * must not decide there is now half a bottle in total.
+   * Dragging fires many times a second and this database is in Nuremberg. The
+   * first version wrote on every frame, which produced a queue of round trips
+   * whose answers came back out of order and overwrote each other - the
+   * liquid jerked between empty and full and would not stay where it was put.
+   * Nothing leaves the phone until the finger does.
    */
   function pour(to: number) {
-    const delta = Math.round((to - open) * 1e6) / 1e6;
+    setOpen(Math.max(0, Math.min(item.pack_size ?? to, to)));
+    setError(null);
+  }
+
+  /**
+   * The level somebody settled on, saved once.
+   *
+   * A delta rather than an assignment, because the cascade rule is written as
+   * one - and the optimistic number has to be the number the server arrives
+   * at, which applyDelta is the JavaScript half of. Dragging the liquid from a
+   * fifth to a half of a bottle with two sealed ones behind it must not decide
+   * there is now half a bottle in total.
+   */
+  function commit(to: number) {
+    const was = { ...server.current };
+    const delta = Math.round((to - was.quantity) * 1e6) / 1e6;
     if (delta === 0) return;
 
-    const was = { quantity: open, sealedCount: sealed };
-    const next = applyDelta({ ...item, quantity: open, sealed_count: sealed }, delta);
+    const next = applyDelta(
+      { ...item, quantity: was.quantity, sealed_count: was.sealed },
+      delta,
+    );
     setOpen(next.quantity);
     setSealed(next.sealedCount);
+    server.current = { quantity: next.quantity, sealed: next.sealedCount };
     setError(null);
 
     startTransition(async () => {
       const result = await adjustItem(item.id, delta);
       if (!result.ok) {
         setOpen(was.quantity);
-        setSealed(was.sealedCount);
+        setSealed(was.sealed);
+        server.current = was;
         setError(result.error ?? "Couldn't save that.");
       } else if (result.quantity !== undefined && result.sealedCount !== undefined) {
         setOpen(result.quantity);
         setSealed(result.sealedCount);
+        server.current = { quantity: result.quantity, sealed: result.sealedCount };
       }
     });
   }
@@ -101,13 +131,17 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
     setSealed(was + by);
     setError(null);
 
+    server.current = { ...server.current, sealed: was + by };
+
     startTransition(async () => {
       const result = await adjustPacks(item.id, by);
       if (!result.ok) {
         setSealed(was);
+        server.current = { ...server.current, sealed: was };
         setError(result.error ?? "Couldn't save that.");
       } else if (result.sealedCount !== undefined) {
         setSealed(result.sealedCount);
+        server.current = { ...server.current, sealed: result.sealedCount };
       }
     });
   }
@@ -151,6 +185,7 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
             })}
             level={capacity > 0 ? Math.min(1, open / capacity) : 0}
             onLevel={(level) => pour(Math.round(level * capacity * 100) / 100)}
+            onCommit={(level) => commit(Math.round(level * capacity * 100) / 100)}
             capacity={capacity}
             unit={item.canonical_unit}
             label={`How full the open ${item.name} is`}
