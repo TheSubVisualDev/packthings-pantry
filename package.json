@@ -16,7 +16,8 @@
     "check:receipt": "node --import ./scripts/ts-imports.mjs scripts/check-receipt.mjs",
     "check:match": "node --import ./scripts/ts-imports.mjs scripts/check-match.mjs",
     "check:cookbook": "node --import ./scripts/ts-imports.mjs scripts/check-cookbook.mjs",
-    "check:recipe-tags": "node --import ./scripts/ts-imports.mjs scripts/check-recipe-tags.mjs"
+    "check:recipe-tags": "node --import ./scripts/ts-imports.mjs scripts/check-recipe-tags.mjs",
+    "check:tonight": "node --import ./scripts/ts-imports.mjs scripts/check-tonight.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

@@ -1,6 +1,9 @@
 import { getDb } from "./db";
 import { indexStock } from "./pantry-match";
 import { countStockedLines, getLinks, resolveWithLinks } from "./cookbook";
+import { inStock } from "./containers";
+import { totalMinutes } from "./recipe-tags";
+import type { RecipeFacts } from "./tonight";
 import { VISIBLE_TO_VIEWER, viewerArgs } from "./social";
 import type {
   Item,
@@ -692,5 +695,83 @@ export async function getNeglected(
       }));
 
     return { ...item, recipes: uses };
+  });
+}
+
+/**
+ * Everything the Tonight ranker needs, in one pass over the cookbook.
+ *
+ * Deliberately assembles facts rather than ranking anything: the scoring lives
+ * in lib/tonight.ts and stays pure, so check:tonight can argue with a weight
+ * without a database.
+ */
+export async function getTonightFacts(
+  kitchenId: number | null,
+  viewerId: number,
+): Promise<RecipeFacts[]> {
+  if (kitchenId === null) return [];
+
+  const [recipes, context, expiring, lastCooked] = await Promise.all([
+    getCookbookRecipes(kitchenId, viewerId),
+    readinessContext(kitchenId),
+    getExpiring(kitchenId),
+    /**
+     * When each recipe was last actually cooked here.
+     *
+     * Undone cooks do not count. Pressing undo is saying it did not happen,
+     * and a mistake corrected thirty seconds later must not suppress the
+     * recipe for a fortnight.
+     */
+    getDb().execute({
+      sql: `SELECT recipe_id,
+                   CAST(julianday('now') - julianday(MAX(cooked_at)) AS INTEGER) AS days_since
+            FROM cook_events
+            WHERE kitchen_id = ? AND undone_at IS NULL
+            GROUP BY recipe_id`,
+      args: [kitchenId],
+    }),
+  ]);
+
+  const daysLeftByItem = new Map(expiring.map((item) => [item.id, item.days_left]));
+  const expiringNames = new Map(expiring.map((item) => [item.id, item.name]));
+  const sinceByRecipe = new Map(
+    (lastCooked.rows as unknown as { recipe_id: number; days_since: number }[]).map(
+      (row) => [row.recipe_id, row.days_since],
+    ),
+  );
+
+  return recipes.map((recipe) => {
+    const lines = context.byRecipe.get(recipe.id) ?? [];
+    const rescues: { name: string; daysLeft: number }[] = [];
+    const missing: string[] = [];
+    let have = 0;
+
+    for (const line of lines) {
+      const { item } = resolveWithLinks(line, context.links, context.stock, context.byId);
+      if (item && inStock(item)) {
+        have += 1;
+        const daysLeft = daysLeftByItem.get(item.id);
+        if (daysLeft !== undefined) {
+          rescues.push({ name: expiringNames.get(item.id) ?? item.name, daysLeft });
+        }
+      } else {
+        // What the recipe calls it, not what the pantry calls it. The shopping
+        // list reads better in the recipe's own words.
+        missing.push(line.item_name);
+      }
+    }
+
+    return {
+      id: recipe.id,
+      name: recipe.name,
+      have,
+      total: lines.length,
+      rescues,
+      missing,
+      minutes: totalMinutes(recipe),
+      rating: recipe.avg_rating,
+      timesCooked: recipe.times_cooked,
+      daysSinceCooked: sinceByRecipe.get(recipe.id) ?? null,
+    };
   });
 }

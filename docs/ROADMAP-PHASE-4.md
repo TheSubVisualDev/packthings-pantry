@@ -22,7 +22,7 @@ Three principles, applied everywhere below.
 
 ---
 
-## M1 · One definition of "do I have this" — half a day
+## M1 · One definition of "do I have this" — DONE 12 Sep 2026
 
 **The highest-leverage thing in the phase, and it is invisible.**
 
@@ -69,7 +69,7 @@ them is honest.
 
 ---
 
-## M2 · The cookbook — three quarters of a day
+## M2 · The cookbook — DONE 12 Sep 2026
 
 **Recipes you have adopted, with their ingredients linked to your shelves.**
 
@@ -140,7 +140,7 @@ which is the other reason this is worth doing before the recommender.
 
 ---
 
-## M3 · Recipe tags — three quarters of a day
+## M3 · Recipe tags — DONE 12 Sep 2026
 
 **"Asian", "10 mins", "weeknight", "uses the oven".**
 
@@ -193,7 +193,7 @@ Filtering by tag lands on `/recipes` and in M3.
 
 ---
 
-## M4 · "Tonight" — the recommender surface — one day
+## M4 · "Tonight" — the recommender surface — DONE 12 Sep 2026
 
 **The centrepiece. One screen that decides.**
 
@@ -379,10 +379,19 @@ What the designer needs to know:
 
 ## Order and total
 
-M1 → M2 → M3 → M4 are a chain and want doing in that order. M1 is invisible on
-its own; M2 is the first thing anyone sees of it, and M4 is the payoff. M5, M6,
-M7, M8 and M9 are independent and can be picked up in any order. M10 runs
-alongside throughout.
+**M1 to M4 shipped 12 Sep 2026** - the chain is done and the payoff is live at
+`/tonight`. M5, M6, M7, M8 and M9 are independent and can be picked up in any
+order. M10 runs alongside throughout.
+
+Two things the chain changed that were not in the original plan, both worth
+knowing before picking up anything else:
+
+- **`UseItUp` no longer suggests recipes.** It was proposing them by its own
+  ranking while Tonight proposed them by another, on the same screen. It lists
+  deadlines now, which is the part Tonight structurally cannot show - an
+  ingredient nothing uses never appears in a suggestion.
+- **`components/recipe-suggestion.tsx` is gone**, replaced by
+  `components/tonight-card.tsx`.
 
 M2 is the first milestone that touches the database, so it goes through the
 `AGENTS.md` routine before it goes anywhere near live: clone, migrate the clone,

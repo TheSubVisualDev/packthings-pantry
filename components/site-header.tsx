@@ -6,7 +6,10 @@ import { currentKitchen } from "@/lib/session";
 
 const tabs = [
   { href: "/pantry", key: "stock", label: "Stock" },
-  { href: "/recipes", key: "recipes", label: "Recipes" },
+  // First after Stock because it is the question the app is for. Discover is
+  // browsing; this is the answer.
+  { href: "/tonight", key: "tonight", label: "Tonight" },
+  { href: "/recipes", key: "recipes", label: "Cookbook" },
   { href: "/discover", key: "discover", label: "Discover" },
 ] as const;
 
@@ -24,7 +27,7 @@ export async function SiteHeader({
   active,
   meta,
 }: {
-  active: "stock" | "recipes" | "discover";
+  active: "stock" | "tonight" | "recipes" | "discover";
   meta?: string;
 }) {
   // Reached through the Basic-auth back door there is no account and so no

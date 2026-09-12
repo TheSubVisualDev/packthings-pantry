@@ -17,11 +17,14 @@ export function RecipeFilters({
   activeTag,
   activeWithin,
   term,
+  basePath = "/recipes",
 }: {
   tags: string[];
   activeTag: string | null;
   activeWithin: number | null;
   term: string;
+  /** Which list is being filtered - the cookbook, or tonight's shortlist. */
+  basePath?: string;
 }) {
   /** Keeps whatever else is set while changing one thing. */
   function href(next: { tag?: string | null; within?: number | null }) {
@@ -34,7 +37,7 @@ export function RecipeFilters({
     if (within) params.set("within", String(within));
 
     const query = params.toString();
-    return query ? `/recipes?${query}` : "/recipes";
+    return query ? `${basePath}?${query}` : basePath;
   }
 
   // The time chips need no tags to be useful - every recipe has timings, or

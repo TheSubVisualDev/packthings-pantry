@@ -5,8 +5,9 @@ import { SiteHeader } from "@/components/site-header";
 import { UseItUp } from "@/components/use-it-up";
 import { EstimateButton } from "@/components/estimate-button";
 import { StockList } from "@/components/stock-list";
-import { SuggestionCard, TopMatchCard } from "@/components/recipe-suggestion";
-import { getItems, getRecipesWithMatches } from "@/lib/queries";
+import { NearlyCard, TonightCard } from "@/components/tonight-card";
+import { getItems, getTonightFacts } from "@/lib/queries";
+import { nearlyThere, rankTonight } from "@/lib/tonight";
 import { UNPLACED } from "@/lib/locations";
 import { getLocations } from "@/lib/kitchens";
 import { macroGroup } from "@/lib/nutrition";
@@ -120,21 +121,32 @@ export default async function PantryPage({
   if (!context.kitchen) redirect("/kitchens?need=stock");
   const { kitchen } = context;
 
-  const [items, recipes, places, rescues, list, tags] = await Promise.all([
+  const [items, facts, places, rescues, list, tags] = await Promise.all([
     getItems(kitchen.id),
-    getRecipesWithMatches(kitchen.id, context.user.id),
+    getTonightFacts(kitchen.id, context.user.id),
     getLocations(kitchen.id),
     getRescues(kitchen.id, context.user.id),
     getList(kitchen.id),
     getTags(kitchen.id),
   ]);
 
+  /**
+   * One answer, not three.
+   *
+   * This panel used to hold the rescues list, a top match and a column of
+   * runners-up - three separate opinions about what to cook, none of them
+   * ranked against the others and none of them saying why. They are one
+   * ranking now, and the rest of it lives behind /tonight.
+   */
+  const ranked = rankTonight(facts);
+  const [best] = ranked;
+  const nearly = best ? nearlyThere(facts, [best.id]) : null;
+
   const tagNames = new Map(tags.map((tag) => [tag.id, tag.name]));
 
   const toBuy = list.filter((line) => !line.bought_at).length;
 
   const groups = group(items, groupBy, places, tagNames);
-  const [topMatch, ...runnersUp] = recipes;
 
   return (
     <>
@@ -165,19 +177,31 @@ export default async function PantryPage({
             {items.length} items · cook something?
           </div>
 
-          {topMatch ? (
+          {best ? (
             <div className="mt-2 space-y-3 sm:mt-0">
-              <TopMatchCard recipe={topMatch} />
-              {runnersUp.length > 0 && (
-                <div className="hidden space-y-3 sm:block">
-                  {runnersUp.map((recipe) => (
-                    <SuggestionCard key={recipe.id} recipe={recipe} />
-                  ))}
+              <TonightCard suggestion={best} servings={2} />
+              {nearly && (
+                <div className="hidden sm:block">
+                  <NearlyCard suggestion={nearly} servings={2} />
                 </div>
+              )}
+              {ranked.length > 1 && (
+                <Link
+                  href="/tonight"
+                  className="block rounded-[14px] bg-chip px-4 py-3 text-center text-sm font-bold hover:bg-border"
+                >
+                  Other ideas ({ranked.length - 1})
+                </Link>
               )}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No recipes yet.</p>
+            <p className="text-sm text-muted-foreground">
+              Nothing in your cookbook yet.{" "}
+              <Link href="/recipes" className="font-bold text-primary underline underline-offset-2">
+                Add a recipe
+              </Link>{" "}
+              and this becomes a suggestion.
+            </p>
           )}
         </aside>
 

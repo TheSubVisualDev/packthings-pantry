@@ -3,16 +3,18 @@ import { shortDate } from "@/lib/dates";
 import type { Rescue } from "@/lib/queries";
 
 /**
- * What is about to go off, and what to cook with it.
+ * What is about to go off.
  *
- * The old panel listed the deadlines, which tells you there is a problem
- * without helping with it. The useful half is the next line down: given that
- * the coriander dies on Thursday, here is something you could actually make
- * tonight, with a count of how much of it is already in.
+ * This used to carry two recipe suggestions per item as well, which was the
+ * right instinct in the wrong place: Tonight now ranks the whole cookbook with
+ * a deadline as its heaviest signal, so the same recipe was being proposed
+ * twice on one screen by two rankings that could disagree. The deadlines are
+ * the part Tonight cannot show, so the deadlines are what stayed.
  *
  * Items nothing can be made from stay on the list rather than being filtered
- * out. They are the ones actually about to be thrown away, which makes them the
- * most worth seeing, even when the answer is "nothing here uses this".
+ * out. They are the ones actually about to be thrown away, which makes them
+ * the most worth seeing - and they are exactly what a suggestion panel is
+ * structurally incapable of surfacing.
  */
 export function UseItUp({ rescues }: { rescues: Rescue[] }) {
   if (rescues.length === 0) return null;
@@ -52,29 +54,12 @@ export function UseItUp({ rescues }: { rescues: Rescue[] }) {
               </span>
             </Link>
 
-            {recipes.length > 0 ? (
-              <ul className="mt-1.5 space-y-1">
-                {recipes.map((recipe) => (
-                  <li key={recipe.id}>
-                    <Link
-                      href={`/recipes/${recipe.id}`}
-                      className="flex items-baseline justify-between gap-3 text-[13px] font-semibold text-muted-foreground hover:text-foreground"
-                    >
-                      <span className="min-w-0 break-words">→ {recipe.name}</span>
-                      {/* The proportion, not the shortfall: "5 of 6" says
-                          make-this-tonight in a way "1 missing" does not. */}
-                      <span className="shrink-0 tabular-nums">
-                        {recipe.have}/{recipe.total}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
+            {recipes.length === 0 && (
               <p className="mt-1 text-[13px] font-semibold text-muted-foreground/70">
-                Nothing you have written uses this yet.
+                Nothing in your cookbook uses this yet.
               </p>
             )}
+
           </li>
         ))}
       </ul>
