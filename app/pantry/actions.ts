@@ -824,6 +824,45 @@ export async function preferShop(itemId: number, shopId: number): Promise<ShopRe
  * the date is in your hand. An empty string clears it, which is a real answer -
  * plenty of things have no date on them at all.
  */
+/**
+ * How long something keeps once it has been opened.
+ *
+ * Its own action rather than part of the general item edit, because it is
+ * asked at a completely different moment: the general edit is somebody sitting
+ * down with the pantry, this is somebody who has just broken the seal on a jar
+ * and is the only person who will ever know the answer.
+ *
+ * An empty value clears it back to null, which is honest - plenty of things
+ * have nothing useful to say here, and a guessed number about how long food
+ * keeps is worse than no number.
+ */
+export async function setShelfLife(
+  itemId: number,
+  days: string,
+): Promise<ItemResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return { ok: false, error: "Unknown item" };
+  }
+
+  const clean = days.trim();
+  const value = clean ? Number(clean) : null;
+  if (value !== null && (!Number.isInteger(value) || value <= 0 || value > 3650)) {
+    return { ok: false, error: "That isn't a number of days." };
+  }
+
+  await getDb().execute({
+    sql: `UPDATE items SET shelf_life_days = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND kitchen_id = ?`,
+    args: [value, itemId, access.kitchen.id],
+  });
+
+  revalidatePath("/pantry");
+  return { ok: true };
+}
+
 export async function setExpiry(
   itemId: number,
   date: string,

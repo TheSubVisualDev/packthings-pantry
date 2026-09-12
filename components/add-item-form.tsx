@@ -82,12 +82,14 @@ export function AddItemForm({
    *
    * Recomputed as you type rather than on blur, because the whole effect
    * depends on the rest of the form being filled in by the time you look down
-   * at it. A scan already knows better than any guess, so its prefill wins.
+   * at it.
+   *
+   * A scan runs this too, per field rather than instead of it. The barcode
+   * knows the pack size and the brand-free name and nothing else; it has no
+   * idea which shelf you keep it on or what you file it under, and it used to
+   * block the guess that did.
    */
-  const suggestion = useMemo(
-    () => (prefill.name ? { because: null } : suggestFor(name, profiles)),
-    [name, profiles, prefill.name],
-  );
+  const suggestion = useMemo(() => suggestFor(name, profiles), [name, profiles]);
 
   /**
    * The row this probably already is.
@@ -113,13 +115,27 @@ export function AddItemForm({
     setOverrides((current) => ({ ...current, [field]: value }));
   }
 
-  const valueOf = (field: string, suggested: string | undefined, fallback: string) =>
-    touched[field] ? (overrides[field] ?? fallback) : (suggested ?? fallback);
+  /**
+   * What you typed, then what the scan knew, then what the kitchen reckons.
+   *
+   * That order matters: a barcode read off the packet in front of you beats a
+   * guess from a similar jar, but only for the fields it actually carries.
+   * Everywhere it is silent the guess still answers.
+   */
+  const valueOf = (
+    field: string,
+    scanned: string | undefined,
+    suggested: string | undefined,
+    fallback: string,
+  ) =>
+    touched[field]
+      ? (overrides[field] ?? fallback)
+      : (scanned ?? suggested ?? fallback);
 
-  const unit = valueOf("unit", suggestion.unit, prefill.unit ?? "g");
-  const location = valueOf("location", suggestion.location, prefill.location ?? "");
-  const packSize = valueOf("pack_size", suggestion.pack_size, prefill.pack_size ?? "");
-  const shelfLife = valueOf("shelf_life_days", suggestion.shelf_life_days, "");
+  const unit = valueOf("unit", prefill.unit, suggestion.unit, "g");
+  const location = valueOf("location", prefill.location, suggestion.location, "");
+  const packSize = valueOf("pack_size", prefill.pack_size, suggestion.pack_size, "");
+  const shelfLife = valueOf("shelf_life_days", undefined, suggestion.shelf_life_days, "");
 
   // A scan arrives knowing the pack, and so does anything copied from a jar you
   // already own; typing it by hand is still opt-in.
@@ -133,7 +149,8 @@ export function AddItemForm({
    * wrong for being handed a new answer. Keying on what the suggestion was
    * based on re-seeds them exactly when the suggestion itself changed.
    */
-  const chipKey = `${touched.tags ? "own" : (suggestion.because ?? "none")}`;
+  const chipKey = (field: "tags" | "shops") =>
+    touched[field] ? "own" : (suggestion.because ?? "none");
 
   function forget() {
     // Everything the guess filled in becomes yours, unchanged, so dismissing
@@ -338,11 +355,11 @@ export function AddItemForm({
         {/* The first tag is the one it gets filed under, which is why the
             picker marks it rather than explaining it. */}
         <ChipPicker
-          key={`tags-${chipKey}`}
+          key={`tags-${chipKey("tags")}`}
           name="tags"
           options={tags}
           onDirty={() => setTouched((c) => ({ ...c, tags: true }))}
-          defaultValue={prefill.tags ?? suggestion.tags?.join(", ") ?? ""}
+          defaultValue={prefill.tags || suggestion.tags?.join(", ") || ""}
           placeholder="Asian, sauce, soya…"
           primaryNote={(first) => (
             <>
@@ -361,11 +378,11 @@ export function AddItemForm({
             place. The first is where you usually go, which is what groups the
             shopping list. */}
         <ChipPicker
-          key={`shops-${chipKey}`}
+          key={`shops-${chipKey("shops")}`}
           name="shops"
           options={shops}
-          onDirty={() => setTouched((c) => ({ ...c, tags: true }))}
-          defaultValue={prefill.shops ?? suggestion.shops?.join(", ") ?? ""}
+          onDirty={() => setTouched((c) => ({ ...c, shops: true }))}
+          defaultValue={prefill.shops || suggestion.shops?.join(", ") || ""}
           placeholder="Tesco, the Asian supermarket…"
           primaryNote={(first) => (
             <>

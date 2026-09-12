@@ -31,6 +31,15 @@ export interface CookLineResult {
 export interface OpenedPack {
   item_id: number;
   item_name: string;
+  /**
+   * How long it keeps once open, if anybody has ever said.
+   *
+   * Null is why the rescue panel is dark for most of a pantry: the deadline
+   * that applies to an open jar is opened_at plus this, and without it an open
+   * jar has no deadline at all. Opening one is the moment to ask, because it
+   * is the moment somebody is holding it.
+   */
+  shelf_life_days: number | null;
 }
 
 export interface CookResult {
@@ -248,7 +257,11 @@ export async function cookRecipe(
          * about something already eaten. The cook result says which items
          * these were, so you can put the new dates in while holding them.
          */
-        opened.push({ item_id: item.id, item_name: item.name });
+        opened.push({
+          item_id: item.id,
+          item_name: item.name,
+          shelf_life_days: item.shelf_life_days,
+        });
         await tx.execute({
           sql: `UPDATE items SET opened_at = CURRENT_TIMESTAMP, expiry_date = NULL
                 WHERE id = ?`,
