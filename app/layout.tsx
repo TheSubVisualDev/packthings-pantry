@@ -29,12 +29,36 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Pantry",
   description: "Pantry stock and recipe browser",
+  manifest: "/manifest.webmanifest",
+  /**
+   * The iOS half of being installed.
+   *
+   * `capable` is the old meta tag Safari still reads, and without it - or
+   * without the manifest beside it - a home screen icon opens a browser with
+   * its chrome showing the moment you follow a link.
+   *
+   * The status bar is "default": black text on our own background. The
+   * translucent option puts the page under the clock, which needs every
+   * screen to know about it, and this app has a header on all of them.
+   */
+  appleWebApp: {
+    capable: true,
+    title: "Pantry",
+    statusBarStyle: "default",
+  },
+  // Next emits the modern `mobile-web-app-capable` for the line above and not
+  // the Apple-prefixed one, which iOS before 16.4 is the only reader of. It
+  // costs one tag to not care which iPhone this is opened on.
+  other: { "apple-mobile-web-app-capable": "yes" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#f7f3ec",
+  // So env(safe-area-inset-*) reports real numbers. Without it they are all
+  // zero, and the bottom nav sits under the home indicator.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

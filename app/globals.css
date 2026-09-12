@@ -156,3 +156,30 @@
     opacity: 0.6;
   }
 }
+
+/**
+ * The surface of the liquid in a vessel.
+ *
+ * One wavelength of travel, looping, so there is no seam: the path is drawn
+ * wider than the shape it is clipped to and slides by exactly the distance
+ * between two crests. Off when somebody has asked for less motion - it says
+ * nothing that the level does not.
+ */
+@keyframes vessel-wave {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-60px);
+  }
+}
+
+.vessel-wave {
+  animation: vessel-wave 2.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vessel-wave {
+    animation: none;
+  }
+}

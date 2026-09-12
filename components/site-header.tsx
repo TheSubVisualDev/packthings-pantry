@@ -40,7 +40,16 @@ export async function SiteHeader({
   const kitchens = context.ok ? await getKitchensFor(context.user.id) : [];
 
   return (
-    <header className="border-b border-border bg-surface-raised">
+    /*
+      The header owns the status bar in an installed app.
+
+      With viewport-fit=cover the web view runs edge to edge, so without this
+      padding the clock sits on top of the kitchen name - and with the padding
+      on the page instead, the strip behind the clock is page-coloured and the
+      app looks like it starts an inch down the screen. Zero in a browser,
+      where the inset is zero.
+    */
+    <header className="border-b border-border bg-surface-raised pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-9 sm:py-5">
         <div className="flex min-w-0 items-center gap-2.5 sm:gap-7">
           <Link

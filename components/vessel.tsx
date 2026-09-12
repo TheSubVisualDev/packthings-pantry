@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { formatQuantity } from "@/lib/units";
 import type { Dimension } from "@/lib/types";
 
@@ -143,31 +143,49 @@ export function Vessel({
   const clipId = `vessel-${kind}`;
 
   /**
+   * Where the liquid is drawn while a finger is on it.
+   *
+   * The snapping is right for the NUMBER and wrong for the picture: rounding
+   * to 25ml mid-drag makes the surface hop from step to step, which is the
+   * one thing a liquid does not do. So the drawing follows the finger exactly
+   * and the number it reports is snapped - you get a smooth pour and a round
+   * figure, and on release the surface settles onto the number that was
+   * actually saved.
+   */
+  const [live, setLive] = useState<number | null>(null);
+  const shown = live ?? level;
+
+  /**
    * Where a pointer is, as a fraction of the vessel, upside down.
    *
    * The top of the box is 0 on a screen and full in a bottle, which is the
    * whole conversion: a drag is only ever measured against the box, never
    * accumulated, so letting go and grabbing again does not drift.
    */
-  function levelAt(clientY: number): number {
+  function rawAt(clientY: number): number {
     const rect = box.current?.getBoundingClientRect();
     if (!rect || rect.height === 0) return level;
-    const fraction = 1 - (clientY - rect.top) / rect.height;
-    const clamped = Math.max(0, Math.min(1, fraction));
+    return Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height));
+  }
 
-    // Snapped in the unit rather than in percent, so what comes out is a
-    // number somebody would say out loud. See stepFor.
-    if (capacity <= 0) return clamped;
-    const step = stepFor(capacity, unit);
-    const snapped = Math.round((clamped * capacity) / step) * step;
-    return Math.max(0, Math.min(1, snapped / capacity));
+  /** The same fraction, rounded to something a person would say. See stepFor. */
+  function snap(fraction: number): number {
+    if (capacity <= 0) return fraction;
+    const to = stepFor(capacity, unit);
+    return Math.max(0, Math.min(1, (Math.round((fraction * capacity) / to) * to) / capacity));
+  }
+
+  function track(clientY: number) {
+    const raw = rawAt(clientY);
+    setLive(raw);
+    onLevel(snap(raw));
   }
 
   const amount = Math.round(level * capacity * 100) / 100;
   const step = stepFor(capacity, unit);
 
-  return (
-    <div className="flex items-center gap-4">
+  const figure = (
+    <>
       <div
         ref={box}
         role="slider"
@@ -179,12 +197,17 @@ export function Vessel({
         aria-valuetext={`${formatQuantity(amount)}${unit === "count" ? "" : unit} of ${formatQuantity(capacity)}`}
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
-          onLevel(levelAt(event.clientY));
+          track(event.clientY);
         }}
         onPointerMove={(event) => {
           if (event.buttons === 0) return;
-          onLevel(levelAt(event.clientY));
+          track(event.clientY);
         }}
+        // Letting go hands the drawing back to the saved level, which is the
+        // snapped one - so the surface glides the last few millilitres onto
+        // the number the app has actually written down.
+        onPointerUp={() => setLive(null)}
+        onPointerCancel={() => setLive(null)}
         onKeyDown={(event) => {
           // One step per press, the same step a drag snaps to, so the keyboard
           // and the finger cannot disagree about what a nudge is worth.
@@ -212,15 +235,29 @@ export function Vessel({
           {/* The contents. A rect clipped to the shape rather than a second
               path per level, so any fraction works and the animation is one
               number moving. */}
-          <rect
-            x="0"
-            width="100"
-            y={140 - level * 140}
-            height={level * 140}
-            clipPath={`url(#${clipId})`}
-            className="fill-primary"
-            style={{ transition: "y .35s cubic-bezier(.34,1.3,.5,1), height .35s cubic-bezier(.34,1.3,.5,1)" }}
-          />
+          {/*
+            The contents, with a surface.
+
+            A rect clipped to the shape would do the job and look like a
+            progress bar stood on its end. This is a wide wavy path that slides
+            sideways forever inside the clip, so the top of the liquid moves
+            the way a liquid's does. Two crests, 60 units apart, over a shape
+            100 wide: the loop translates by exactly one wavelength, so there
+            is no seam to see.
+          */}
+          <g clipPath={`url(#${clipId})`}>
+            <g
+              style={{
+                transform: `translateY(${(1 - shown) * 140}px)`,
+                transition: live === null ? "transform .35s cubic-bezier(.34,1.3,.5,1)" : undefined,
+              }}
+            >
+              <path
+                className="vessel-wave fill-primary"
+                d="M0 8 C 7.5 2, 22.5 2, 30 8 S 52.5 14, 60 8 S 82.5 2, 90 8 S 112.5 14, 120 8 S 142.5 2, 150 8 L 150 160 L 0 160 Z"
+              />
+            </g>
+          </g>
 
           <path
             d={SHAPES[kind]}
@@ -247,30 +284,41 @@ export function Vessel({
             {unit}
           </p>
         )}
+      </div>
+    </>
+  );
 
-        {/* Sideways rather than wrapped: five chips and a number do not fit
-            across a narrow phone, and a row that reflows moves the one you
-            were aiming at. */}
-        <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {LEVELS.map((step) => {
-            const on = Math.abs(level - step.at) < SNAP / 2;
-            return (
-              <button
-                key={step.label}
-                type="button"
-                aria-pressed={on}
-                onClick={() => onLevel(step.at)}
-                className={`min-h-9 shrink-0 rounded-full px-3 text-sm font-bold whitespace-nowrap ${
-                  on
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-chip text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {step.label}
-              </button>
-            );
-          })}
-        </div>
+  return (
+    <div>
+      <div className="flex items-center gap-4">{figure}</div>
+
+      {/*
+        The levels get the whole width, under the bottle.
+
+        They were beside it, in a column about 180px wide, so a five-chip row
+        scrolled sideways and "Full" was off the edge - which on a phone reads
+        as a control with no options at all. There is a whole screen width
+        here and the chips are the fast way to answer.
+      */}
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {LEVELS.map((mark) => {
+          const on = Math.abs(level - mark.at) < 0.02;
+          return (
+            <button
+              key={mark.label}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onLevel(mark.at)}
+              className={`min-h-11 min-w-14 flex-1 rounded-full px-3 text-sm font-bold whitespace-nowrap ${
+                on
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-chip text-muted-foreground"
+              }`}
+            >
+              {mark.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

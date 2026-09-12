@@ -10,12 +10,20 @@ const INK = "#2a2520";
 const CREAM = "#f7f3ec";
 
 /**
- * Square and full-bleed on purpose: iOS applies its own rounded mask to a home
- * screen icon, so baking corners in would show a cream ring inside the mask.
- * Strokes are heavier than the source mark, which is drawn for display sizes.
+ * The mark, inset, on a solid ground.
+ *
+ * Full-bleed was wrong. iOS masks a home screen icon to a rounded square, and
+ * a cupboard drawn edge to edge had its top corners cut off and looked like a
+ * screenshot of a bigger picture - which is exactly what Luna saw on her home
+ * screen. The art now sits in the middle ~62% of the canvas, which survives
+ * both the iOS mask and the tighter circle Android uses.
+ *
+ * Opaque, too: transparency in an apple-touch-icon is composited onto black.
  */
-const appleIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="-9 -11 72 84">
-  <rect x="-9" y="-11" width="72" height="84" fill="${CREAM}"/>
+const INSET_VIEWBOX = "-22 -14.5 98 95";
+
+const mark = (size, pad) => `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${pad}">
+  <rect x="-40" y="-40" width="160" height="180" fill="${CREAM}"/>
   <g stroke="${INK}" stroke-width="5" fill="none">
     <path d="M6 18C6 11 15 7 27 7s21 4 21 11v34a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V18Z"/>
     <line x1="6" y1="32" x2="48" y2="32"/>
@@ -27,8 +35,26 @@ const appleIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="1
   <rect x="14" y="35.5" width="8" height="8" rx="1.8" fill="${INK}"/>
 </svg>`;
 
-const png = await sharp(Buffer.from(appleIcon)).png({ compressionLevel: 9 }).toBuffer();
-writeFileSync(new URL("../app/apple-icon.png", import.meta.url), png);
+/**
+ * Three sizes, two paddings.
+ *
+ * The manifest icons are the same drawing; the maskable one is padded further
+ * because Android crops to a circle inscribed in the middle 80%, and anything
+ * outside that is a suggestion rather than a promise.
+ */
+const OUTPUTS = [
+  { file: "../app/apple-icon.png", size: 180, pad: INSET_VIEWBOX },
+  { file: "../public/icon-192.png", size: 192, pad: INSET_VIEWBOX },
+  { file: "../public/icon-512.png", size: 512, pad: INSET_VIEWBOX },
+  { file: "../public/icon-maskable-512.png", size: 512, pad: "-34 -38 122 138" },
+];
 
-const { width, height, channels } = await sharp(png).metadata();
-console.log(`app/apple-icon.png: ${width}x${height}, ${channels} channels, ${png.length} bytes`);
+let png;
+for (const { file, size, pad } of OUTPUTS) {
+  png = await sharp(Buffer.from(mark(size, pad))).png({ compressionLevel: 9 }).toBuffer();
+  writeFileSync(new URL(file, import.meta.url), png);
+  console.log(`${file.replace("../", "")}: ${size}x${size}, ${png.length} bytes`);
+}
+
+const { channels } = await sharp(png).metadata();
+console.log(`channels: ${channels} (3 means opaque, which is what iOS wants)`);
