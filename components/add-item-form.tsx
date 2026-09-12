@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronDown, Sparkles, Undo2 } from "lucide-react";
 import { addItem, type AddItemState } from "@/app/pantry/actions";
 import { ChipPicker } from "@/components/chip-picker";
+import { CountStepper, Vessel, vesselKindFor, vesselModeFor } from "@/components/vessel";
 import { dimensionOf, UNITS_BY_DIMENSION } from "@/lib/units";
 import { probableDuplicate, suggestFor, type ItemProfile } from "@/lib/suggest";
 import type { Dimension } from "@/lib/types";
@@ -192,6 +193,28 @@ export function AddItemForm({
   const dimension = dimensionOf(unit) ?? "mass";
 
   /**
+   * The amount, as one piece of state with two ways in.
+   *
+   * The vessel and the number field are the same answer said differently, so
+   * they cannot each keep their own - tapping "½" has to move the number, and
+   * typing 250 has to move the liquid.
+   */
+  const [amount, setAmount] = useState(prefill.quantity ?? "");
+
+  const capacity = Number(packSize) > 0 ? Number(packSize) : 0;
+  const mode = vesselModeFor({
+    dimension,
+    packSize: capacity > 0 ? capacity : null,
+    unspecified,
+  });
+
+  /** What the tag picker currently holds, for choosing which glyph to draw. */
+  const tagList = (prefill.tags || suggestion.tags?.join(", ") || "")
+    .split(",")
+    .map((each) => each.trim())
+    .filter(Boolean);
+
+  /**
    * What the form already knows, said in one line.
    *
    * Reading it is how you check the guess without opening anything, which is
@@ -199,7 +222,13 @@ export function AddItemForm({
    */
   const summary = [
     location || null,
-    packed && packSize ? `${packSize}${unit} packs` : null,
+    // "count" is a dimension, not a word anybody says: a box of six eggs is
+    // "packs of 6", never "6count packs".
+    packed && packSize
+      ? unit === "count"
+        ? `packs of ${packSize}`
+        : `${packSize}${unit} packs`
+      : null,
     (touched.tags ? null : suggestion.tags?.join(", ")) || null,
     (touched.shops ? null : suggestion.shops?.[0]) || null,
     shelfLife ? `keeps ${shelfLife}d open` : null,
@@ -255,10 +284,47 @@ export function AddItemForm({
         )}
       </div>
 
+      {/*
+        How much, asked the way somebody holding the thing can answer.
+
+        The number stays - it is still the field that posts, and typing one is
+        still allowed - but it is no longer the only way in. With a pack size
+        known, tapping the bottle is the fast answer and the grams are worked
+        out from it; with a count, the stepper is.
+      */}
+      {mode !== "none" && (
+        <div className="rounded-[20px] bg-surface-raised p-4">
+          <p className={LABEL}>{AMOUNT_LABEL[dimension]}</p>
+          {mode === "fill" ? (
+            <Vessel
+              kind={vesselKindFor({
+                packUnit: unit,
+                name,
+                tags: tagList,
+                dimension,
+              })}
+              level={capacity > 0 ? Math.min(1, Number(amount || 0) / capacity) : 0}
+              onLevel={(level) =>
+                setAmount(String(Math.round(level * capacity * 100) / 100))
+              }
+              capacity={capacity}
+              unit={unit}
+              label={`How full the ${name || "container"} is`}
+            />
+          ) : (
+            <CountStepper
+              value={Number(amount || 0)}
+              onValue={(value) => setAmount(String(value))}
+              label={`How many ${name || "there are"}`}
+            />
+          )}
+        </div>
+      )}
+
       <div className="flex gap-3">
         <div className="flex-1">
           <label htmlFor="quantity" className={LABEL}>
-            {AMOUNT_LABEL[dimension]}
+            {mode === "none" ? AMOUNT_LABEL[dimension] : "Or type it"}
           </label>
           <input
             id="quantity"
@@ -268,7 +334,8 @@ export function AddItemForm({
             step="any"
             inputMode="decimal"
             required
-            defaultValue={prefill.quantity ?? ""}
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
             className={FIELD}
           />
         </div>
