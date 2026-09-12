@@ -152,6 +152,12 @@ const ADDED_COLUMNS = [
   // say so - otherwise a short cook is indistinguishable from an ingredient
   // the pantry never had.
   { table: "cook_events", column: "skipped", definition: "TEXT" },
+
+  // Why a shopping list line is there, in the words the screen should say:
+  // the recipe it came from, "running low", "ran out cooking". Free text
+  // rather than an enum because the useful version names the recipe, and null
+  // is the honest answer for a line somebody typed themselves.
+  { table: "shopping_list", column: "source", definition: "TEXT" },
 ];
 
 for (const { table, column, definition } of ADDED_COLUMNS) {

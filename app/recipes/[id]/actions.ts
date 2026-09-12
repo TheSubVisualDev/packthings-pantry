@@ -67,6 +67,8 @@ export interface CookResult {
   flagged: CookLineResult[];
   /** Row in cook_events, and the handle undo needs. Absent if nothing moved. */
   eventId?: number;
+  /** What was cooked, for anything that has to say so afterwards. */
+  recipeName?: string;
   /** Lines deliberately left out, as the recipe words them. */
   skipped: string[];
 }
@@ -350,6 +352,7 @@ export async function cookRecipe(
       opened,
       applied,
       flagged,
+      recipeName: recipe.name,
       skipped: leftOut,
       eventId: event.lastInsertRowid ? Number(event.lastInsertRowid) : undefined,
     };
@@ -562,6 +565,11 @@ export async function cookAndList(
       quantity: null,
       unit: null,
       itemId: line.item_id,
+      // Named, because "ran out" alone leaves you standing in an aisle
+      // wondering what you were making when it happened.
+      source: result.recipeName
+        ? `ran out cooking ${result.recipeName}`
+        : "ran out cooking",
     });
     listed.push({ id, name: line.item_name });
   }

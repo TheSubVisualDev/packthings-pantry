@@ -10,7 +10,7 @@ import {
   tick,
   type ListResult,
 } from "@/app/pantry/list/actions";
-import { ENTRY_UNITS, formatQuantity } from "@/lib/units";
+import { ENTRY_UNITS, formatQuantity, unitSuffix } from "@/lib/units";
 import type { ShoppingLine } from "@/lib/shopping";
 
 const SMALL =
@@ -160,12 +160,23 @@ export function ShoppingList({
           >
             {line.item_name}
           </span>
-          {line.quantity !== null && (
-            <span className="block font-mono text-sm font-semibold text-quantity">
-              {formatQuantity(line.quantity)}
-              {line.unit && line.unit !== "count" ? line.unit : ""}
-            </span>
-          )}
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {line.quantity !== null && (
+              <span className="font-mono text-sm font-semibold text-quantity">
+                {formatQuantity(line.quantity)}
+                {unitSuffix(line.unit)}
+              </span>
+            )}
+            {/* Why it is here, in a muted chip. Never the destructive colour:
+                needing to buy something is not a fault, and a line you typed
+                carries no chip at all because "you typed it" is not a fact
+                worth the space. */}
+            {line.source && (
+              <span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-bold text-muted-foreground">
+                {line.source}
+              </span>
+            )}
+          </span>
         </span>
 
         <button

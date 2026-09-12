@@ -24,6 +24,14 @@ export interface ShoppingLine {
    * is most of it, and is why the ungrouped case has to look deliberate.
    */
   shop: string | null;
+  /**
+   * Why it is on the list: a recipe name, "running low", "ran out cooking".
+   *
+   * Null for a line somebody typed. The list shows it as a muted chip - never
+   * in the destructive colour, because needing to buy something is not a
+   * fault.
+   */
+  source: string | null;
   added_by_handle: string | null;
 }
 
@@ -48,7 +56,7 @@ export async function getList(
 
   const result = await getDb().execute({
     sql: `SELECT s.id, s.item_id, s.item_name, s.quantity, s.unit, s.bought_at,
-                 u.handle AS added_by_handle, ps.name AS shop
+                 s.source, u.handle AS added_by_handle, ps.name AS shop
           FROM shopping_list s
           LEFT JOIN users u ON u.id = s.added_by
           LEFT JOIN items i ON i.id = s.item_id
@@ -78,12 +86,32 @@ export async function getList(
 export async function addLine(
   kitchenId: number,
   userId: number,
-  line: { name: string; quantity: number | null; unit: string | null; itemId?: number | null },
+  line: {
+    name: string;
+    quantity: number | null;
+    unit: string | null;
+    itemId?: number | null;
+    /**
+     * Why it is on the list, in the words the screen should say.
+     *
+     * "Pad thai", "running low", "ran out cooking Chana masala". Null for a
+     * line somebody typed, because "you typed it" is not a fact worth a chip.
+     */
+    source?: string | null;
+  },
 ): Promise<number> {
   const result = await getDb().execute({
-    sql: `INSERT INTO shopping_list (kitchen_id, item_id, item_name, quantity, unit, added_by)
-          VALUES (?, ?, ?, ?, ?, ?)`,
-    args: [kitchenId, line.itemId ?? null, line.name, line.quantity, line.unit, userId],
+    sql: `INSERT INTO shopping_list (kitchen_id, item_id, item_name, quantity, unit, added_by, source)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      kitchenId,
+      line.itemId ?? null,
+      line.name,
+      line.quantity,
+      line.unit,
+      userId,
+      line.source ?? null,
+    ],
   });
   return Number(result.lastInsertRowid);
 }

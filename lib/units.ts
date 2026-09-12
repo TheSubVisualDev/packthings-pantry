@@ -157,3 +157,18 @@ export const ADJUST_STEP: Record<Dimension, number> = {
   volume: 100,
   count: 1,
 };
+
+/**
+ * What to print after a number, spaced the way the unit is said.
+ *
+ * "500ml" and "1 pack", not "500 ml" and "1pack". Symbols hug the number
+ * because that is how they are written on a packet; words are words and need
+ * the space. Counts print nothing at all - "6 eggs" is the row's name doing
+ * that job.
+ */
+const SYMBOL_UNITS = new Set(["g", "kg", "ml", "l"]);
+
+export function unitSuffix(unit: string | null | undefined): string {
+  if (!unit || unit === "count") return "";
+  return SYMBOL_UNITS.has(unit) ? unit : ` ${unit}`;
+}

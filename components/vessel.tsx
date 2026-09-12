@@ -23,11 +23,12 @@ import type { Dimension } from "@/lib/types";
  *   count                             ->  count   (a stepper; half an egg is not a thing)
  *   anything else                     ->  nothing (see the note on `rough` below)
  *
- * `rough` - "a little / some / loads" for things nobody measures - is not here
- * yet on purpose. It needs somewhere to put its answer, and the brief for this
- * work says the sliders need no schema change. Writing 0.5 into a column that
- * means grams, for a row that has already said its amount is unspecified, would
- * be the app inventing a measurement. That one waits for a decision.
+ * "Rough" is not a third mode, it is what this already does: dragging the
+ * liquid to where it looks on the real bottle is an estimate by eye, so the
+ * number it produces is snapped to something a person would actually say -
+ * 25ml, 25g - and the readout admits as much. A row that has said its amount
+ * is unspecified still gets no control, because there is no container there to
+ * be a fraction of and inventing one would be inventing a measurement.
  */
 
 export type VesselKind = "bottle" | "jar" | "tin" | "bag";
@@ -84,7 +85,25 @@ const LEVELS: { label: string; at: number }[] = [
   { label: "Full", at: 1 },
 ];
 
-/** Dragging snaps to this, so a fingertip cannot claim 37.4% of a jar. */
+/**
+ * What a drag snaps to, in the item's own unit.
+ *
+ * Not a percentage. Dragging the liquid to where it looks on the actual bottle
+ * is an estimate by eye, and an estimate should land on a number a person
+ * would say: 325ml, not 318.7ml. 25 of whatever the unit is - 25ml, 25g - down
+ * to a twentieth of the container for small ones, because 25g steps in a 60g
+ * jar of chilli flakes is three positions.
+ *
+ * The chip levels (¼, ½, ¾) are exact, because those are claims about the
+ * container rather than guesses about the contents.
+ */
+function stepFor(capacity: number, unit: string): number {
+  if (unit === "count") return 1;
+  const coarse = 25;
+  return capacity >= coarse * 8 ? coarse : Math.max(1, Math.round(capacity / 20));
+}
+
+/** A fingertip is worth about this much of the vessel, before snapping. */
 const SNAP = 0.05;
 
 /**
@@ -135,10 +154,17 @@ export function Vessel({
     if (!rect || rect.height === 0) return level;
     const fraction = 1 - (clientY - rect.top) / rect.height;
     const clamped = Math.max(0, Math.min(1, fraction));
-    return Math.round(clamped / SNAP) * SNAP;
+
+    // Snapped in the unit rather than in percent, so what comes out is a
+    // number somebody would say out loud. See stepFor.
+    if (capacity <= 0) return clamped;
+    const step = stepFor(capacity, unit);
+    const snapped = Math.round((clamped * capacity) / step) * step;
+    return Math.max(0, Math.min(1, snapped / capacity));
   }
 
   const amount = Math.round(level * capacity * 100) / 100;
+  const step = stepFor(capacity, unit);
 
   return (
     <div className="flex items-center gap-4">
@@ -160,13 +186,16 @@ export function Vessel({
           onLevel(levelAt(event.clientY));
         }}
         onKeyDown={(event) => {
+          // One step per press, the same step a drag snaps to, so the keyboard
+          // and the finger cannot disagree about what a nudge is worth.
+          const by = capacity > 0 ? step / capacity : SNAP;
           if (event.key === "ArrowUp" || event.key === "ArrowRight") {
             event.preventDefault();
-            onLevel(Math.min(1, level + SNAP));
+            onLevel(Math.min(1, level + by));
           }
           if (event.key === "ArrowDown" || event.key === "ArrowLeft") {
             event.preventDefault();
-            onLevel(Math.max(0, level - SNAP));
+            onLevel(Math.max(0, level - by));
           }
         }}
         className="h-[140px] w-[100px] shrink-0 touch-none select-none focus:outline-none"
@@ -209,6 +238,15 @@ export function Vessel({
             {unit === "count" ? "" : unit}
           </span>
         </p>
+        {/* Said out loud, because the number is a guess made by eye and
+            pretending otherwise is how a measurement gets trusted that
+            should not be. It is still the number that gets saved. */}
+        {unit !== "count" && (
+          <p className="text-xs font-semibold text-muted-foreground">
+            about right, to the nearest {formatQuantity(step)}
+            {unit}
+          </p>
+        )}
 
         {/* Sideways rather than wrapped: five chips and a number do not fit
             across a narrow phone, and a row that reflows moves the one you

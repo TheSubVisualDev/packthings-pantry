@@ -142,6 +142,7 @@ export async function addShortfall(
         name: line.item_name,
         quantity: wanted,
         unit: line.unit,
+        source: recipe.name,
       });
       added += 1;
       continue;
@@ -162,6 +163,7 @@ export async function addShortfall(
         quantity: wanted,
         unit: line.unit,
         itemId: item.id,
+        source: recipe.name,
       });
       added += 1;
       continue;
@@ -190,6 +192,7 @@ export async function addShortfall(
       quantity: Math.ceil(short * 100) / 100,
       unit: item.canonical_unit,
       itemId: item.id,
+      source: recipe.name,
     });
     added += 1;
   }
@@ -245,6 +248,7 @@ export async function addRestock(): Promise<ListResult> {
             ? null
             : suggestion.canonical_unit,
       itemId: suggestion.item_id,
+      source: "running low",
     });
   }
 

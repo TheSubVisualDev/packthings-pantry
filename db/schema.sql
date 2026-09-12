@@ -322,6 +322,11 @@ CREATE TABLE IF NOT EXISTS shopping_list (
   unit       TEXT,
   added_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
   bought_at  TIMESTAMP,          -- null until it's in the trolley
+  -- Why the line is here, in the words the screen should say: a recipe name,
+  -- "running low", "ran out cooking". Free text rather than an enum because
+  -- the useful version names the recipe, and null is the honest answer for a
+  -- line somebody simply typed.
+  source     TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
