@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { adjustItem } from "@/app/pantry/actions";
+import { rankItems } from "@/lib/match";
 import { ADJUST_STEP } from "@/lib/units";
 import { applyDelta, describeStock, inStock } from "@/lib/containers";
 import type { Item } from "@/lib/types";
@@ -34,10 +35,35 @@ export function QuickAdjust({ items }: { items: Item[] }) {
   // newer is outstanding - otherwise an early reply overwrites a later tap.
   const inFlight = useRef<Record<number, number>>({});
 
+  /**
+   * Search ranks as well as filters.
+   *
+   * A substring filter hides everything that does not contain what you typed
+   * and then leaves the survivors in alphabetical order, so "tom" put Tinned
+   * tomatoes above Tomatoes and you still had to read the list. The same
+   * scorer the rest of the app uses puts the thing you meant first, and
+   * substring matches that score nothing - "oil" inside "Boiled sweets" -
+   * stay, ranked below, because you may well have meant them.
+   */
   const needle = query.trim().toLowerCase();
-  const visible = needle
-    ? items.filter((item) => item.name.toLowerCase().includes(needle))
-    : items;
+  const visible = (() => {
+    if (!needle) return items;
+
+    const substring = items.filter((item) => item.name.toLowerCase().includes(needle));
+    const scored = new Map(
+      rankItems(query.trim(), null, null, items).map(({ item, score }) => [item.id, score]),
+    );
+
+    // Anything the scorer likes, plus anything the letters appear in, once.
+    const pool = [...new Set([...scored.keys(), ...substring.map((item) => item.id)])];
+    return pool
+      .map((id) => items.find((item) => item.id === id)!)
+      .sort(
+        (a, b) =>
+          (scored.get(b.id) ?? 0) - (scored.get(a.id) ?? 0) ||
+          a.name.localeCompare(b.name),
+      );
+  })();
 
   function amountFor(item: Item): string {
     return amounts[item.id] ?? String(ADJUST_STEP[item.dimension]);

@@ -6,6 +6,7 @@ import { adjustPacks, setPackaging } from "@/app/pantry/actions";
 import type { ItemResult } from "@/app/pantry/actions";
 import { StockBar } from "@/components/stock-bar";
 import { formatQuantity } from "@/lib/units";
+import { totalOnHand } from "@/lib/containers";
 import type { Item } from "@/lib/types";
 
 const LABEL = "mb-1.5 block text-xs font-bold uppercase tracking-[0.08em] text-label";
@@ -30,6 +31,34 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
   const [, startTransition] = useTransition();
   const [packed, setPacked] = useState(item.pack_size !== null);
   const [unspecified, setUnspecified] = useState(item.unspecified === 1);
+  const [target, setTarget] = useState(
+    item.restock_target !== null ? String(item.restock_target) : "",
+  );
+
+  /**
+   * A couple of targets worth one tap each.
+   *
+   * This field is what makes the shopping list offer things without being
+   * asked, and almost nothing in the pantry has one - because it is a number
+   * in a unit you have to stop and reason about ("how many grams of butter is
+   * a sensible amount to keep?"). Said as packs, or as what is in right now,
+   * it stops being a sum.
+   */
+  const quickTargets = (() => {
+    const pack = item.pack_size;
+    if (packed && pack !== null && pack > 0) {
+      return [
+        { label: "1 pack", value: pack },
+        { label: "2 packs", value: pack * 2 },
+        { label: "3 packs", value: pack * 3 },
+      ];
+    }
+    const onHand = totalOnHand(item);
+    if (onHand === null || onHand <= 0) return [];
+    // What is in now is usually about what a normal amount looks like, which
+    // is the whole question and needs no history to answer.
+    return [{ label: `what's in now (${formatQuantity(onHand)})`, value: onHand }];
+  })();
 
   function movePacks(by: number) {
     if (sealed + by < 0) return;
@@ -172,9 +201,38 @@ export function Packaging({ item, canEdit }: { item: Item; canEdit: boolean }) {
                   step="any"
                   inputMode="decimal"
                   placeholder="any"
-                  defaultValue={item.restock_target ?? ""}
+                  value={target}
+                  onChange={(event) => setTarget(event.target.value)}
                   className={FIELD}
                 />
+
+                {quickTargets.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {quickTargets.map((option) => (
+                      <button
+                        key={option.label}
+                        type="button"
+                        onClick={() => setTarget(String(option.value))}
+                        className={
+                          target === String(option.value)
+                            ? "rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"
+                            : "rounded-full bg-chip px-3 py-1.5 text-xs font-bold hover:bg-border"
+                        }
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                    {target && (
+                      <button
+                        type="button"
+                        onClick={() => setTarget("")}
+                        className="px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                      >
+                        clear
+                      </button>
+                    )}
+                  </div>
+                )}
                 {/* Said in the thing, never in packaging: nobody thinks "keep
                     two boxes of eggs". The shopping list works out how many
                     packs that takes, rounding up. */}
