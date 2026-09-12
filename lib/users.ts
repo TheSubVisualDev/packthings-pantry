@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { getDb, plainRows } from "./db";
 import { hashPassword, newApiToken, newInviteCode } from "./passwords";
 
 /**
@@ -199,7 +199,8 @@ export async function listLiveInvites(createdBy: number): Promise<Invite[]> {
           ORDER BY created_at DESC LIMIT 25`,
     args: [createdBy, new Date().toISOString()],
   });
-  return result.rows as unknown as Invite[];
+  // Plain objects: the invite manager is a client component. See plainRows.
+  return plainRows<Invite>(result);
 }
 
 export type InviteState = "usable" | "redeemed" | "expired" | "unknown";

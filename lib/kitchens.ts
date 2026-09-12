@@ -82,7 +82,8 @@ export async function getMembers(kitchenId: number): Promise<Member[]> {
           ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END, u.handle`,
     args: [kitchenId],
   });
-  return result.rows as unknown as Member[];
+  // Plain objects: the members list reaches a client component. See plainRows.
+  return plainRows<Member>(result);
 }
 
 export async function getLocations(kitchenId: number): Promise<string[]> {

@@ -116,14 +116,26 @@ export default async function KitchensPage({
             </div>
           </section>
 
+          {/* Folded, because there are twenty-five of them and they were two
+              thirds of the page. A tag list is a thing you come to edit
+              deliberately, never something you read on the way past. */}
           <section className={CARD}>
-            <h2 className={LABEL}>Tags</h2>
-            <p className="mt-1.5 text-sm font-semibold text-muted-foreground">
-              Every word this kitchen files stock under, and how much carries it.
-            </p>
-            <div className="mt-3">
-              <KitchenTags tags={tags} canEdit={kitchen.role !== "viewer"} />
-            </div>
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                <span className={LABEL}>Tags</span>
+                <span className="text-sm font-bold text-muted-foreground">
+                  {tags.length} &middot;{" "}
+                  <span className="group-open:hidden">show</span>
+                  <span className="hidden group-open:inline">hide</span>
+                </span>
+              </summary>
+              <p className="mt-1.5 text-sm font-semibold text-muted-foreground">
+                Every word this kitchen files stock under, and how much carries it.
+              </p>
+              <div className="mt-3">
+                <KitchenTags tags={tags} canEdit={kitchen.role !== "viewer"} />
+              </div>
+            </details>
           </section>
 
           {youAreOwner && (

@@ -93,9 +93,21 @@ export default async function CookedPage() {
         )}
 
         {log.length === 0 ? (
-          <p className={`${CARD} text-sm font-semibold text-muted-foreground`}>
-            Nothing cooked yet. Open a recipe and press Cook, and it lands here.
-          </p>
+          /* Board 1p: an empty state offers the thing that fixes it. This one
+             stated a fact and stopped, on the one page where the fix is a
+             single tap away and the app already knows what to suggest. */
+          <div className={`${CARD} text-center`}>
+            <p className="text-sm font-semibold text-muted-foreground">
+              Nothing cooked yet. Cooking a recipe writes what came off the
+              shelves here.
+            </p>
+            <Link
+              href="/tonight"
+              className="mt-4 inline-block rounded-[14px] bg-primary px-5 py-3 text-sm font-extrabold text-primary-foreground"
+            >
+              Find something to cook
+            </Link>
+          </div>
         ) : (
           <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             {log.map((entry) => (
