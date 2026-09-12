@@ -98,7 +98,7 @@ const TOOLS = [
   {
     name: "create_recipe",
     description:
-      "Write a new recipe into the pantry. Ingredient names are matched against stock, so copy them from get_pantry where you mean the same thing. Units must be ones this pantry accepts. Returns warnings for anything that saved but wants a human eye.",
+      "Write a new recipe into the pantry. Ingredient names are matched against stock, so copy them from get_pantry where you mean the same thing. Units must be ones this pantry accepts. Returns warnings: kind 'not-stocked' just means the kitchen has not bought that yet and is fine to ignore, the others are worth fixing.",
     inputSchema: recipeJsonSchema(),
   },
 ] as const;
@@ -221,7 +221,13 @@ async function run(
         id,
         url: `/recipes/${id}`,
         visibility: "private",
-        warnings: parsed.warnings.map((warning) => warning.message),
+        // The kind travels with the message. A caller guessing at ingredient
+        // names needs to know which of these it can ignore: "not-stocked" is
+        // a fact about the cupboard, the others are things to fix.
+        warnings: parsed.warnings.map((warning) => ({
+          kind: warning.kind,
+          message: warning.message,
+        })),
         next: "It's saved privately. The owner can share it from the recipe page.",
       });
     }

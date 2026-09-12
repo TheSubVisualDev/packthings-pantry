@@ -287,7 +287,7 @@ this is parsing plus a component, not schema.
 
 ---
 
-## M7 · Speculative recipes — half a day
+## M7 · Speculative recipes — DONE 12 Sep 2026
 
 **Write a recipe for something you cannot make yet.**
 

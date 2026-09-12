@@ -89,7 +89,7 @@ export async function GET(request: Request) {
         schema_version: RECIPE_SCHEMA_VERSION,
         schema: recipeJsonSchema(),
         response:
-          "201 with { id, url, warnings } on success; 422 with { problems } if the document isn't a recipe. Warnings mean it was saved but something wants a human eye - usually an ingredient the pantry has never held.",
+          "201 with { id, url, warnings } on success; 422 with { problems } if the document isn't a recipe. A warning of kind 'not-stocked' only means the kitchen has not bought that ingredient yet, which is normal and needs nothing done; 'unit-mismatch' and 'unknown-reference' are worth fixing.",
       },
     },
     { headers: { "cache-control": "no-store" } },

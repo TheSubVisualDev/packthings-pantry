@@ -12,6 +12,9 @@ import {
   setBought,
 } from "@/lib/shopping";
 import { resolveAmount, scaleQuantity } from "@/lib/units";
+import { getLinks, resolveWithLinks } from "@/lib/cookbook";
+import { indexStock } from "@/lib/pantry-match";
+import { totalOnHand } from "@/lib/containers";
 import { getDb } from "@/lib/db";
 import type { Item } from "@/lib/types";
 
@@ -101,7 +104,19 @@ export async function addShortfall(
     args: [gate.kitchen.id],
   });
   const items = stock.rows as unknown as Item[];
-  const byName = new Map(items.map((item) => [item.name.toLowerCase(), item]));
+
+  /**
+   * What each line means on these shelves.
+   *
+   * This was the last place still matching by lowercased name, and against
+   * recipe_ingredients.item_id - the column that belongs to whichever kitchen
+   * happened to be current when the recipe was written. So a shared recipe
+   * could compare your shortfall against somebody else's cupboard, and "firm
+   * tofu" against a row called "Tofu" was always a thing to buy.
+   */
+  const index = indexStock(items);
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const links = await getLinks(gate.kitchen.id, recipeId);
 
   const already = await pendingNames(gate.kitchen.id);
   let added = 0;
@@ -116,9 +131,7 @@ export async function addShortfall(
       continue;
     }
 
-    const item = line.item_id
-      ? items.find((candidate) => candidate.id === line.item_id)
-      : byName.get(line.item_name.toLowerCase());
+    const { item } = resolveWithLinks(line, links, index, byId);
 
     const wanted = scaleQuantity(line.quantity, recipe.base_servings, servings);
 
@@ -154,7 +167,22 @@ export async function addShortfall(
       continue;
     }
 
-    const short = needed.quantity - item.quantity;
+    /**
+     * Everything on the shelf, not just the open container.
+     *
+     * `quantity` has meant "what is in the OPEN one" since containers arrived,
+     * so this used to put things on the shopping list that were already in the
+     * cupboard: two sealed bottles behind an empty one read as empty. The
+     * fifth instance of the bug AGENTS.md keeps a count of.
+     *
+     * Unspecified means "there is some and nobody has said how much", which is
+     * not a number you can subtract - so it is left off the list rather than
+     * guessed at, the same as everywhere else.
+     */
+    const onHand = totalOnHand(item);
+    if (onHand === null) continue;
+
+    const short = needed.quantity - onHand;
     if (short <= 0) continue;
 
     await addLine(gate.kitchen.id, gate.user.id, {

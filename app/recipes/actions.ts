@@ -4,14 +4,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getItems } from "@/lib/queries";
 import { currentKitchen } from "@/lib/session";
-import { parseRecipeDocument, type RecipeProblem } from "@/lib/recipe-schema";
+import {
+  parseRecipeDocument,
+  type RecipeProblem,
+  type RecipeWarning,
+} from "@/lib/recipe-schema";
 import { deleteRecipe, saveRecipe } from "@/lib/recipe-store";
 
 export interface SaveRecipeResult {
   ok: boolean;
   id?: number;
   problems: RecipeProblem[];
-  warnings: RecipeProblem[];
+  warnings: RecipeWarning[];
 }
 
 /**

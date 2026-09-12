@@ -173,9 +173,11 @@ function StatusBadge({ status }: { status: Status }) {
     );
   if (status.kind === "not-in-pantry")
     return (
-      <span className={`${base} bg-[oklch(0.94_0.05_35)] text-destructive`}>
-        Not in pantry
-      </span>
+      // Deliberately not the destructive colour the other two use. An
+      // ingredient you have not bought is a shopping item, not a fault - and a
+      // recipe written before you own any of it went red from top to bottom,
+      // which made writing one down feel like doing something wrong.
+      <span className={`${base} bg-chip text-muted-foreground`}>To buy</span>
     );
   return (
     <span
@@ -476,8 +478,14 @@ export function CookPanel({
         {hasKitchen && blockers.length > 0 && !result && (
           <div className="rounded-[16px] bg-chip px-4 py-3">
             <p className="text-center text-sm font-semibold text-muted-foreground">
-              Short of {blockers.length}{" "}
-              {blockers.length === 1 ? "thing" : "things"} for {servings}.
+              {/* A recipe you own none of is a normal thing to have written
+                  down - something you meant to try - so it reads as a plan
+                  rather than as a shortage. */}
+              {blockers.length === resolved.length
+                ? `Nothing for this is in yet. Shopping for ${servings}?`
+                : `Short of ${blockers.length} ${
+                    blockers.length === 1 ? "thing" : "things"
+                  } for ${servings}.`}
             </p>
             <div className="mt-1.5">
               <AddShortfallButton recipeId={recipeId} servings={servings} />

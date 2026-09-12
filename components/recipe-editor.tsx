@@ -128,6 +128,16 @@ export function RecipeEditor({
     })),
   }));
   const [result, setResult] = useState<SaveRecipeResult | null>(null);
+
+  /**
+   * The warnings split by whether they are anybody's fault.
+   *
+   * "Not in this kitchen yet" is a fact about the cupboard; a unit that
+   * cannot be decremented is a fact about the recipe. Only the second is
+   * worth interrupting somebody who has just pressed save.
+   */
+  const notStocked = (result?.warnings ?? []).filter((w) => w.kind === "not-stocked");
+  const realWarnings = (result?.warnings ?? []).filter((w) => w.kind !== "not-stocked");
   const [pending, startTransition] = useTransition();
 
   // Which pane is showing, on a screen too narrow for both. Desktop ignores it
@@ -739,15 +749,30 @@ export function RecipeEditor({
         </div>
       )}
 
-      {result?.ok && result.warnings.length > 0 && (
+      {/* Two different things used to be listed together here, and only one
+          of them is a problem. An ingredient this kitchen has never held is
+          the normal state of a recipe you have not shopped for yet - making
+          somebody read it as a warning, every time they save, taught them to
+          skim the list that also carries the real one. */}
+      {result?.ok && realWarnings.length > 0 && (
         <div className="rounded-[20px] bg-chip p-5">
           <h3 className="text-sm font-extrabold">Saved, with things worth a look</h3>
           <ul className="mt-2 space-y-1 text-sm font-semibold text-muted-foreground">
-            {result.warnings.map((warning, index) => (
+            {realWarnings.map((warning, index) => (
               <li key={index}>{warning.message}</li>
             ))}
           </ul>
         </div>
+      )}
+
+      {result?.ok && notStocked.length > 0 && (
+        <p className="text-sm font-semibold text-muted-foreground">
+          {notStocked.length === 1
+            ? "One ingredient isn't in your kitchen yet."
+            : `${notStocked.length} ingredients aren't in your kitchen yet.`}{" "}
+          That&rsquo;s fine &mdash; the recipe keeps them, and you can send
+          them straight to the shopping list.
+        </p>
       )}
 
       </div>

@@ -20,7 +20,25 @@ export interface RecipeProblem {
 }
 
 /** Accepted, but the human should look. */
-export type RecipeWarning = RecipeProblem;
+/**
+ * Why a line wants a second look, which is not always a complaint.
+ *
+ * `not-stocked` is the normal state of a recipe you have not shopped for yet -
+ * writing one down before you own any of it is a thing people do, and the app
+ * should not treat it as a mistake to be cleared. It stays in the API response
+ * because a machine caller is guessing at names and genuinely needs telling,
+ * but no screen renders it as a problem.
+ *
+ * `unit-mismatch` is a real one: a tablespoon against a gram-canonical item
+ * cannot be decremented, and finding that out mid-cook is the worst time.
+ * `unknown-reference` is a real one too - a step naming an ingredient the
+ * recipe does not list is a typo somebody wants to hear about.
+ */
+export type WarningKind = "not-stocked" | "unit-mismatch" | "unknown-reference";
+
+export interface RecipeWarning extends RecipeProblem {
+  kind: WarningKind;
+}
 
 export interface ParsedIngredient {
   /** Resolved against items.name; null when the pantry has no such thing. */
@@ -205,8 +223,11 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
 
       if (!item) {
         warnings.push({
+          kind: "not-stocked",
           path: `${path}.item_name`,
-          message: `"${itemName}" isn't in the pantry. The line is kept and will show as not in stock.`,
+          // Stated flatly. This is information about the cupboard, not a fault
+          // in the recipe, and the wording should not suggest otherwise.
+          message: `"${itemName}" isn't in this kitchen yet.`,
         });
       } else if (
         item.dimension !== dimension &&
@@ -218,6 +239,7 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
         // reach the item's dimension rescues the line, which is the whole point
         // of "1 tin (400 g)" against a pantry that weighs tomatoes.
         warnings.push({
+          kind: "unit-mismatch",
           path: `${path}.unit`,
           message: `"${itemName}" is measured in ${item.canonical_unit}, so ${unit} can't be taken out of stock when you cook this.`,
         });
@@ -295,6 +317,7 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
             );
             if (found === -1) {
               warnings.push({
+                kind: "unknown-reference",
                 path: `${path}.uses`,
                 message: `Step mentions "${reference}", which isn't one of this recipe's ingredients.`,
               });
