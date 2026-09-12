@@ -1,6 +1,7 @@
 import { getDb } from "./db";
 import type { ParsedRecipe } from "./recipe-schema";
 import type { Visibility } from "./social";
+import { copyTagsOnFork } from "./recipe-tags";
 
 /**
  * Writing a parsed recipe to the database.
@@ -282,6 +283,19 @@ export async function forkRecipe(
     }
 
     await tx.commit();
+
+    /**
+     * The tags come across by name, outside the transaction.
+     *
+     * By name rather than by id because a recipe tag belongs to a person: the
+     * words land in the forker's own vocabulary, so renaming "Asian" on their
+     * copy later cannot reach back into somebody else's collection. Outside
+     * the transaction because a fork that succeeded is a fork, and losing the
+     * whole copy because a tag would not save would be a worse trade than
+     * arriving with one tag missing.
+     */
+    await copyTagsOnFork(recipeId, newId, newAuthorId);
+
     return newId;
   } catch (error) {
     await tx.rollback();

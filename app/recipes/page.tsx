@@ -7,6 +7,13 @@ import { SiteHeader } from "@/components/site-header";
 import { RecipeBrowseCard } from "@/components/recipe-browse-card";
 import { getMyRecipes, getRecipesWithMatches } from "@/lib/queries";
 import { getCookbookIds } from "@/lib/cookbook";
+import { RecipeFilters } from "@/components/recipe-filters";
+import {
+  derivedTags,
+  getRecipeTags,
+  getTagsByRecipe,
+  totalMinutes,
+} from "@/lib/recipe-tags";
 import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +21,7 @@ export const dynamic = "force-dynamic";
 export default async function RecipesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; tag?: string; within?: string }>;
 }) {
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
@@ -22,14 +29,55 @@ export default async function RecipesPage({
   // "what can I cook" counts simply come back empty.
   const kitchen = context.kitchen;
 
-  const { q } = await searchParams;
+  const { q, tag, within } = await searchParams;
   const term = q?.trim() ?? "";
+  const wantedTag = tag?.trim() || null;
+  // A nonsense ?within= is no filter rather than an error page: a URL somebody
+  // edited by hand should degrade to the unfiltered list.
+  const wantedWithin = Number.isFinite(Number(within)) && Number(within) > 0
+    ? Number(within)
+    : null;
 
-  const [recipes, mine, adopted] = await Promise.all([
+  const [everything, mine, adopted, myTags] = await Promise.all([
     getRecipesWithMatches(kitchen?.id ?? null, context.user.id, term),
     getMyRecipes(context.user.id, term),
     getCookbookIds(kitchen?.id ?? null),
+    getRecipeTags(context.user.id),
   ]);
+
+  const tagsByRecipe = await getTagsByRecipe([
+    ...everything.map((recipe) => recipe.id),
+    ...mine.map((recipe) => recipe.id),
+  ]);
+
+  /**
+   * What to show on a card: the typed tags first, then the derived ones.
+   *
+   * Typed first because somebody chose them, and a card only has room for
+   * about three. The derived ones are still there on the recipe itself.
+   */
+  const cardTags = (recipeId: number, recipe: { prep_minutes: number | null; cook_minutes: number | null; base_servings: number }) => [
+    ...(tagsByRecipe.get(recipeId) ?? []).map((each) => each.name),
+    ...derivedTags(recipe, [], []).map((each) => each.label),
+  ];
+
+  const recipes = everything.filter((recipe) => {
+    if (wantedTag) {
+      const carried = (tagsByRecipe.get(recipe.id) ?? []).map((each) =>
+        each.name.toLowerCase(),
+      );
+      if (!carried.includes(wantedTag.toLowerCase())) return false;
+    }
+    if (wantedWithin !== null) {
+      const minutes = totalMinutes(recipe);
+      // An untimed recipe is not "quick", it is unknown. Filtering for speed
+      // must not hand back everything nobody has bothered to time.
+      if (minutes === null || minutes > wantedWithin) return false;
+    }
+    return true;
+  });
+
+  const filtered = wantedTag !== null || wantedWithin !== null;
 
   /**
    * What you wrote and have not adopted.
@@ -78,24 +126,31 @@ export default async function RecipesPage({
           <SearchBox basePath="/recipes" placeholder="Find one of yours" />
         </Suspense>
 
+        <RecipeFilters
+          tags={myTags.map((each) => each.name)}
+          activeTag={wantedTag}
+          activeWithin={wantedWithin}
+          term={term}
+        />
+
         {recipes.length === 0 ? (
           <div className="rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             <p className="text-sm font-semibold text-muted-foreground">
-              {term
-                ? `Nothing in your cookbook matches "${term}".`
+              {term || filtered
+                ? "Nothing in your cookbook matches that."
                 : "Nothing in your cookbook yet."}
             </p>
             <Link
-              href={term ? "/recipes" : "/recipes/new"}
+              href={term || filtered ? "/recipes" : "/recipes/new"}
               className="mt-4 inline-block rounded-[14px] bg-primary px-5 py-3 text-sm font-extrabold text-primary-foreground"
             >
-              {term ? "Show all of mine" : "Write one"}
+              {term || filtered ? "Show the whole cookbook" : "Write one"}
             </Link>
           </div>
         ) : (
           <>
             <div className="mb-3 text-xs font-bold uppercase tracking-[0.1em] text-label">
-              {term
+              {term || filtered
                 ? `${recipes.length} ${recipes.length === 1 ? "match" : "matches"}`
                 : "Cook with what you have"}
             </div>
@@ -106,6 +161,7 @@ export default async function RecipesPage({
                   recipe={recipe}
                   showAuthor={false}
                   match={{ have: recipe.have, total: recipe.total }}
+                  tags={cardTags(recipe.id, recipe)}
                 />
               ))}
             </div>
@@ -119,7 +175,12 @@ export default async function RecipesPage({
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {unadopted.map((recipe) => (
-                <RecipeBrowseCard key={recipe.id} recipe={recipe} showAuthor={false} />
+                <RecipeBrowseCard
+                  key={recipe.id}
+                  recipe={recipe}
+                  showAuthor={false}
+                  tags={cardTags(recipe.id, recipe)}
+                />
               ))}
             </div>
             <p className="mt-3 text-xs font-semibold text-muted-foreground">

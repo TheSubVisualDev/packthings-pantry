@@ -422,3 +422,33 @@ CREATE TABLE IF NOT EXISTS cookbook_links (
 
 CREATE INDEX IF NOT EXISTS idx_cookbook_recipe ON cookbook(recipe_id);
 CREATE INDEX IF NOT EXISTS idx_cookbook_links_item ON cookbook_links(item_id);
+
+-- Tags on recipes: cuisine, occasion, whose favourite it is.
+--
+-- Scoped to the author rather than to a kitchen, which is the opposite of how
+-- item tags work and deliberately so. A recipe belongs to a person and travels
+-- - across kitchens, across forks, across the social graph - while stock
+-- belongs to a particular set of shelves. Tagging by kitchen would mean a
+-- recipe lost its tags the moment you switched kitchen, and a forked recipe
+-- would arrive carrying a stranger's vocabulary.
+--
+-- The tags that describe how long something takes and how many things go in it
+-- are NOT here. Those are derived from the recipe itself in lib/recipe-tags.ts,
+-- because a stored "quick" goes stale the moment somebody edits the timings and
+-- a computed one cannot.
+CREATE TABLE IF NOT EXISTS recipe_tags (
+  id         INTEGER PRIMARY KEY,
+  owner_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS recipe_tag_links (
+  recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+  tag_id    INTEGER NOT NULL REFERENCES recipe_tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (recipe_id, tag_id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_recipe_tags_owner_name
+  ON recipe_tags(owner_id, LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_recipe_tag_links_tag ON recipe_tag_links(tag_id);

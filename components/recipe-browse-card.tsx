@@ -27,11 +27,20 @@ export function RecipeBrowseCard({
   recipe,
   showAuthor = true,
   match,
+  tags = [],
 }: {
   recipe: RecipeWithAuthor;
   showAuthor?: boolean;
   /** How much of it your kitchen already has, on your own collection. */
   match?: { have: number; total: number };
+  /**
+   * What to file it under, at a glance.
+   *
+   * Typed and derived tags arrive already mixed and already ordered, because a
+   * card has room for about three words and which three is a decision for
+   * whoever built the list, not for the card.
+   */
+  tags?: string[];
 }) {
   const timing = [
     recipe.prep_minutes ? `${recipe.prep_minutes} prep` : null,
@@ -94,6 +103,19 @@ export function RecipeBrowseCard({
           )}
           {recipe.times_cooked > 0 && <span>cooked {recipe.times_cooked}&times;</span>}
         </div>
+
+        {tags.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {tags.slice(0, 3).map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-bold text-muted-foreground"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
 
         {match && match.total > 0 && (
           <div className="mt-2">

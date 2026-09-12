@@ -6,6 +6,13 @@ import { RecipeVisibility } from "@/components/recipe-visibility";
 import { RemixButton } from "@/components/remix-button";
 import { CookbookButton } from "@/components/cookbook-button";
 import { isInCookbook } from "@/lib/cookbook";
+import { RecipeTags } from "@/components/recipe-tags";
+import {
+  derivedTags,
+  getRecipeTags,
+  getTagsByRecipe,
+  suggestCuisines,
+} from "@/lib/recipe-tags";
 import { Lineage } from "@/components/lineage";
 import { CookHistory } from "@/components/cook-history";
 import { RecipeNutrition } from "@/components/recipe-nutrition";
@@ -67,6 +74,8 @@ export default async function RecipePage({
     history,
     tagsByItem,
     kitchenTags,
+    recipeTagsByRecipe,
+    myRecipeTags,
   ] =
     await Promise.all([
     recipe.author_id ? getUser(recipe.author_id) : null,
@@ -81,6 +90,8 @@ export default async function RecipePage({
     getCookedLog(kitchen?.id ?? null, 20, recipe.id),
     getTagsByItem(kitchen?.id ?? null),
     getTags(kitchen?.id ?? null),
+    getTagsByRecipe([recipeId]),
+    getRecipeTags(context.user.id),
   ]);
 
   const forkedAuthor =
@@ -268,7 +279,21 @@ export default async function RecipePage({
           </p>
         )}
 
-        <div className="mt-2 mb-7 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-muted-foreground">
+        {/* Above the timings rather than below them: the tags are how you
+            found this recipe, so they belong with its identity rather than
+            filed away with its statistics. */}
+        <RecipeTags
+          recipeId={recipe.id}
+          tags={recipeTagsByRecipe.get(recipe.id) ?? []}
+          derived={derivedTags(recipe, recipe.ingredients, recipe.steps)}
+          suggestions={[
+            ...suggestCuisines(recipe.ingredients),
+            ...myRecipeTags.map((tag) => tag.name),
+          ]}
+          canEdit={isAuthor}
+        />
+
+        <div className="mt-3 mb-7 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-muted-foreground">
           <span>base {recipe.base_servings} servings</span>
           {timings.map((timing) => (
             <span key={timing}>{timing}</span>
