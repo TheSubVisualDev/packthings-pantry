@@ -105,7 +105,15 @@ for (const p of paths) {
     await page.waitForTimeout(400);
   }
 
-  await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: process.env.SHOT_FULL === "1" });
+  // caret: "initial" because Playwright's default hides the text caret by
+  // writing `caret-color: transparent` into the page - which then shows up as
+  // a hydration mismatch in the dev log, on a style nothing in this codebase
+  // sets. An hour was spent looking for it once.
+  await page.screenshot({
+    path: `${OUT}/${name}.png`,
+    fullPage: process.env.SHOT_FULL === "1",
+    caret: "initial",
+  });
   console.log(name, page.url());
 }
 await browser.close();

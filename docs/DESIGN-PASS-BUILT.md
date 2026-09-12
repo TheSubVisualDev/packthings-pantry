@@ -26,21 +26,19 @@ done. Written so this can be picked up cold.
 | `1q` | Login | built |
 | `1r` | Account page with the kitchen on it | built |
 
-## Deliberately not built
+## What Luna decided about the four open questions
 
-- **Rough amounts** ("a little / some / loads") from the vessel spec `1s`.
-  There is nowhere to put the answer. `unspecified` says there is no number,
-  and writing 0.5 into a column that means grams would be the app inventing a
-  measurement. It wants a schema decision, not a component.
-- **Source chips on the shopping list** ("Pad thai", "running low").
-  `shopping_list` has no column saying where a line came from. Additive
-  migration, worth doing, has to follow the clone-first ritual in `AGENTS.md`.
-- **A streak line on the cooked card** ("3 nights, nothing wasted"). Nothing
-  in the schema records waste, so it would be a number the app made up, sitting
-  among four true ones.
-- **A product thumbnail on the barcode card.** `lib/off.ts` does not fetch an
-  image and the picture is worth an extra request to Open Food Facts that this
-  does not make yet.
+- **Rough amounts** are not a third control - they are what the vessel already
+  does. Dragging the liquid to where it looks on the real bottle is a guess by
+  eye, so the number it produces snaps to 25ml or 25g (a twentieth of the
+  container for small ones) and the readout says "about right, to the nearest
+  25ml". The number is still what gets saved. Done.
+- **Source chips** are in. `shopping_list.source` is free text, migrated
+  through the clone-first ritual: a shortfall line says the recipe name,
+  restock says "running low", and a mid-cook one says "ran out cooking Chana
+  masala". Done.
+- **Streaks: no.** Struck off rather than deferred.
+- **The product thumbnail is not worth it for now.** Left alone.
 
 ## Things found while building
 
@@ -58,7 +56,17 @@ Each of these was older than the design pass:
   and its primary button was the half you could not press.
 - A recipe card printed "50 min" on one line and a "90 mins" bucket chip under
   it. Derived tags carry a `kind` now so a listing can drop the bucket.
-- A box of six eggs read "6count packs".
+- A box of six eggs read "6count packs", and a shopping line read "1pack".
+- **Undo restored the right total to the wrong shelf.** `undoCook` did
+  `quantity = quantity + delta` and never touched `sealed_count`, so undoing a
+  cook that took 600g out of a 1kg bag plus a sealed one left a single open
+  1.4kg bag - a container that does not exist. It goes back through
+  `ADJUST_SQL` now, which is the one place the cascade rule is written. Found
+  by driving a whole cook through the step-by-step screen against a clone and
+  reading the rows afterwards; it was invisible from the screen.
+- **Cooking decremented `unspecified` rows**, which have no number to
+  decrement - and `ADJUST_SQL` refuses them, so the take could not even be
+  undone. Those lines are now left alone.
 
 ## The screenshot harness grew three flags
 

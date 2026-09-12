@@ -23,7 +23,11 @@ once so the server is atomic, once so a stepper can move before the round trip.
 `npm run check:cascade` runs both over 480 cases. Run it after touching either.
 
 **Three places move stock**: `ADJUST_SQL`, `PACK_SQL`, and the cook action in
-`app/recipes/[id]/actions.ts`. They must agree about what a jar is.
+`app/recipes/[id]/actions.ts`. They must agree about what a jar is. Undo was
+briefly a fourth - it added the delta straight back onto `quantity`, which
+restores the right total and the wrong shelf - and now goes through
+`ADJUST_SQL` like everything else. A stock write that does its own arithmetic
+is the bug, every time.
 
 **sqld allows no pragma control.** `foreign_keys=OFF` is accepted and ignored,
 `defer_foreign_keys` likewise, `legacy_alter_table` will not parse. Every

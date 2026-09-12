@@ -8,6 +8,7 @@ import { rate } from "@/lib/recipe-store";
 import { resolveWithLinks } from "@/lib/cookbook";
 import { indexStock } from "@/lib/pantry-match";
 import { resolveAmount, scaleQuantity } from "@/lib/units";
+import { ADJUST_SQL } from "@/lib/containers";
 import { addLine, pendingNames, removeLine } from "@/lib/shopping";
 import type {
   CookChange,
@@ -207,6 +208,17 @@ export async function cookRecipe(
         flagged.push({ item_name: line.item_name, issue: "not-in-pantry" });
         continue;
       }
+
+      /**
+       * "There is some and nobody has said how much" is not a number.
+       *
+       * Cooking used to subtract from it anyway, driving a quantity that means
+       * nothing down towards zero - and ADJUST_SQL, which is where undo puts
+       * things back, refuses unspecified rows outright, so the take could not
+       * even be undone. Nothing comes off the shelf and nothing is flagged:
+       * the salt is there, that is the whole claim the row makes.
+       */
+      if (item.unspecified) continue;
 
       const scaled = scaleQuantity(
         line.quantity,
@@ -464,17 +476,43 @@ export async function undoCook(eventId: number): Promise<UndoResult> {
     const restored: UndoLineResult[] = [];
 
     for (const change of changes) {
-      // MAX(0, ...) is belt and braces - deltas are always positive going back
-      // in - but it keeps a hand-edited log from writing a negative quantity.
+      /**
+       * Put back the way it came off: through the cascade, not into the open
+       * container.
+       *
+       * This used to be `quantity = quantity + delta`, which restores the
+       * right TOTAL and the wrong shelf. Undoing a cook that took 600g out of
+       * a 1kg bag plus a sealed one left a single open 1.4kg bag - a
+       * container that does not exist - and every question asked of the row
+       * afterwards ("how full is the open one", "is a seal broken") got a
+       * wrong answer from a right number. ADJUST_SQL is the rule, in the one
+       * place it is written down.
+       *
+       * The date clauses inside it do not fire on a positive delta: nothing
+       * empties, no seal breaks. Restoring never invents an expiry.
+       */
       const updated = await tx.execute({
-        sql: `UPDATE items SET quantity = MAX(0, quantity + ?), updated_at = CURRENT_TIMESTAMP
-              WHERE id = ? AND kitchen_id = ? RETURNING name, quantity, canonical_unit`,
+        sql: ADJUST_SQL,
         args: [change.delta, change.item_id, access.kitchen.id],
       });
 
-      const row = updated.rows[0] as unknown as
-        | { name: string; quantity: number; canonical_unit: string }
+      const split = updated.rows[0] as unknown as
+        | { quantity: number; sealed_count: number; pack_size: number | null }
         | undefined;
+
+      const named = split
+        ? await tx.execute({
+            sql: "SELECT name, canonical_unit FROM items WHERE id = ?",
+            args: [change.item_id],
+          })
+        : null;
+
+      const row = split && named
+        ? {
+            ...(named.rows[0] as unknown as { name: string; canonical_unit: string }),
+            quantity: split.quantity,
+          }
+        : undefined;
 
       // The item may have been deleted since the cook. Nothing to restore it
       // to, and re-creating it would guess at fields the log doesn't hold.
