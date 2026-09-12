@@ -12,7 +12,10 @@ import { getLocations } from "@/lib/kitchens";
 import { getItem } from "@/lib/queries";
 import { hasMacros } from "@/lib/nutrition";
 import { getItemShops, getShops } from "@/lib/shops";
+import { getPrices, getProductsForItem, per100 } from "@/lib/products";
+import { ProductPicker } from "@/components/product-picker";
 import { getItemTags, getTags } from "@/lib/tags";
+import { shortDate } from "@/lib/dates";
 import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -33,14 +36,17 @@ export default async function ItemPage({
   const itemId = Number((await params).id);
   if (!Number.isInteger(itemId)) notFound();
 
-  const [item, locations, tags, kitchenTags, shops, kitchenShops] = await Promise.all([
-    getItem(context.kitchen.id, itemId),
-    getLocations(context.kitchen.id),
-    getItemTags(itemId),
-    getTags(context.kitchen.id),
-    getItemShops(itemId),
-    getShops(context.kitchen.id),
-  ]);
+  const [item, locations, tags, kitchenTags, shops, kitchenShops, products, prices] =
+    await Promise.all([
+      getItem(context.kitchen.id, itemId),
+      getLocations(context.kitchen.id),
+      getItemTags(itemId),
+      getTags(context.kitchen.id),
+      getItemShops(itemId),
+      getShops(context.kitchen.id),
+      getProductsForItem(context.kitchen.id, itemId, context.user.id),
+      getPrices(context.kitchen.id, itemId),
+    ]);
 
   // getItem scopes by kitchen, so an id from somebody else's shelves is
   // indistinguishable from one that doesn't exist.
@@ -93,6 +99,56 @@ export default async function ItemPage({
               canEdit={canEdit}
             />
           </section>
+
+          {/* Which actual tin, above where you buy it: "which one is good" and
+              "where do I get it" are the same errand, and the pantry has known
+              the answer to the first one since phase 3 without ever saying it. */}
+          {products.length > 0 && (
+            <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <ProductPicker products={products} canEdit={canEdit} />
+            </section>
+          )}
+
+          {/*
+            What you have paid, read off receipts.
+
+            A series rather than a current price, because "£1.35, £1.35, £1.89"
+            is the sentence somebody actually wants, and per-100 underneath
+            because it is the only way two pack sizes can be compared. Both are
+            only here once a receipt has said so - there is no field anywhere
+            asking anybody to type a price in.
+          */}
+          {prices.length > 0 && (
+            <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-label">
+                What you paid
+              </h2>
+              <p className="mt-2 text-[22px] font-extrabold tracking-[-0.01em]">
+                £{(prices[0].pence / 100).toFixed(2)}
+                {(() => {
+                  const each = per100(prices[0].pence, item.pack_size, item.canonical_unit);
+                  return each === null ? null : (
+                    <span className="ml-2 text-sm font-semibold text-muted-foreground">
+                      £{(each / 100).toFixed(2)} per 100{item.canonical_unit}
+                    </span>
+                  );
+                })()}
+              </p>
+              {prices.length > 1 && (
+                <p className="mt-1 font-mono text-xs font-semibold text-muted-foreground">
+                  before that:{" "}
+                  {prices
+                    .slice(1)
+                    .map((paid) => `£${(paid.pence / 100).toFixed(2)}`)
+                    .join(" · ")}
+                </p>
+              )}
+              <p className="mt-2 text-xs font-semibold text-muted-foreground">
+                From your receipts. {shortDate(prices[0].seen_at)}
+                {prices[0].raw ? ` — ${prices[0].raw}` : ""}
+              </p>
+            </section>
+          )}
 
           <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             <ItemShops

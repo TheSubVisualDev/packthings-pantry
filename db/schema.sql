@@ -206,6 +206,30 @@ CREATE INDEX IF NOT EXISTS idx_kitchen_products_item ON kitchen_products(item_id
 -- is a question about the tin, and one kitchen's "Baked beans" row is another's
 -- "beans". One rating per person per product: a household that disagrees about
 -- a brand should be able to say so twice.
+-- What a thing cost, each time a receipt said so.
+--
+-- Append-only, because a price is a fact about one shop on one day and the
+-- interesting version of the question ("is it going up", "is Aldi cheaper") is
+-- a history rather than a current value. Pence, as integers: a price in a
+-- float is a rounding error waiting for somebody to total it.
+--
+-- Against the item rather than the barcode, which is the honest limit of what
+-- a receipt knows. "TESCO BAKED BEANS 4PK £1.85" says what row it belongs on
+-- and not which of the four tins you have filed there it was, and a price
+-- attributed to the wrong product is worse than no price at all.
+CREATE TABLE IF NOT EXISTS item_prices (
+  id         INTEGER PRIMARY KEY,
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  item_id    INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  pence      INTEGER NOT NULL,
+  -- What the receipt called it, kept so a surprising price can be checked
+  -- against the line it came from rather than taken on faith.
+  raw        TEXT,
+  seen_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_item_prices_item ON item_prices(item_id, seen_at);
+
 CREATE TABLE IF NOT EXISTS product_ratings (
   barcode    TEXT NOT NULL,
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

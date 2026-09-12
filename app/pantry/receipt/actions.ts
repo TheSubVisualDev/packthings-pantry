@@ -105,6 +105,15 @@ export interface ReceiptDecision {
   itemId: number;
   /** How many of it the receipt says you bought. */
   count: number;
+  /**
+   * What it cost, in pence, if the line had a price on it.
+   *
+   * The scanner has always read these and thrown them away, which is the one
+   * column missing from "which of these is actually worth buying".
+   */
+  pence?: number | null;
+  /** The receipt's own wording, kept with the price it came from. */
+  raw?: string | null;
 }
 
 export interface ApplyResult {
@@ -168,6 +177,22 @@ export async function applyReceipt(
     const item = byId.get(decision.itemId);
     // Not in this kitchen, so not this kitchen's business.
     if (!item) continue;
+
+    /**
+     * What it cost, kept as history rather than as a current value.
+     *
+     * A price is a fact about one shop on one day, and the interesting
+     * question - is this going up, is the other one cheaper - is the series.
+     * Recorded even for items the pack rule cannot restock: knowing what
+     * loose spinach cost is still worth having.
+     */
+    if (Number.isInteger(decision.pence) && (decision.pence ?? 0) > 0) {
+      await db.execute({
+        sql: `INSERT INTO item_prices (kitchen_id, item_id, pence, raw, seen_at)
+              VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        args: [access.kitchen.id, decision.itemId, decision.pence ?? 0, decision.raw ?? null],
+      });
+    }
 
     if (item.pack_size === null) {
       unpackaged.push(item.name);

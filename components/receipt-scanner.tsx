@@ -96,9 +96,22 @@ export function ReceiptScanner() {
   function submit() {
     if (!matches) return;
     const decisions = matches
-      .map((match) => ({ itemId: chosen[match.index], count: match.count }))
-      .filter((decision): decision is { itemId: number; count: number } =>
-        Number.isInteger(decision.itemId),
+      .map((match) => ({
+        itemId: chosen[match.index],
+        count: match.count,
+        // The price and the line it was read from travel together, so a
+        // surprising figure can be checked against the paper rather than
+        // taken on faith.
+        pence: match.price,
+        raw: match.raw,
+      }))
+      .filter(
+        (decision): decision is {
+          itemId: number;
+          count: number;
+          pence: number | null;
+          raw: string;
+        } => Number.isInteger(decision.itemId),
       );
 
     startSaving(async () => {
