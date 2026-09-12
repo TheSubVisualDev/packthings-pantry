@@ -37,6 +37,16 @@ export function BottomNav({ onAdd }: { onAdd: () => void }) {
   // Nothing to navigate before you are in.
   if (pathname === "/login" || pathname === "/setup") return null;
 
+  /**
+   * Nor during a cook.
+   *
+   * The step-by-step screen is the one place in the app that is a mode rather
+   * than a page: it is full-bleed, it holds the screen awake, and its Next
+   * button wants the bottom of the phone. A tab bar over it is both a way to
+   * lose your place and thirty pixels of the instruction.
+   */
+  if (/^\/recipes\/\d+\/cook$/.test(pathname)) return null;
+
   const active = (href: string) =>
     href === "/pantry" ? pathname.startsWith("/pantry") : pathname.startsWith(href);
 

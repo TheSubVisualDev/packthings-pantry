@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
-import { Check } from "lucide-react";
+import { BookOpenText, Check, List } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import {
   cookRecipe,
@@ -247,6 +247,8 @@ export function CookPanel({
   /** The unticked lines, shown for confirmation. Null while not asking. */
   const [asking, setAsking] = useState<string[] | null>(null);
   const [undoPending, startUndo] = useTransition();
+  /** Whether the method is open on the page. Closed until somebody asks. */
+  const [reading, setReading] = useState(false);
   const [ratingPending, startRating] = useTransition();
 
   // Reads off a fixed deadline rather than decrementing a counter, so a tab
@@ -567,7 +569,43 @@ export function CookPanel({
         </ul>
       </Sheet>
 
-      <RecipeMethod steps={steps} labels={labels} />
+      {/*
+        Two ways to cook it, and the method is behind them.
+
+        Reading a recipe and cooking one are different postures. The method was
+        always open below the ingredients, which made this page one long scroll
+        whose shape never said where the cooking part started - and made the
+        step-by-step screen, which is the better way to do it on a phone, a
+        thing nobody would ever find.
+      */}
+      {steps.length > 0 && (
+        <section>
+          <div className="flex gap-2">
+            <Link
+              href={`/recipes/${recipeId}/cook?servings=${servings}`}
+              className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] bg-primary px-4 text-[15px] font-extrabold text-primary-foreground"
+            >
+              <BookOpenText className="h-4 w-4" strokeWidth={2.75} />
+              Step-by-step
+            </Link>
+            <button
+              type="button"
+              aria-expanded={reading}
+              onClick={() => setReading((value) => !value)}
+              className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] bg-chip px-4 text-[15px] font-extrabold hover:bg-border"
+            >
+              <List className="h-4 w-4" strokeWidth={2.75} />
+              {reading ? "Hide the list" : "Read as list"}
+            </button>
+          </div>
+
+          {reading && (
+            <div className="mt-4">
+              <RecipeMethod steps={steps} labels={labels} />
+            </div>
+          )}
+        </section>
+      )}
 
 
       {result && (

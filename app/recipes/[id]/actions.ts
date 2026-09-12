@@ -8,6 +8,7 @@ import { rate } from "@/lib/recipe-store";
 import { resolveWithLinks } from "@/lib/cookbook";
 import { indexStock } from "@/lib/pantry-match";
 import { resolveAmount, scaleQuantity } from "@/lib/units";
+import { addLine, pendingNames, removeLine } from "@/lib/shopping";
 import type {
   CookChange,
   CookEvent,
@@ -504,4 +505,90 @@ export async function undoCook(eventId: number): Promise<UndoResult> {
       restored: [],
     };
   }
+}
+
+/** A line put on the shopping list by cooking, and the handle to take it off. */
+export interface ListedLine {
+  id: number;
+  name: string;
+}
+
+export interface CookAndListResult extends CookResult {
+  /**
+   * What cooking finished off, already on the shopping list.
+   *
+   * Added rather than offered, because the moment a thing runs out is the only
+   * moment anybody knows it has - and it is taken straight back off again by
+   * undo, so the list never claims a cook that did not happen.
+   */
+  listed: ListedLine[];
+}
+
+/**
+ * Cooking without the checklist: the whole recipe, at a serving count.
+ *
+ * What the suggestion on /tonight and the step-by-step screen both want.
+ * Everything the cook panel asks about - stand-ins, which lines were skipped -
+ * has a defensible default, and the panel is still there for the cook that
+ * needs them.
+ */
+export async function cookAndList(
+  recipeId: number,
+  servings: number,
+): Promise<CookAndListResult> {
+  const result = await cookRecipe(recipeId, servings);
+  if (!result.ok) return { ...result, listed: [] };
+
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ...result, listed: [] };
+
+  /**
+   * Run out means the shelf is empty, not the open container.
+   *
+   * `remaining` is what is left in the one that is open, which is zero every
+   * time cooking finishes a packet with two more behind it.
+   */
+  const ranOut = [...result.applied, ...result.flagged].filter(
+    (line) => line.item_id !== undefined && line.remaining_total === 0,
+  );
+  if (ranOut.length === 0) return { ...result, listed: [] };
+
+  const already = await pendingNames(access.kitchen.id);
+  const listed: ListedLine[] = [];
+  for (const line of ranOut) {
+    if (already.has(line.item_name.toLowerCase())) continue;
+    const id = await addLine(access.kitchen.id, access.user.id, {
+      name: line.item_name,
+      quantity: null,
+      unit: null,
+      itemId: line.item_id,
+    });
+    listed.push({ id, name: line.item_name });
+  }
+
+  if (listed.length > 0) revalidatePath("/pantry/list");
+  return { ...result, listed };
+}
+
+/**
+ * Undo, including the shopping list.
+ *
+ * Putting the stock back and leaving "Spinach" on the list would be the app
+ * remembering half of something that did not happen.
+ */
+export async function undoCookAndList(
+  eventId: number,
+  lineIds: number[],
+): Promise<UndoResult> {
+  const undone = await undoCook(eventId);
+  if (!undone.ok) return undone;
+
+  const access = await requireKitchenRole("editor");
+  if (access.ok && lineIds.length > 0) {
+    for (const id of lineIds) await removeLine(access.kitchen.id, id);
+    revalidatePath("/pantry/list");
+  }
+
+  revalidatePath("/tonight");
+  return undone;
 }

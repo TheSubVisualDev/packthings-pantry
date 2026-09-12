@@ -6,8 +6,12 @@ import { useEffect, useState, useTransition } from "react";
 import { AlarmClock, PartyPopper, ShoppingBasket } from "lucide-react";
 import { AddShortfallButton } from "@/components/add-shortfall-button";
 import { NewPackDates } from "@/components/new-pack-dates";
-import { cookTonight, undoTonightCook, type TonightCookResult } from "@/app/tonight/actions";
-import type { UndoResult } from "@/app/recipes/[id]/actions";
+import {
+  cookAndList,
+  undoCookAndList,
+  type CookAndListResult,
+  type UndoResult,
+} from "@/app/recipes/[id]/actions";
 import { formatQuantity } from "@/lib/units";
 import type { Suggestion } from "@/lib/tonight";
 
@@ -31,7 +35,7 @@ export function TonightCard({
   servings: number;
 }) {
   const router = useRouter();
-  const [result, setResult] = useState<TonightCookResult | null>(null);
+  const [result, setResult] = useState<CookAndListResult | null>(null);
   const [undone, setUndone] = useState<UndoResult | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [pending, startCook] = useTransition();
@@ -48,7 +52,7 @@ export function TonightCard({
 
   function cook() {
     startCook(async () => {
-      const cooked = await cookTonight(suggestion.id, servings);
+      const cooked = await cookAndList(suggestion.id, servings);
       setResult(cooked);
       if (cooked.eventId !== undefined) setSecondsLeft(UNDO_WINDOW_SECONDS);
     });
@@ -56,7 +60,7 @@ export function TonightCard({
 
   function undo(eventId: number, lineIds: number[]) {
     startUndo(async () => {
-      const put = await undoTonightCook(eventId, lineIds);
+      const put = await undoCookAndList(eventId, lineIds);
       setUndone(put);
       if (put.ok) router.refresh();
     });
@@ -185,7 +189,7 @@ function CookedCard({
   onDone,
 }: {
   suggestion: Suggestion;
-  result: TonightCookResult;
+  result: CookAndListResult;
   servings: number;
   secondsLeft: number;
   undoPending: boolean;
