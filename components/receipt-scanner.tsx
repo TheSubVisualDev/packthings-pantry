@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
-import { Camera, Check, ImageUp, X } from "lucide-react";
+import { Camera, Check, CheckCircle2, ImageUp, X } from "lucide-react";
 import {
   applyReceipt,
   matchReceipt,
@@ -224,6 +224,30 @@ export function ReceiptScanner() {
 
   return (
     <div className="space-y-3">
+      {/*
+        What happened, before what to do about it - board 1l.
+
+        The matcher is right about most of a receipt, and the old screen still
+        opened on two lists of equal weight and made you read both to find out
+        whether it had gone well. This says the outcome in one line: the number
+        that needs you, and the number that does not.
+      */}
+      <section className={CARD}>
+        <div className="flex items-start gap-3">
+          <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-primary" strokeWidth={2.5} />
+          <div className="min-w-0">
+            <p className="text-[17px] font-extrabold tracking-[-0.01em]">
+              {sure.length} matched, ready to go in
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-muted-foreground">
+              {unsure.length === 0
+                ? "Nothing needs a decision."
+                : `${unsure.length} ${unsure.length === 1 ? "line needs" : "lines need"} a quick look.`}
+            </p>
+          </div>
+        </div>
+      </section>
+
       {unsure.length > 0 && (
         <section className={CARD}>
           <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-label">
@@ -247,23 +271,35 @@ export function ReceiptScanner() {
         </section>
       )}
 
+      {/* Folded, because they are already accepted: a list of things the app
+          got right is a list nobody needs to read, and putting it on screen at
+          the same weight as the questions is what made a good scan look like
+          twenty decisions. */}
       {sure.length > 0 && (
         <section className={CARD}>
-          <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-label">
-            Ready to go in
-          </h2>
-          <ul className="mt-3 space-y-3">
-            {sure.map((match) => (
-              <Row
-                key={match.index}
-                match={match}
-                chosenId={chosen[match.index] ?? null}
-                onChoose={(id) =>
-                  setChosen((current) => ({ ...current, [match.index]: id }))
-                }
-              />
-            ))}
-          </ul>
+          <details className="group">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+              <span className="text-xs font-bold uppercase tracking-[0.1em] text-label">
+                {sure.length} matched
+              </span>
+              <span className="text-sm font-bold text-muted-foreground">
+                <span className="group-open:hidden">review if you like</span>
+                <span className="hidden group-open:inline">hide</span>
+              </span>
+            </summary>
+            <ul className="mt-3 space-y-3">
+              {sure.map((match) => (
+                <Row
+                  key={match.index}
+                  match={match}
+                  chosenId={chosen[match.index] ?? null}
+                  onChoose={(id) =>
+                    setChosen((current) => ({ ...current, [match.index]: id }))
+                  }
+                />
+              ))}
+            </ul>
+          </details>
         </section>
       )}
 
@@ -273,12 +309,12 @@ export function ReceiptScanner() {
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col gap-3">
         <button
           type="button"
           disabled={saving || picked === 0}
           onClick={submit}
-          className="rounded-[14px] bg-primary px-5 py-3 text-sm font-extrabold text-primary-foreground disabled:opacity-40"
+          className="min-h-14 w-full rounded-[14px] bg-primary px-5 text-[15px] font-extrabold text-primary-foreground disabled:opacity-40"
         >
           {saving ? "Adding…" : `Add ${picked} to stock`}
         </button>
@@ -323,11 +359,21 @@ function Row({
           {match.name}
         </span>
         {match.price !== null && (
-          <span className="shrink-0 text-sm font-semibold text-muted-foreground tabular-nums">
+          <span className="shrink-0 font-mono text-sm font-semibold text-muted-foreground tabular-nums">
             £{(match.price / 100).toFixed(2)}
           </span>
         )}
       </div>
+
+      {/* What the paper actually said, in mono, under the tidied-up name. The
+          comment above this component has claimed for a while that it was
+          here, and it was not: the question on this screen is "did it read
+          that right", and the only evidence is the line it read. */}
+      {match.raw && match.raw.toLowerCase() !== match.name.toLowerCase() && (
+        <p className="mt-0.5 font-mono text-[11px] font-semibold break-words text-quantity">
+          {match.raw}
+        </p>
+      )}
 
       {match.options.length === 0 ? (
         <p className="mt-1.5 text-sm font-semibold text-muted-foreground">
