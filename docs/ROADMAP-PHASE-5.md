@@ -19,6 +19,28 @@ Luna's own account of using it, which is the acceptance test for P1:
 
 ---
 
+## Where it got to, 12 Sep 2026
+
+Built, in this order: **P1** the trip, **P4** the product split with ratings
+and receipt prices, **P5** the stats screen, **P9** print, **P8** auto-tagging
+widened to method and meal, **P6** the Discover ranking. **P2** arrived with
+the design pass as the vessel control.
+
+**P3 (hands-free) is not built.** Luna: "speech synthesis was undiscussed
+please don't add this." The read-aloud and voice-command work was reverted
+before it was committed; nothing of it is in the tree.
+
+**P7 (social with something to do) is the open one**, and the roadmap says to
+ask before building it. The question to answer first is which of these is
+wanted: a cook on somebody else's recipe telling them, a feed of cooks rather
+than of posts, or neither.
+
+Also still outstanding from phase 4: **M9, receipt scanning quality.** It has
+a new reason to happen - the scanner now keeps prices, so anything it reads
+badly is a wrong price as well as a wrong line.
+
+---
+
 ## The one refactor, and it is forced
 
 `products.barcode` is a **global** primary key, but the row also carries
