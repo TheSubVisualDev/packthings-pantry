@@ -192,6 +192,41 @@ happens *between* two people:
 - Ask Luna before building anything beyond that. Social features are easy to
   add and hard to remove, and this is a private app for a small network.
 
+### Four candidates, 12 Sep 2026 — not built, for Luna to pick from
+
+Written down when P7 came up and the answer was "not sure". Ranked by how much
+they are about cooking rather than about an audience, which is the test that
+keeps this from turning into a feed.
+
+**1. "Charlotte made your soup."** A cook on a recipe you wrote, or one forked
+from yours, said once on the recipe and once on Discover. Needs no schema -
+`cook_events` joined to `recipes.author_id` is the whole query - and it is the
+only notification this app would have that is about somebody cooking rather
+than somebody tapping. Half a day. *My pick, with the next one.*
+
+**2. A line back to the author when you cook it.** The Cooked confirmation
+already appears at exactly the right moment; it could offer one field: "used
+less gochugaru", "doubled the beans". Stored against the recipe as a tip, shown
+under the ingredients. This is what the design pass suggested when it deleted
+the comment thread - *recipe-level tips and variations, not a global feed* -
+and it is the one kind of writing people actually do about food. Half a day,
+one small table.
+
+**3. "Three kitchens have everything for this in right now."** Readiness is
+already computed per kitchen; showing it across the people you follow turns a
+recipe into an invitation. No schema at all. The risk is that it reads as
+surveillance of somebody's cupboards, so it would have to be a count and never
+a list of names.
+
+**4. Passing a recipe deliberately.** "Send this to @sam" lands in their Saved
+with a line from you. A message in the shape of a recipe rather than an inbox:
+nothing to keep up with, no unread count, and it is what people actually do
+with a link. A day.
+
+**Deliberately not proposed:** a global activity feed, notification badges,
+follower counts, or anything with an unread state. Every one of them is a
+thing to keep up with, and none of them helps anybody decide what to cook.
+
 ## P8 · Auto-tagging — half a day
 
 Extends phase 4's `suggestCuisines`, which is a small marker lexicon and a
