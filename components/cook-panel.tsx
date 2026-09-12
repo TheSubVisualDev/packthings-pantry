@@ -608,7 +608,7 @@ export function CookPanel({
                       {line.item_name} &minus;
                       {formatQuantity(line.decremented ?? 0)}
                       {line.unit === "count" ? "" : line.unit} (
-                      {formatQuantity(line.remaining ?? 0)} left)
+                      {formatQuantity(line.remaining_total ?? 0)} left)
                     </li>
                   ))}
                 </ul>

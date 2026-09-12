@@ -73,16 +73,18 @@ export async function getList(
   return result.rows as unknown as ShoppingLine[];
 }
 
+/** Returns the new line id, which is what lets a caller take it off again. */
 export async function addLine(
   kitchenId: number,
   userId: number,
   line: { name: string; quantity: number | null; unit: string | null; itemId?: number | null },
-): Promise<void> {
-  await getDb().execute({
+): Promise<number> {
+  const result = await getDb().execute({
     sql: `INSERT INTO shopping_list (kitchen_id, item_id, item_name, quantity, unit, added_by)
           VALUES (?, ?, ?, ?, ?, ?)`,
     args: [kitchenId, line.itemId ?? null, line.name, line.quantity, line.unit, userId],
   });
+  return Number(result.lastInsertRowid);
 }
 
 /** Ticking is a toggle, because the commonest correction is an accidental tap. */

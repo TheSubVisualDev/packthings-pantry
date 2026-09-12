@@ -19,10 +19,21 @@ import type {
 
 export interface CookLineResult {
   item_name: string;
+  /** The stock row it came off, so a caller can act on the item itself. */
+  item_id?: number;
   /** Amount taken out of stock, in the item's canonical unit. */
   decremented?: number;
   unit?: string;
+  /** What is left in the OPEN container. */
   remaining?: number;
+  /**
+   * What is left on the shelf altogether - sealed packs and the open one.
+   *
+   * `remaining` is the open container alone, so a cook that finished the open
+   * bottle reported "0 left" with two sealed ones behind it. Anything asking
+   * whether something has run out wants this number.
+   */
+  remaining_total?: number;
   /** Set when the line couldn't be applied cleanly. */
   issue?: "not-in-pantry" | "dimension-mismatch" | "unknown-unit" | "short";
   detail?: string;
@@ -286,9 +297,11 @@ export async function cookRecipe(
 
       const result: CookLineResult = {
         item_name: line.item_name,
+        item_id: item.id,
         decremented: take,
         unit: item.canonical_unit,
         remaining: openLeft,
+        remaining_total: left,
       };
 
       if (take < converted.quantity) {
