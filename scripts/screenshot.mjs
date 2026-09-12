@@ -24,13 +24,29 @@ const PORT = process.env.SHOT_PORT ?? "3000";
 const OUT = process.argv[2];
 const paths = process.argv.slice(3);
 
-const browser = await chromium.launch();
+/**
+ * SHOT_CAMERA=1 hands the browser a fake camera - a moving test pattern -
+ * which is the only way to photograph the barcode viewfinder. Headless
+ * Chromium has no camera at all, so the scan screen always rendered as its
+ * own error state and nobody could look at the thing they had built.
+ */
+const browser = await chromium.launch(
+  process.env.SHOT_CAMERA === "1"
+    ? {
+        args: [
+          "--use-fake-ui-for-media-stream",
+          "--use-fake-device-for-media-stream",
+        ],
+      }
+    : {},
+);
 const ctx = await browser.newContext({
   // iPhone 17 Pro logical size, which is the screen this is built for.
   viewport: { width: 402, height: 874 },
   deviceScaleFactor: 2,
   isMobile: true,
   hasTouch: true,
+  permissions: process.env.SHOT_CAMERA === "1" ? ["camera"] : [],
   httpCredentials: {
     username: process.env.PANTRY_USER ?? "pack",
     password: process.env.PANTRY_PASSWORD ?? "",

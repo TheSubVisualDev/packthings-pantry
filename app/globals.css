@@ -128,3 +128,31 @@
 [data-bulk="on"] [data-nav] {
   display: none;
 }
+
+/**
+ * The line that sweeps the barcode reticle.
+ *
+ * A stopped camera and a working one are the same still picture, and the one
+ * question somebody holding a tin has is whether the thing is looking yet.
+ * Switched off for anyone who has asked for less motion - it is reassurance,
+ * not information, and the "Starting camera…" line says the same thing.
+ */
+@keyframes scan-sweep {
+  from {
+    transform: translateY(4px);
+  }
+  to {
+    transform: translateY(84px);
+  }
+}
+
+.scan-line {
+  animation: scan-sweep 1.8s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-line {
+    animation: none;
+    opacity: 0.6;
+  }
+}

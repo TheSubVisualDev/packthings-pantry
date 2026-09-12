@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { CheckCircle2 } from "lucide-react";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import {
   linkBarcode,
@@ -160,22 +161,48 @@ export function ScanPanel({ items }: { items: Item[] }) {
 
   return (
     <div className="space-y-5">
+      {/*
+        What the packet says, and nothing else - board 1m.
+
+        The barcode and the pack size on one mono line because they are both
+        printed facts read off the thing in your hand; the name above them
+        because that is what you recognise. What the app adds - which shelf,
+        which tags, how much you keep in - comes from your kitchen and is said
+        so underneath, because a scan that silently filled in six fields would
+        leave nobody able to tell which of them the packet actually claimed.
+      */}
       <section className={CARD}>
-        <p className="font-mono text-xs font-semibold text-muted-foreground">
-          {match.barcode}
-        </p>
-        <h2 className="mt-1 text-lg font-extrabold">
-          {match.name ?? "Not in the catalogue"}
-        </h2>
-        {(match.brand || packLabel) && (
-          <p className="text-sm font-semibold text-muted-foreground">
-            {[match.brand, packLabel].filter(Boolean).join(" · ")}
-          </p>
-        )}
-        {!match.known && (
-          <p className="mt-2 text-sm font-semibold text-muted-foreground">
+        <div className="flex items-start gap-3">
+          {match.known && (
+            <CheckCircle2
+              className="mt-0.5 h-6 w-6 shrink-0 text-primary"
+              strokeWidth={2.5}
+            />
+          )}
+          <div className="min-w-0">
+            <h2 className="text-lg font-extrabold break-words">
+              {match.name ?? "Not in the catalogue"}
+            </h2>
+            <p className="mt-0.5 font-mono text-xs font-semibold text-muted-foreground">
+              {[match.barcode, packLabel].filter(Boolean).join(" · ")}
+            </p>
+            {match.brand && (
+              <p className="mt-0.5 text-sm font-semibold text-muted-foreground">
+                {match.brand}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {!match.known ? (
+          <p className="mt-3 text-sm font-semibold text-muted-foreground">
             Open Food Facts has never heard of this one. You can still add it by
             hand.
+          </p>
+        ) : (
+          <p className="mt-3 text-sm font-semibold text-muted-foreground">
+            Name and pack size off the packet. Which shelf it lives on and what
+            it is tagged comes from your kitchen.
           </p>
         )}
       </section>

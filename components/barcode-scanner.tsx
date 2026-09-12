@@ -110,9 +110,13 @@ export function BarcodeScanner({
         className="aspect-[4/3] w-full object-cover"
       />
       {/* A window to aim through. Nothing is cropped to it - ZXing reads the
-          whole frame - but people hold a packet steadier against a target. */}
+          whole frame - but people hold a packet steadier against a target, and
+          a moving line says the camera is awake and looking. Without it a
+          stopped video stream and a working one are the same picture. */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="h-24 w-4/5 rounded-[14px] border-2 border-white/80" />
+        <div className="relative h-24 w-4/5 overflow-hidden rounded-[14px] border-2 border-white/80">
+          <div className="scan-line absolute inset-x-2 top-0 h-0.5 rounded-full bg-primary" />
+        </div>
       </div>
       {phase === "starting" && (
         <p className="absolute inset-x-0 bottom-3 text-center text-sm font-bold text-white">
