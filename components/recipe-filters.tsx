@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { FilterChips } from "@/components/ui/filter-chips";
 
 /**
  * The filters over a cookbook: what kind of thing, and how long you have.
@@ -7,10 +7,14 @@ import Link from "next/link";
  * bookmarkable, and back-button-able, which a piece of component state is not.
  * "Asian" and "30 mins" as two taps is the whole interaction.
  *
- * Time is minutes rather than a tag on purpose. The derived tags read as
- * promises about an upper bound ("20 mins"), so filtering by them as strings
+ * Time filters on minutes rather than on the derived "20 mins" tags. Those
+ * labels read as promises about an upper bound, so matching them as strings
  * would mean asking for half an hour and not being shown the ten minute one.
  * Comparing the numbers is what anybody actually means.
+ *
+ * The time chips are drawn quietly, as outlines rather than solids, because
+ * they are a fact the recipe computed about itself while the tags beside them
+ * are somebody's opinion - the same distinction the recipe page makes.
  */
 export function RecipeFilters({
   tags,
@@ -41,49 +45,35 @@ export function RecipeFilters({
   }
 
   // The time chips need no tags to be useful - every recipe has timings, or
-  // admits it does not - so the bar earns its place as soon as there is a
+  // admits it does not - so the row earns its place as soon as there is a
   // cookbook to filter.
   const times = [15, 30, 45];
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-1.5">
-      {tags.map((tag) => {
-        const on = activeTag?.toLowerCase() === tag.toLowerCase();
-        return (
-          <Link
-            key={tag}
-            href={href({ tag: on ? null : tag })}
-            aria-current={on ? "true" : undefined}
-            className={
-              on
-                ? "rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"
-                : "rounded-full bg-chip px-3 py-1.5 text-xs font-bold hover:bg-border"
-            }
-          >
-            {tag}
-          </Link>
-        );
-      })}
-
-      {tags.length > 0 && <span aria-hidden className="mx-1 h-4 w-px bg-border" />}
-
-      {times.map((minutes) => {
-        const on = activeWithin === minutes;
-        return (
-          <Link
-            key={minutes}
-            href={href({ within: on ? null : minutes })}
-            aria-current={on ? "true" : undefined}
-            className={
-              on
-                ? "rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"
-                : "rounded-full border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground hover:text-foreground"
-            }
-          >
-            under {minutes} min
-          </Link>
-        );
-      })}
-    </div>
+    <FilterChips
+      label="Filter recipes"
+      className="mb-4"
+      chips={[
+        ...tags.map((tag) => {
+          const on = activeTag?.toLowerCase() === tag.toLowerCase();
+          return {
+            key: `tag-${tag}`,
+            label: tag,
+            href: href({ tag: on ? null : tag }),
+            active: on,
+          };
+        }),
+        ...times.map((minutes) => {
+          const on = activeWithin === minutes;
+          return {
+            key: `within-${minutes}`,
+            label: `under ${minutes} min`,
+            href: href({ within: on ? null : minutes }),
+            active: on,
+            quiet: true,
+          };
+        }),
+      ]}
+    />
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AccountMenu } from "@/components/account-menu";
 import { PantryMark } from "@/components/pantry-mark";
+import { Segmented } from "@/components/ui/segmented";
 import { getKitchensFor } from "@/lib/kitchens";
 import { currentKitchen } from "@/lib/session";
 
@@ -49,24 +50,20 @@ export async function SiteHeader({
             <span className="hidden sm:inline">Pantry</span>
           </Link>
 
-          <nav className="flex min-w-0 gap-0.5 rounded-full bg-[oklch(0.93_0.02_60)] p-1 text-[12.5px] font-bold sm:gap-1 sm:bg-transparent sm:p-0 sm:text-[15px] sm:font-semibold">
-            {tabs.map((tab) => {
-              const isActive = tab.key === active;
-              return (
-                <Link
-                  key={tab.key}
-                  href={tab.href}
-                  aria-current={isActive ? "page" : undefined}
-                  className={
-                    isActive
-                      ? "rounded-full bg-white px-2.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.06)] sm:bg-ink sm:px-4 sm:py-[7px] sm:text-background sm:shadow-none"
-                      : "rounded-full px-2.5 py-1.5 text-muted-foreground sm:px-4 sm:py-[7px]"
-                  }
-                >
-                  {tab.label}
-                </Link>
-              );
-            })}
+          {/* One control, scrolling sideways when it has to. The nav used to
+              be a pill track on a phone and standalone pills on a desktop -
+              two treatments to keep in step, and neither of them survived
+              gaining a fourth tab on a 360px screen. */}
+          <nav className="min-w-0">
+            <Segmented
+              label="Sections"
+              active={active}
+              options={tabs.map((tab) => ({
+                key: tab.key,
+                label: tab.label,
+                href: tab.href,
+              }))}
+            />
           </nav>
         </div>
 

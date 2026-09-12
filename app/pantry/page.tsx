@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { Segmented } from "@/components/ui/segmented";
 import { UseItUp } from "@/components/use-it-up";
 import { EstimateButton } from "@/components/estimate-button";
 import { StockList } from "@/components/stock-list";
@@ -81,28 +82,16 @@ function group(
 }
 
 function GroupToggle({ active }: { active: GroupBy }) {
-  const options: { key: GroupBy; label: string }[] = [
-    { key: "tag", label: "Tag" },
-    { key: "nutrition", label: "Nutrition" },
-    { key: "location", label: "Location" },
-  ];
   return (
-    <div className="flex items-center gap-1 rounded-full bg-[oklch(0.93_0.02_60)] p-1 text-xs font-bold">
-      {options.map((option) => (
-        <Link
-          key={option.key}
-          href={`/pantry?by=${option.key}`}
-          aria-current={option.key === active ? "true" : undefined}
-          className={
-            option.key === active
-              ? "rounded-full bg-white px-3 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
-              : "rounded-full px-3 py-1.5 text-muted-foreground"
-          }
-        >
-          {option.label}
-        </Link>
-      ))}
-    </div>
+    <Segmented
+      label="Group stock by"
+      active={active}
+      options={[
+        { key: "tag", label: "Tag", href: "/pantry?by=tag" },
+        { key: "nutrition", label: "Nutrition", href: "/pantry?by=nutrition" },
+        { key: "location", label: "Location", href: "/pantry?by=location" },
+      ]}
+    />
   );
 }
 

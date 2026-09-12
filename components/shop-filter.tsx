@@ -1,6 +1,4 @@
-"use client";
-
-import Link from "next/link";
+import { FilterChips } from "@/components/ui/filter-chips";
 import type { ShopInUse } from "@/lib/shops";
 
 /**
@@ -25,38 +23,28 @@ export function ShopFilter({
   if (shops.length === 0) return null;
 
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-1.5">
-      <Chip href="/pantry/list" label="Everywhere" active={active === null} />
-      {shops.map((shop) => (
-        <Chip
-          key={shop.id}
-          href={`/pantry/list?shop=${encodeURIComponent(shop.name)}`}
-          label={shop.name}
-          active={active !== null && active.toLowerCase() === shop.name.toLowerCase()}
-        />
-      ))}
-    </div>
-  );
-}
-
-function Chip({
-  href,
-  label,
-  active,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "true" : undefined}
-      className={`rounded-full px-3.5 py-1.5 text-xs font-bold ${
-        active ? "bg-ink text-background" : "bg-chip text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      {label}
-    </Link>
+    <FilterChips
+      label="Filter by shop"
+      className="mb-5"
+      chips={[
+        {
+          key: "all",
+          label: "Everywhere",
+          href: "/pantry/list",
+          active: active === null,
+        },
+        ...shops.map((shop) => {
+          const on = active !== null && active.toLowerCase() === shop.name.toLowerCase();
+          return {
+            key: String(shop.id),
+            label: shop.name,
+            // Tapping the shop you are already in takes the filter off, which
+            // is what a chip does everywhere else in the app now.
+            href: on ? "/pantry/list" : `/pantry/list?shop=${encodeURIComponent(shop.name)}`,
+            active: on,
+          };
+        }),
+      ]}
+    />
   );
 }

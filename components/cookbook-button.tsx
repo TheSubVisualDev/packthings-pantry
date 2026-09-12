@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { BookOpen, BookmarkCheck, Check, X } from "lucide-react";
+import { BookOpen, BookmarkCheck, Check } from "lucide-react";
+import { Sheet } from "@/components/ui/sheet";
 import { describeStock } from "@/lib/containers";
 import {
   addRecipeToCookbook,
@@ -165,84 +166,68 @@ function LinkPrompt({
   onConfirm: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6">
-      <div className="max-h-[85vh] w-full max-w-[520px] overflow-y-auto rounded-t-[20px] bg-card p-5 shadow-lg sm:rounded-[20px]">
-        <div className="mb-1 flex items-start justify-between gap-3">
-          <h2 className="text-[19px] font-extrabold tracking-[-0.02em]">
-            {lines.length === 1
-              ? "One ingredient to check"
-              : `${lines.length} ingredients to check`}
-          </h2>
-          <button
-            type="button"
-            onClick={onCancel}
-            aria-label="Cancel"
-            className="rounded-full p-1 text-muted-foreground hover:bg-chip"
-          >
-            <X className="h-5 w-5" strokeWidth={2.5} />
-          </button>
-        </div>
-        <p className="mb-4 text-sm font-semibold text-muted-foreground">
-          Close enough to be worth asking, not close enough to guess. Answered
-          once - cooking will not ask again.
-        </p>
-
-        <div className="space-y-4">
-          {lines.map((line) => (
-            <div key={line.ingredient.id}>
-              <p className="mb-2 text-sm font-extrabold">
-                {line.ingredient.item_name}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {line.alternatives.map((item) => {
-                  const picked = choices[line.ingredient.id] === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => onChoose(line.ingredient.id, item.id)}
-                      className={
-                        picked
-                          ? "flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-bold text-primary-foreground"
-                          : "flex items-center gap-1.5 rounded-full bg-chip px-3 py-2 text-xs font-bold hover:bg-border"
-                      }
-                    >
-                      {picked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-                      {item.name}
-                      <span className="font-semibold opacity-70">
-                        {describeStock(item)}
-                      </span>
-                    </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={() => onChoose(line.ingredient.id, null)}
-                  className={
-                    choices[line.ingredient.id] === null
-                      ? "flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-bold text-primary-foreground"
-                      : "flex items-center gap-1.5 rounded-full bg-chip px-3 py-2 text-xs font-bold hover:bg-border"
-                  }
-                >
-                  {choices[line.ingredient.id] === null && (
-                    <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                  )}
-                  Not in my kitchen
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
+    <Sheet
+      open
+      onClose={onCancel}
+      title={
+        lines.length === 1
+          ? "One ingredient to check"
+          : `${lines.length} ingredients to check`
+      }
+      description="Close enough to be worth asking, not close enough to guess. Answered once — cooking will not ask again."
+      footer={
         <button
           type="button"
           disabled={pending}
           onClick={onConfirm}
-          className="mt-5 w-full rounded-[14px] bg-primary px-4 py-3.5 text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
+          className="w-full rounded-[14px] bg-primary px-4 py-3.5 text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
         >
           {pending ? "Adding…" : "Add to cookbook"}
         </button>
+      }
+    >
+      <div className="space-y-4">
+        {lines.map((line) => (
+          <div key={line.ingredient.id}>
+            <p className="mb-2 text-sm font-extrabold">{line.ingredient.item_name}</p>
+            <div className="flex flex-wrap gap-2">
+              {line.alternatives.map((item) => {
+                const picked = choices[line.ingredient.id] === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onChoose(line.ingredient.id, item.id)}
+                    className={
+                      picked
+                        ? "flex min-h-11 items-center gap-1.5 rounded-full bg-primary px-3.5 text-xs font-bold text-primary-foreground"
+                        : "flex min-h-11 items-center gap-1.5 rounded-full bg-chip px-3.5 text-xs font-bold hover:bg-border"
+                    }
+                  >
+                    {picked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                    {item.name}
+                    <span className="font-semibold opacity-70">{describeStock(item)}</span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => onChoose(line.ingredient.id, null)}
+                className={
+                  choices[line.ingredient.id] === null
+                    ? "flex min-h-11 items-center gap-1.5 rounded-full bg-primary px-3.5 text-xs font-bold text-primary-foreground"
+                    : "flex min-h-11 items-center gap-1.5 rounded-full bg-chip px-3.5 text-xs font-bold hover:bg-border"
+                }
+              >
+                {choices[line.ingredient.id] === null && (
+                  <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                )}
+                Not in my kitchen
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
-    </div>
+    </Sheet>
   );
 }

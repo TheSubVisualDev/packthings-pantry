@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { Check } from "lucide-react";
+import { Sheet } from "@/components/ui/sheet";
 import {
   cookRecipe,
   rateRecipe,
@@ -527,33 +528,24 @@ export function CookPanel({
         </p>
       )}
 
-      {asking && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6">
-          <div className="w-full max-w-[460px] rounded-t-[20px] bg-card p-5 shadow-lg sm:rounded-[20px]">
-            <h2 className="text-[19px] font-extrabold tracking-[-0.02em]">
-              {asking.length === 1
-                ? "One thing you did not tick"
-                : `${asking.length} things you did not tick`}
-            </h2>
-            <p className="mt-1 text-sm font-semibold text-muted-foreground">
-              Leave them on the shelf, or take them off anyway?
-            </p>
-
-            <ul className="mt-3 space-y-1">
-              {asking.map((name) => (
-                <li key={name} className="text-sm font-bold break-words">
-                  {name}
-                </li>
-              ))}
-            </ul>
-
+      <Sheet
+        open={asking !== null}
+        onClose={() => setAsking(null)}
+        title={
+          asking?.length === 1
+            ? "One thing you did not tick"
+            : `${asking?.length ?? 0} things you did not tick`
+        }
+        description="Leave them on the shelf, or take them off anyway?"
+        footer={
+          <>
             <button
               type="button"
               disabled={pending}
               onClick={() => cook(skippedIds)}
-              className="mt-5 w-full rounded-[14px] bg-primary px-4 py-3.5 text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
+              className="w-full rounded-[14px] bg-primary px-4 py-3.5 text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
             >
-              Did not use {asking.length === 1 ? "it" : "them"}
+              Did not use {asking?.length === 1 ? "it" : "them"}
             </button>
             <button
               type="button"
@@ -563,16 +555,17 @@ export function CookPanel({
             >
               Used everything after all
             </button>
-            <button
-              type="button"
-              onClick={() => setAsking(null)}
-              className="mt-2 w-full py-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
-            >
-              Back to the list
-            </button>
-          </div>
-        </div>
-      )}
+          </>
+        }
+      >
+        <ul className="space-y-1">
+          {(asking ?? []).map((name) => (
+            <li key={name} className="text-sm font-bold break-words">
+              {name}
+            </li>
+          ))}
+        </ul>
+      </Sheet>
 
       <RecipeMethod steps={steps} labels={labels} />
 
