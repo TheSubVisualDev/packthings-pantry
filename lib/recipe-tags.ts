@@ -81,6 +81,14 @@ export interface DerivedTag {
   label: string;
   /** Why it is true, for a tooltip and for the check script. */
   because: string;
+  /**
+   * Which derivation produced it.
+   *
+   * So a caller can leave one out without matching on the words. A listing
+   * card prints the real time already, and a "90 mins" bucket chip next to
+   * "50 min" reads as the app contradicting itself.
+   */
+  kind: "time" | "few-ingredients" | "no-oven" | "batch";
 }
 
 /**
@@ -101,7 +109,13 @@ export function derivedTags(
   const minutes = totalMinutes(recipe);
   if (minutes !== null) {
     const bucket = TIME_BUCKETS.find((candidate) => minutes <= candidate.upTo);
-    if (bucket) tags.push({ label: bucket.label, because: `${minutes} minutes in total` });
+    if (bucket) {
+      tags.push({
+        label: bucket.label,
+        because: `${minutes} minutes in total`,
+        kind: "time",
+      });
+    }
   }
 
   /**
@@ -115,6 +129,7 @@ export function derivedTags(
     tags.push({
       label: `${required} ingredients`,
       because: `${required} lines that are not optional`,
+      kind: "few-ingredients",
     });
   }
 
@@ -126,13 +141,18 @@ export function derivedTags(
    * one.
    */
   if (steps.length > 0 && !steps.some((step) => OVEN_WORDS.test(step.body))) {
-    tags.push({ label: "No oven", because: "no step mentions the oven or grill" });
+    tags.push({
+      label: "No oven",
+      because: "no step mentions the oven or grill",
+      kind: "no-oven",
+    });
   }
 
   if (recipe.base_servings >= BATCH_SERVINGS) {
     tags.push({
       label: "Batch",
       because: `makes ${recipe.base_servings}`,
+      kind: "batch",
     });
   }
 

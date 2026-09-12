@@ -77,6 +77,51 @@ export async function getMyRecipes(
 }
 
 /**
+ * Recipes you have saved off somebody else, newest save first.
+ *
+ * Saving and adopting are different acts and have always been stored
+ * separately - a like is "I want to find this again", adopting is "this is a
+ * thing my kitchen cooks" - but nothing has ever shown the first one back to
+ * you, so the star was a write-only button. Your own recipes are left out:
+ * they are in the tab called Wrote, and a recipe cannot be saved from
+ * yourself.
+ *
+ * The visibility clause still applies. Somebody can make a recipe private
+ * after you saved it, and a save is not a way around that.
+ */
+export async function getSavedRecipes(
+  viewerId: number,
+  term = "",
+): Promise<RecipeWithAuthor[]> {
+  const needle = `%${term.trim().toLowerCase()}%`;
+  const filtered = term.trim().length > 0;
+
+  const result = await getDb().execute({
+    sql: `${RECIPE_WITH_AUTHOR}
+          JOIN recipe_likes rl ON rl.recipe_id = r.id AND rl.user_id = ?
+          WHERE r.author_id <> ?
+            AND ${VISIBLE_TO_VIEWER}
+          ${
+            filtered
+              ? `AND (
+                  LOWER(r.name) LIKE ?
+                  OR LOWER(COALESCE(r.description, '')) LIKE ?
+                  OR EXISTS (
+                    SELECT 1 FROM recipe_ingredients ri
+                    WHERE ri.recipe_id = r.id AND LOWER(ri.item_name) LIKE ?
+                  )
+                )`
+              : ""
+          }
+          ORDER BY rl.created_at DESC, r.name`,
+    args: filtered
+      ? [viewerId, viewerId, ...viewerArgs(viewerId), needle, needle, needle]
+      : [viewerId, viewerId, ...viewerArgs(viewerId)],
+  });
+  return result.rows as unknown as RecipeWithAuthor[];
+}
+
+/**
  * Everything a person is allowed to see, newest first - the discover page.
  *
  * The visibility rule is in the WHERE clause rather than filtered afterwards,
