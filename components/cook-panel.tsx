@@ -158,7 +158,7 @@ function resolve(
 
 function StatusBadge({ status }: { status: Status }) {
   const base =
-    "shrink-0 rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap";
+    "shrink-0 rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap print:hidden";
   if (status.kind === "in-stock")
     return (
       <span className={`${base} bg-chip text-muted-foreground`}>In stock</span>
@@ -340,7 +340,7 @@ export function CookPanel({
 
   return (
     <div className="space-y-5">
-      <section>
+      <section className="print:hidden">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-label">
           Cooking for
         </h2>
@@ -434,11 +434,11 @@ export function CookPanel({
                           [line.id]: current[line.id] === false,
                         }))
                       }
-                      className={
+                      className={`print:hidden ${
                         ticked[line.id] === false
                           ? "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-border"
                           : "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
-                      }
+                      }`}
                     >
                       {ticked[line.id] !== false && (
                         <Check className="h-3.5 w-3.5" strokeWidth={3.5} />
@@ -497,7 +497,7 @@ export function CookPanel({
             method. The cook flow offers it again afterwards for what it could
             not decrement. */}
         {hasKitchen && blockers.length > 0 && !result && (
-          <div className="rounded-[16px] bg-chip px-4 py-3">
+          <div className="rounded-[16px] bg-chip px-4 py-3 print:hidden">
             <p className="text-center text-sm font-semibold text-muted-foreground">
               {/* A recipe you own none of is a normal thing to have written
                   down - something you meant to try - so it reads as a plan
@@ -515,7 +515,7 @@ export function CookPanel({
         )}
 
       {hasKitchen && inCookbook ? (
-        <div>
+        <div className="print:hidden">
           <button
             type="button"
             onClick={onConfirm}
@@ -598,7 +598,7 @@ export function CookPanel({
       */}
       {steps.length > 0 && (
         <section>
-          <div className="flex gap-2">
+          <div className="flex gap-2 print:hidden">
             <Link
               href={`/recipes/${recipeId}/cook?servings=${servings}`}
               className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] bg-primary px-4 text-[15px] font-extrabold text-primary-foreground"
@@ -617,11 +617,17 @@ export function CookPanel({
             </button>
           </div>
 
-          {reading && (
-            <div className="mt-4">
-              <RecipeMethod steps={steps} labels={labels} />
-            </div>
-          )}
+          {/*
+            Rendered whether or not it is open, and hidden with CSS.
+
+            Printing is the reason: a method that only exists in the DOM once
+            somebody has pressed "Read as list" is a method that comes out of
+            the printer as a blank half-page. `hidden print:block` is the one
+            place in this app where display is decided twice, and it earns it.
+          */}
+          <div className={reading ? "mt-4" : "hidden print:mt-4 print:block"}>
+            <RecipeMethod steps={steps} labels={labels} />
+          </div>
         </section>
       )}
 
@@ -738,7 +744,7 @@ export function CookPanel({
         </section>
       )}
 
-      <section>
+      <section className="print:hidden">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-label">
           What you thought
         </h2>

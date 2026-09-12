@@ -152,18 +152,30 @@ export default async function PantryPage({
           the app talking over you.
         */}
         {trip ? (
-          <div className="mb-3">
+          <div className="mb-3 print:hidden">
             <TripStrip trip={trip} />
           </div>
         ) : (
           best && (
-            <div className="mb-3">
+            <div className="mb-3 print:hidden">
               <TonightStrip suggestion={best} />
             </div>
           )
         )}
 
-        <GoingOff rescues={rescues} />
+        <div className="print:hidden">
+          <GoingOff rescues={rescues} />
+        </div>
+
+        {/* A stocktake is a printed list you carry to the cupboard and mark
+            up, so the heading it needs on paper is the one the screen gets
+            from the tab bar. */}
+        <div className="mb-3 hidden items-baseline justify-between print:flex">
+          <h1 className="text-[20px] font-extrabold tracking-[-0.02em]">
+            {kitchen.name} — {items.length} items
+          </h1>
+          <span className="font-mono text-xs">{new Date().toLocaleDateString("en-GB")}</span>
+        </div>
 
         {items.length === 0 ? (
           <EmptyShelves />

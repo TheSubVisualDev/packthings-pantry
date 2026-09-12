@@ -115,7 +115,7 @@ export function RecipeMethod({
           type="button"
           aria-pressed={awake}
           onClick={() => setAwake((value) => !value)}
-          className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+          className={`rounded-full px-3 py-1.5 text-xs font-bold print:hidden ${
             awake ? "bg-primary text-primary-foreground" : "bg-chip text-muted-foreground"
           }`}
         >

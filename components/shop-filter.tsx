@@ -25,7 +25,7 @@ export function ShopFilter({
   return (
     <FilterChips
       label="Filter by shop"
-      className="mb-5"
+      className="mb-5 print:hidden"
       chips={[
         {
           key: "all",

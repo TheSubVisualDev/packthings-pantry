@@ -10,7 +10,7 @@ import Link from "next/link";
  */
 export function SiteFooter() {
   return (
-    <footer className="mx-auto w-full max-w-[1280px] px-5 pb-28 sm:px-9 sm:pb-10">
+    <footer className="print:hidden mx-auto w-full max-w-[1280px] px-5 pb-28 sm:px-9 sm:pb-10">
       <Link
         href="/claude"
         className="text-xs font-semibold text-muted-foreground/60 transition-colors hover:text-muted-foreground"

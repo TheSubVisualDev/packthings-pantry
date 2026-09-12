@@ -183,3 +183,49 @@
     animation: none;
   }
 }
+
+/**
+ * Paper.
+ *
+ * Four screens in this app are worth printing: the shopping list to carry, the
+ * recipe to cook from with floury hands, the stock list for a stocktake, and
+ * whatever somebody wants to pin to a fridge. Everything that is a control
+ * rather than information is marked `print:hidden` where it lives; this is the
+ * part that applies to every page.
+ *
+ * Ink is expensive and paper is not backlit: the warm surfaces go white, the
+ * shadows go, and the borders become hairlines that a laser printer can
+ * actually render.
+ */
+@media print {
+  :root {
+    --color-background: #fff;
+    --color-card: #fff;
+    --color-surface-raised: #fff;
+    --color-chip: #fff;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  /* Cards stop being cards: a drop shadow is a photocopier smudge. */
+  [class*="shadow-"] {
+    box-shadow: none !important;
+  }
+
+  /* A row split across a page break is a row you read twice or not at all. */
+  li,
+  tr,
+  section {
+    break-inside: avoid;
+  }
+
+  /* Links print as their words; a URL in brackets after every recipe name is
+     noise on a sheet somebody is holding in a kitchen. */
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+}

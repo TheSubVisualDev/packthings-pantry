@@ -49,7 +49,7 @@ export async function SiteHeader({
       app looks like it starts an inch down the screen. Zero in a browser,
       where the inset is zero.
     */
-    <header className="border-b border-border bg-surface-raised pt-[env(safe-area-inset-top)]">
+    <header className="border-b border-border bg-surface-raised pt-[env(safe-area-inset-top)] print:hidden">
       <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-9 sm:py-5">
         <div className="flex min-w-0 items-center gap-2.5 sm:gap-7">
           <Link

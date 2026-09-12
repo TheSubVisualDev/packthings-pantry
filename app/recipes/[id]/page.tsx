@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { RecipeMenu } from "@/components/recipe-menu";
+import { PrintButton } from "@/components/print-button";
 import { RecipeVisibility } from "@/components/recipe-visibility";
 import { RemixButton } from "@/components/remix-button";
 import { CookbookButton } from "@/components/cookbook-button";
@@ -210,8 +211,21 @@ export default async function RecipePage({
           flat per-id tint is the same colour the listing card gives it, so a
           recipe you tapped is recognisably the thing you tapped.
         */}
+        {/* Paper gets a heading instead of the header: the tint is an inline
+            background, which no print rule can undo, and a page of flat colour
+            is somebody else's ink. */}
+        <div className="hidden print:block">
+          <h1 className="text-[22px] font-extrabold tracking-[-0.02em]">
+            {recipe.name}
+          </h1>
+          <p className="mt-1 text-sm font-semibold">
+            Serves {recipe.base_servings}
+            {timings.length > 0 ? ` · ${timings.join(" · ")}` : ""}
+          </p>
+        </div>
+
         <header
-          className="relative -mx-5 -mt-6 overflow-hidden sm:mx-0 sm:mt-0 sm:rounded-[20px]"
+          className="relative -mx-5 -mt-6 overflow-hidden print:hidden sm:mx-0 sm:mt-0 sm:rounded-[20px]"
           style={recipe.photo_url ? undefined : { background: recipeTint(recipe.id) }}
         >
           {/*
@@ -238,7 +252,7 @@ export default async function RecipePage({
             </>
           )}
 
-          <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4">
+          <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4 print:hidden">
             <Link
               href="/recipes"
               aria-label="Back to your cookbook"
@@ -248,6 +262,7 @@ export default async function RecipePage({
             </Link>
 
             <RecipeMenu>
+              <PrintButton label="Print this recipe" />
               {isAuthor && (
                 <Link
                   href={`/recipes/${recipe.id}/edit`}
@@ -317,6 +332,7 @@ export default async function RecipePage({
         {/* Above the timings rather than below them: the tags are how you
             found this recipe, so they belong with its identity rather than
             filed away with its statistics. */}
+        <div className="print:hidden">
         <RecipeTags
           recipeId={recipe.id}
           tags={recipeTagsByRecipe.get(recipe.id) ?? []}
@@ -327,8 +343,9 @@ export default async function RecipePage({
           ]}
           canEdit={isAuthor}
         />
+        </div>
 
-        <div className="mt-3 mb-7 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-muted-foreground">
+        <div className="mt-3 mb-7 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-muted-foreground print:hidden">
           <span>base {recipe.base_servings} servings</span>
           {timings.map((timing) => (
             <span key={timing}>{timing}</span>
@@ -352,11 +369,12 @@ export default async function RecipePage({
             and remix controls: it is the thing to do with a recipe you have
             just found, and those are things to do with one you already keep. */}
         {kitchen && kitchen.role !== "viewer" && (
-          <div className="mt-5">
+          <div className="mt-5 print:hidden">
             <CookbookButton recipeId={recipe.id} inCookbook={inCookbook} />
           </div>
         )}
 
+        <div className="print:hidden">
         <RecipeSocial
           recipeId={recipe.id}
           likes={social.likes}
@@ -366,11 +384,15 @@ export default async function RecipePage({
           isAuthor={isAuthor}
         />
 
+        </div>
+
         <Lineage ancestors={ancestors} remixes={remixes} />
 
         <RecipeNutrition macros={nutrition} />
 
-        <CookHistory entries={history} />
+        <div className="print:hidden">
+          <CookHistory entries={history} />
+        </div>
 
         {recipe.notes && (
           <section className="mt-5">

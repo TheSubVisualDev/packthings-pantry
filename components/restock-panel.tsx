@@ -82,7 +82,7 @@ export function RestockPanel({ suggestions }: { suggestions: RestockSuggestion[]
             else setError(result.error ?? "Couldn't add those.");
           })
         }
-        className="mt-4 rounded-[14px] bg-primary px-5 py-2.5 text-sm font-extrabold text-primary-foreground disabled:opacity-60"
+        className="mt-4 rounded-[14px] bg-primary px-5 py-2.5 text-sm font-extrabold text-primary-foreground disabled:opacity-60 print:hidden"
       >
         {pending
           ? "Adding…"

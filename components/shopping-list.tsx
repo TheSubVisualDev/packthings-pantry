@@ -150,9 +150,9 @@ export function ShoppingList({
           onClick={() => setBought(line, !bought)}
           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${
             bought
-              ? "bg-primary text-primary-foreground"
+              ? "bg-primary text-primary-foreground print:bg-white print:text-black"
               : "border-2 border-border text-transparent"
-          }`}
+          } print:border-2 print:border-black`}
         >
           ✓
         </button>
@@ -186,7 +186,7 @@ export function ShoppingList({
           type="button"
           aria-label={`Remove ${line.item_name}`}
           onClick={() => startTransition(async () => { await drop(line.id); })}
-          className="shrink-0 self-stretch px-2 text-xs font-bold text-muted-foreground hover:text-destructive"
+          className="shrink-0 self-stretch px-2 text-xs font-bold text-muted-foreground hover:text-destructive print:hidden"
         >
           ✕
         </button>
@@ -227,7 +227,7 @@ export function ShoppingList({
         </div>
       )}
 
-      <form action={submit} className="flex flex-wrap gap-2">
+      <form action={submit} className="flex flex-wrap gap-2 print:hidden">
         {/* Offers what the kitchen already calls things, so a line matches the
             stock row it means rather than becoming a second name for it. Still
             free text: half of what goes on a shopping list is something you
@@ -342,7 +342,7 @@ export function ShoppingList({
                       );
                     })
                   }
-                  className="min-h-9 rounded-full bg-ink px-4 text-xs font-extrabold text-background disabled:opacity-60"
+                  className="min-h-9 rounded-full bg-ink px-4 text-xs font-extrabold text-background disabled:opacity-60 print:hidden"
                 >
                   Put these away
                 </button>
@@ -373,7 +373,7 @@ export function ShoppingList({
               else setTicked({});
             })
           }
-          className="min-h-12 w-full rounded-[14px] bg-ink text-[15px] font-extrabold text-background disabled:opacity-60"
+          className="min-h-12 w-full rounded-[14px] bg-ink text-[15px] font-extrabold text-background disabled:opacity-60 print:hidden"
         >
           Got everything · {total - inBasket} to tick
         </button>
@@ -383,7 +383,7 @@ export function ShoppingList({
         <button
           type="button"
           onClick={() => startTransition(async () => { await clearDone(); })}
-          className="text-sm font-semibold text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          className="text-sm font-semibold text-muted-foreground underline underline-offset-2 hover:text-foreground print:hidden"
         >
           Clear the {done.length} ticked off
         </button>

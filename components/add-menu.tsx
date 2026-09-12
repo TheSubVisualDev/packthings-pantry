@@ -146,7 +146,7 @@ export function AddMenu() {
         aria-label="Open add menu"
         aria-expanded={open}
         onClick={show}
-        className="fixed right-8 bottom-8 z-40 hidden h-15 w-15 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_28px_-8px_oklch(0.55_0.13_35/0.7)] transition-transform hover:scale-105 sm:flex"
+        className="fixed right-8 bottom-8 z-40 hidden h-15 w-15 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_28px_-8px_oklch(0.55_0.13_35/0.7)] transition-transform hover:scale-105 sm:flex print:hidden"
       >
         <Plus className="h-7 w-7" strokeWidth={3} />
       </button>

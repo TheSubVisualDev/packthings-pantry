@@ -61,7 +61,7 @@ export function BottomNav({ onAdd }: { onAdd: () => void }) {
       // pb for the home indicator, which only reports a height once the
       // viewport is fit to cover - before that this padding was always zero
       // and the labels sat in the swipe area.
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-raised/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-raised/95 pb-[env(safe-area-inset-bottom)] backdrop-blur select-none sm:hidden print:hidden"
     >
       <div className="flex items-stretch justify-around">
         {left.map(({ key, ...section }) => (

@@ -11,6 +11,7 @@ import { getItemProfiles } from "@/lib/queries";
 import { getShops } from "@/lib/shops";
 import { getTrip } from "@/lib/trip";
 import { TripStrip } from "@/components/trip-strip";
+import { PrintButton } from "@/components/print-button";
 
 export const dynamic = "force-dynamic";
 
@@ -46,13 +47,14 @@ export default async function ShoppingPage({
       <main className="mx-auto w-full max-w-[560px] px-5 py-7 pb-32 sm:px-9">
         <Link
           href="/pantry"
-          className="text-sm font-semibold text-muted-foreground hover:text-foreground"
+          className="text-sm font-semibold text-muted-foreground hover:text-foreground print:hidden"
         >
           ← Stock
         </Link>
-        <h1 className="mt-2 mb-1 text-[26px] font-extrabold tracking-[-0.02em]">
-          Shopping
-        </h1>
+        <div className="mt-2 mb-1 flex items-center justify-between gap-3">
+          <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">Shopping</h1>
+          <PrintButton label="On paper" />
+        </div>
         <p className="mb-6 text-sm font-semibold text-muted-foreground">
           {filter
             ? `What ${filter} has, plus anything you can get anywhere.`

@@ -21,7 +21,7 @@ export function EstimateButton({ missing }: { missing: number }) {
 
   if (filled) {
     return (
-      <div className="mt-3 rounded-[14px] bg-chip p-3">
+      <div className="print:hidden mt-3 rounded-[14px] bg-chip p-3">
         <p className="text-sm font-bold">
           {filled.length === 0
             ? "Nothing here matched anything in the table."
