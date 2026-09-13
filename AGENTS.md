@@ -41,6 +41,31 @@ rather than listing them.
 the client opens a fresh TCP and TLS connection per query and pools nothing.
 Set `LIBSQL_PROTOCOL=http` to roll that back without a deploy.
 
+**A recipe line may have no amount at all.** `some` is a unit with no
+dimension - "salt, to taste", "oil for frying" - and every conversion refuses
+it with `reason: "unmeasured"`, which is deliberately not the same as
+`unknown-unit`. Five places convert a recipe line and each has to tell a
+decision to respect from a mistake to report: cooking subtracts nothing, the
+shopping list leaves it alone if you have any, nutrition skips it rather than
+calling a pinch of salt a hole in the figures. One miss puts salt on the
+shopping list for ever. `npm run check:amounts`.
+
+**"What is this recipe short of" lives in one place.** `recipeShortfall()` in
+`lib/shopping.ts`, used by the add-what's-missing button and by the week
+planner's Shop for it. It was a hundred lines inside a server action, and a
+second copy of it is a sixth instance of the bug this file keeps a count of.
+
+**Dates in the planner are days, not instants.** "Thursday dinner" is a fact
+about the kitchen's calendar, so `meal_plan.on_date` is 'YYYY-MM-DD' text and
+`fromIso` pins to noon - `new Date("2026-03-29")` parses as UTC, which on the
+morning the clocks go forward is 01:00 local. The week starts Monday, and
+`getDay()` is 0 on Sunday, which is the off-by-one everybody makes.
+`npm run check:plan`.
+
+**The nudge reads London's clock, not the server's.** Deploys to Frankfurt,
+used in Britain: a reminder set for six on a Sunday would arrive at five, and
+twice a year the gap changes. `londonNow()` asks Intl. `npm run check:push`.
+
 **Tesseract cannot run server-side here.** Its Node build spawns a
 `worker_threads` Worker from a file path, which does not survive bundling into
 a serverless function - the worker never starts and the request hangs rather
@@ -54,6 +79,12 @@ than failing. Receipt reading runs in the browser for that reason.
 3. Check `PRAGMA foreign_key_check` and that row counts and links survived.
 4. Keep that clone as the backup, then run it for real.
 
+Some changes cannot be additive: `shopping_list.kitchen_id` had to become
+nullable so a person without a kitchen could keep a list.
+`scripts/rebuild-shopping-list.mjs` is the second worked example after
+`rebuild-items.mjs`, and the easy case - nothing in the schema points at a
+shopping list line, though it discovers that rather than assuming it.
+
 Backups live in `C:\Users\Luna\Documents\pantry\backups\`. Migrations are
 additive: `ALTER TABLE ADD COLUMN` and `CREATE TABLE IF NOT EXISTS`, never a
 rewrite. Retired columns are frozen in place rather than dropped -
@@ -63,6 +94,10 @@ still there as the way back.
 ## Checks
 
     npm run check:cascade     the two copies of the container rule agree
+    npm run check:amounts     ~, "to taste", and how an amount is said
+    npm run check:recipe-text pasted plain text becoming a recipe
+    npm run check:plan        week arithmetic, DST, meal slots
+    npm run check:push        when the weekly nudge decides it is due
     npm run check:receipt     receipt parsing and matching
     npm run check:estimates   the generic-food matcher
     npm run probe             round-trip time to the database
@@ -71,6 +106,13 @@ still there as the way back.
 check tests what ships rather than a copy of it:
 
     node --import ./scripts/ts-imports.mjs scripts/whatever.mjs
+
+## Reports
+
+People write in from `/report`, and whoever is admin decides on `/reports`.
+The `reports` skill in `.claude/skills/` is the step after: it reads the
+approved ones, does them, and marks each done with a note the reporter sees.
+`scripts/reports.mjs` is how it talks to the database.
 
 ## House style
 
