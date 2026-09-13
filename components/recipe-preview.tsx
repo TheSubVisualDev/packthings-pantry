@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { formatQuantity, splitAmount } from "@/lib/units";
+import { formatQuantity, readQuantity, splitAmount, UNMEASURED } from "@/lib/units";
 import type { RecipeDraft, RecipePhotos } from "@/components/recipe-editor";
 
 /**
@@ -104,12 +104,21 @@ export function RecipePreview({
               {/* The same two lines the recipe page prints, so the preview is
                   a preview rather than a third way of saying an amount. */}
               {section.lines.map((line, lineIndex) => {
-                const amount = line.quantity.trim()
-                  ? splitAmount(Number(line.quantity), line.unit, {
-                      size: line.pack_size.trim() ? Number(line.pack_size) : null,
-                      unit: line.pack_size.trim() ? line.pack_unit : null,
-                    })
-                  : { primary: "", secondary: null };
+                // Read through readQuantity rather than Number(): the box may
+                // hold "~70", which Number() reads as NaN and prints as one.
+                const typed = readQuantity(line.quantity);
+                const amount =
+                  line.unit !== UNMEASURED && typed.quantity !== null
+                    ? splitAmount(
+                        typed.quantity,
+                        line.unit,
+                        {
+                          size: line.pack_size.trim() ? Number(line.pack_size) : null,
+                          unit: line.pack_size.trim() ? line.pack_unit : null,
+                        },
+                        typed.approx,
+                      )
+                    : { primary: "", secondary: null };
 
                 return (
                   <li

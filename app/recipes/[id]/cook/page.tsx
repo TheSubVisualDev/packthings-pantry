@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { CookStory, type StoryStep } from "@/components/cook-story";
 import { getRecipe } from "@/lib/queries";
 import { currentKitchen } from "@/lib/session";
-import { describeAmount, scaleQuantity } from "@/lib/units";
+import { describeLine, scaleQuantity } from "@/lib/units";
 
 export const dynamic = "force-dynamic";
 
@@ -53,11 +53,13 @@ export default async function CookPage({
   const labels = new Map(
     recipe.ingredients.map((line) => [
       line.id,
-      `${describeAmount(
+      describeLine(
         scaleQuantity(line.quantity, recipe.base_servings, forServings),
         line.unit,
         { size: line.pack_size, unit: line.pack_unit },
-      )} ${line.item_name}`,
+        line.item_name,
+        line.approx === 1,
+      ),
     ]),
   );
 

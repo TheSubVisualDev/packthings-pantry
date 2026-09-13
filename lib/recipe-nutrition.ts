@@ -139,7 +139,15 @@ export function recipeMacros(
       dimension,
     );
     if (!converted.ok) {
-      missing.push(line.item_name);
+      /**
+       * A line nobody measured is not a hole in the figures.
+       *
+       * "Salt, to taste" contributes nothing worth counting and listing it as
+       * uncounted would put a pinch of salt next to the 400g of chorizo the
+       * total genuinely could not see. Everything else that fails to convert
+       * still gets named - that is a real gap.
+       */
+      if (converted.reason !== "unmeasured") missing.push(line.item_name);
       continue;
     }
 

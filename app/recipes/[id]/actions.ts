@@ -233,6 +233,16 @@ export async function cookRecipe(
         item.dimension as Dimension,
       );
 
+      /**
+       * The mirror of the unspecified case above, from the recipe's side.
+       *
+       * "Salt, to taste" has no amount to subtract, so nothing is subtracted
+       * and nothing is reported. Flagging it would end every cook with a list
+       * of seasonings the app could not work out - which is true, and useless,
+       * because there was never anything to work out.
+       */
+      if (!converted.ok && converted.reason === "unmeasured") continue;
+
       if (!converted.ok) {
         flagged.push({
           item_name: line.item_name,

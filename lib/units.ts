@@ -24,6 +24,21 @@ const FACTORS: Record<string, { dimension: Dimension; toCanonical: number }> = {
   jar: { dimension: "count", toCanonical: 1 },
 };
 
+/**
+ * The unit for a line nobody measured: "salt, to taste", "a few sprigs of
+ * thyme", "oil for frying".
+ *
+ * Deliberately not in FACTORS. It has no dimension because there is no amount
+ * to have one - it is the absence of a measurement, written down on purpose
+ * rather than left blank. Somebody transcribing a family recipe has never
+ * weighed the salt and should not have to invent a number to write the recipe
+ * down; a recipe that forces one is a recipe they will not finish typing.
+ *
+ * Every conversion refuses it with its own reason, so the five places that
+ * convert a recipe line cannot mistake it for a broken unit and flag it.
+ */
+export const UNMEASURED = "some";
+
 export const CANONICAL_FOR: Record<Dimension, CanonicalUnit> = {
   mass: "g",
   volume: "ml",
@@ -36,7 +51,7 @@ export function dimensionOf(unit: string): Dimension | null {
 
 export type ConversionResult =
   | { ok: true; quantity: number }
-  | { ok: false; reason: "unknown-unit" | "dimension-mismatch" };
+  | { ok: false; reason: "unknown-unit" | "dimension-mismatch" | "unmeasured" };
 
 /**
  * Converts a recipe-line quantity into an item's canonical unit.
@@ -49,6 +64,11 @@ export function toCanonical(
   unit: string,
   targetDimension: Dimension,
 ): ConversionResult {
+  // Refused with its own reason rather than as an unknown unit: callers treat
+  // the two completely differently. An unknown unit is a mistake to report; an
+  // unmeasured line is a decision to respect, and gets skipped quietly.
+  if (unit.toLowerCase() === UNMEASURED) return { ok: false, reason: "unmeasured" };
+
   const entry = FACTORS[unit.toLowerCase()];
   if (!entry) return { ok: false, reason: "unknown-unit" };
   if (entry.dimension !== targetDimension) {
@@ -84,6 +104,8 @@ export function resolveAmount(
 ): ConversionResult {
   const direct = toCanonical(quantity, unit, targetDimension);
   if (direct.ok) return direct;
+  // Nothing a package size can do for a line that has no amount.
+  if (!direct.ok && direct.reason === "unmeasured") return direct;
 
   if (pack.size && pack.unit) {
     const viaPack = toCanonical(quantity * pack.size, pack.unit, targetDimension);
@@ -149,6 +171,13 @@ export const PACKAGE_UNITS = ["tin", "pack", "jar", "count"];
 export const ENTRY_UNITS = Object.keys(FACTORS);
 
 /**
+ * What a recipe line may be measured in - every entry unit, plus the one that
+ * says it was not measured. Stock has no equivalent: a shelf either holds an
+ * amount or is flagged `unspecified`, which is a column rather than a unit.
+ */
+export const RECIPE_UNITS = [...ENTRY_UNITS, UNMEASURED];
+
+/**
  * How much one tap of +/- moves an item. Grams and millilitres are too fine to
  * step one at a time; counts are whole things and step by one.
  */
@@ -210,7 +239,7 @@ export function splitAmount(
   // An unmeasured line has no number to say - "salt, to taste" is the whole
   // amount. Handled here so every screen that prints an amount gets it right
   // rather than each one remembering to check.
-  if (unit === "some") return { primary: "", secondary: null };
+  if (unit === UNMEASURED) return { primary: "", secondary: null };
 
   const primary = `${approx ? "~" : ""}${sayAmount(quantity, unit)}`;
   if (!pack.size || !pack.unit) return { primary, secondary: null };
@@ -219,4 +248,56 @@ export function splitAmount(
     primary,
     secondary: `${approx ? "~" : ""}${sayAmount(quantity * pack.size, pack.unit)}`,
   };
+}
+
+/**
+ * One ingredient, said the way a step chip should say it: "2 tins Chopped
+ * tomato", "~70g Brown Onion", "Salt".
+ *
+ * The step chips on the cook screen and the ones on the recipe page built this
+ * string separately, and neither knew what to do with a line nobody measured -
+ * both would have printed "1 some Salt". One definition, and the unmeasured
+ * case simply has no amount to print.
+ */
+export function describeLine(
+  quantity: number,
+  unit: string,
+  pack: { size: number | null; unit: string | null },
+  name: string,
+  approx = false,
+): string {
+  const { primary } = splitAmount(quantity, unit, pack, approx);
+  return primary ? `${primary} ${name}` : name;
+}
+
+/**
+ * What somebody typed in a quantity box, which may carry a tilde.
+ *
+ * "~70" is how a person writes "one medium onion, and I have never weighed
+ * one". The tilde lives in the box rather than in a checkbox beside it because
+ * that is where a tester reached for it, and because a recipe writer thinking
+ * "about 70 grams" is thinking about the number, not about a flag.
+ *
+ * Returns a null quantity for anything that is not a number, which the caller
+ * reports - the parser has one message for that and it is a better one.
+ */
+export function readQuantity(text: string): {
+  quantity: number | null;
+  approx: boolean;
+} {
+  const trimmed = text.trim();
+  const approx = trimmed.startsWith("~");
+  const rest = (approx ? trimmed.slice(1) : trimmed).trim();
+  if (!rest) return { quantity: null, approx };
+
+  const value = Number(rest);
+  return {
+    quantity: Number.isFinite(value) && value > 0 ? value : null,
+    approx,
+  };
+}
+
+/** The inverse: a stored quantity as the box should show it. */
+export function writeQuantity(quantity: number, approx: boolean): string {
+  return `${approx ? "~" : ""}${formatQuantity(quantity)}`;
 }

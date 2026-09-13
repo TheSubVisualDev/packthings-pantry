@@ -139,6 +139,7 @@ export default async function RecipePage({
       pack_unit: line.pack_unit,
       note: line.note,
       optional: line.optional === 1,
+      approx: line.approx === 1,
       section: line.section,
       /**
        * What else on the shelf could stand in.

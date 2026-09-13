@@ -112,6 +112,8 @@ export interface RecipeIngredient {
   pack_unit: string | null;
   note: string | null;
   optional: number;
+  /** "about this much" - the ~ in "~70g". Display only; it still decrements. */
+  approx: number;
   section: string | null;
   position: number;
 }

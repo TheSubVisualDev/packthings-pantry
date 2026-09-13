@@ -105,8 +105,8 @@ export async function saveRecipe(
       const row = await tx.execute({
         sql: `INSERT INTO recipe_ingredients
                 (recipe_id, item_id, item_name, quantity, unit, pack_size, pack_unit,
-                 note, optional, section, position)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+                 note, optional, approx, section, position)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         args: [
           recipeId,
           line.item_id,
@@ -117,6 +117,7 @@ export async function saveRecipe(
           line.pack_unit,
           line.note,
           line.optional ? 1 : 0,
+          line.approx ? 1 : 0,
           line.section,
           line.position,
         ],
@@ -239,9 +240,9 @@ export async function forkRecipe(
     await tx.execute({
       sql: `INSERT INTO recipe_ingredients
               (recipe_id, item_name, quantity, unit, pack_size, pack_unit,
-               note, optional, section, position)
+               note, optional, approx, section, position)
             SELECT ?, item_name, quantity, unit, pack_size, pack_unit,
-                   note, optional, section, position
+                   note, optional, approx, section, position
             FROM recipe_ingredients WHERE recipe_id = ?`,
       args: [newId, recipeId],
     });

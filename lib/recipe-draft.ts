@@ -1,5 +1,6 @@
 import type { RecipeDraft } from "@/components/recipe-editor";
 import type { RecipeWithIngredients } from "./types";
+import { writeQuantity } from "./units";
 
 /** A recipe opens in the editor with one empty line of each, ready to type into. */
 export function emptyDraft(): RecipeDraft {
@@ -45,7 +46,8 @@ export function draftFromRecipe(recipe: RecipeWithIngredients): RecipeDraft {
     notes: recipe.notes ?? "",
     ingredients: recipe.ingredients.map((line) => ({
       item_name: line.item_name,
-      quantity: String(line.quantity),
+      // The tilde goes back in the box it was typed into.
+      quantity: writeQuantity(line.quantity, line.approx === 1),
       unit: line.unit,
       pack_size: line.pack_size ? String(line.pack_size) : "",
       pack_unit: line.pack_unit ?? "g",

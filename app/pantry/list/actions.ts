@@ -156,6 +156,17 @@ export async function addShortfall(
       item.dimension,
     );
 
+    /**
+     * A line nobody measured, against a shelf that has some: nothing to buy.
+     *
+     * There is no amount to compare, and the recipe's whole claim is "you need
+     * salt" - which this kitchen satisfies. Without this, every recipe with a
+     * seasoning in it put that seasoning on the shopping list, for ever. A
+     * kitchen with NO salt never reaches here: the no-item branch above has
+     * already listed it.
+     */
+    if (!needed.ok && needed.reason === "unmeasured") continue;
+
     // An unconvertible line can't be compared to stock, so it goes on the list
     // as written and the human decides.
     if (!needed.ok) {

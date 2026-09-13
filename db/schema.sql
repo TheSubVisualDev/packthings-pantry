@@ -101,6 +101,11 @@ CREATE TABLE IF NOT EXISTS recipe_ingredients (
   pack_size REAL,
   pack_unit TEXT,
   optional  INTEGER NOT NULL DEFAULT 0,
+  -- "about this much". 1 medium onion is roughly 70g and nobody who cooks
+  -- knows that number, so the recipe says ~70g and means it loosely. Display
+  -- only: an approximate line still comes off the shelf like any other, it
+  -- just stops claiming a precision the writer never had.
+  approx    INTEGER NOT NULL DEFAULT 0,
   section   TEXT,                 -- "For the sauce"
   position  INTEGER NOT NULL DEFAULT 0
 );

@@ -17,7 +17,7 @@ import { NewPackDates } from "@/components/new-pack-dates";
 import { AddShortfallButton } from "@/components/add-shortfall-button";
 import { RecipeMethod, type CookStep } from "@/components/recipe-method";
 import {
-  describeAmount,
+  describeLine,
   formatQuantity,
   resolveAmount,
   scaleQuantity,
@@ -55,6 +55,8 @@ export interface CookLine {
   pack_unit: string | null;
   note: string | null;
   optional: boolean;
+  /** "~70g": roughly this much. Display only. */
+  approx: boolean;
   section: string | null;
   /**
    * The stock row this line resolves to, carrying its containers.
@@ -118,6 +120,17 @@ function resolve(
     { size: line.pack_size, unit: line.pack_unit },
     level.dimension,
   );
+
+  /**
+   * A line nobody measured, against a shelf that has some.
+   *
+   * There is no number to judge, and the recipe's whole claim is that you need
+   * salt. You have salt. A kitchen with none never gets here - the no-stock
+   * branch above has already called it To buy, which is the right answer.
+   */
+  if (!converted.ok && converted.reason === "unmeasured") {
+    return { status: { kind: "in-stock" }, display: scaled };
+  }
 
   if (!converted.ok) {
     return {
@@ -307,8 +320,13 @@ export function CookPanel({
   // What each step should say it needs, at the serving count chosen now.
   const labels: Record<number, string> = {};
   for (const { line, display } of resolved) {
-    labels[line.id] =
-      `${describeAmount(display, line.unit, { size: line.pack_size, unit: line.pack_unit })} ${line.item_name}`;
+    labels[line.id] = describeLine(
+      display,
+      line.unit,
+      { size: line.pack_size, unit: line.pack_unit },
+      line.item_name,
+      line.approx,
+    );
   }
 
   function cook(skip: number[]) {
@@ -450,6 +468,7 @@ export function CookPanel({
                   display,
                   line.unit,
                   { size: line.pack_size, unit: line.pack_unit },
+                  line.approx,
                 );
                 return (
                 <li

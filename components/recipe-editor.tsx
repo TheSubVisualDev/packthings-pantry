@@ -6,7 +6,12 @@ import { PhotoPicker } from "@/components/photo-picker";
 import { RecipePreview } from "@/components/recipe-preview";
 import { SoftSelect } from "@/components/soft-select";
 import { saveRecipeDocument, type SaveRecipeResult } from "@/app/recipes/actions";
-import { PACKAGE_UNITS, UNITS_BY_DIMENSION } from "@/lib/units";
+import {
+  PACKAGE_UNITS,
+  readQuantity,
+  UNITS_BY_DIMENSION,
+  UNMEASURED,
+} from "@/lib/units";
 import type { Dimension } from "@/lib/types";
 
 const FIELD =
@@ -25,6 +30,11 @@ const DIMENSION_LABEL: Record<Dimension, string> = {
 interface DraftIngredient {
   key: string;
   item_name: string;
+  /**
+   * As typed, tilde and all: "70", "~70", "". The ~ is parsed out at save
+   * time rather than held as a separate flag, because a person writing "about
+   * 70 grams" is typing about the number, not ticking a box beside it.
+   */
   quantity: string;
   unit: string;
   /** "1 tin (400 g)": only asked for when the unit is a package. */
@@ -173,23 +183,32 @@ export function RecipeEditor({
       cook_minutes: draft.cook_minutes ? Number(draft.cook_minutes) : undefined,
       source: draft.source || undefined,
       notes: draft.notes || undefined,
-      ingredients: draft.ingredients.map((line) => ({
-        item_name: line.item_name,
-        quantity: Number(line.quantity),
-        unit: line.unit,
-        // Only meaningful for package units, and only when actually filled in.
-        pack_size:
-          PACKAGE_UNITS.includes(line.unit) && line.pack_size.trim()
-            ? Number(line.pack_size)
-            : undefined,
-        pack_unit:
-          PACKAGE_UNITS.includes(line.unit) && line.pack_size.trim()
-            ? line.pack_unit
-            : undefined,
-        note: line.note || undefined,
-        optional: line.optional,
-        section: line.section || undefined,
-      })),
+      ingredients: draft.ingredients.map((line) => {
+        const typed = readQuantity(line.quantity);
+        const unmeasured = line.unit === UNMEASURED;
+
+        return {
+          item_name: line.item_name,
+          // An unmeasured line sends no quantity at all; the parser refuses a
+          // pack size on one too, so both are dropped here rather than sent
+          // and rejected.
+          quantity: unmeasured ? undefined : (typed.quantity ?? Number(line.quantity)),
+          unit: line.unit,
+          approx: !unmeasured && typed.approx,
+          // Only meaningful for package units, and only when actually filled in.
+          pack_size:
+            !unmeasured && PACKAGE_UNITS.includes(line.unit) && line.pack_size.trim()
+              ? Number(line.pack_size)
+              : undefined,
+          pack_unit:
+            !unmeasured && PACKAGE_UNITS.includes(line.unit) && line.pack_size.trim()
+              ? line.pack_unit
+              : undefined,
+          note: line.note || undefined,
+          optional: line.optional,
+          section: line.section || undefined,
+        };
+      }),
       steps: draft.steps.map((step) => ({
         body: step.body,
         minutes: step.minutes ? Number(step.minutes) : undefined,
@@ -433,17 +452,29 @@ export function RecipeEditor({
                     className={`${SMALL} w-full pr-9`}
                   />
                 </div>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  inputMode="decimal"
-                  aria-label="Quantity"
-                  placeholder="Qty"
-                  value={line.quantity}
-                  onChange={(event) => patchIngredient(index, { quantity: event.target.value })}
-                  className={`${SMALL} w-[4.5rem] text-center`}
-                />
+                {/*
+                  A text box, not a number box, so a ~ can be typed into it.
+
+                  "1 medium onion" is roughly 70g and nobody who cooks knows
+                  that number. A recipe that will not let you say "about" makes
+                  the writer either invent a precision they do not have or give
+                  up - and the person most likely to give up is the one writing
+                  down a recipe they have cooked for forty years without
+                  weighing anything.
+                */}
+                {line.unit !== UNMEASURED && (
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    aria-label="Quantity, with ~ for about"
+                    placeholder="Qty"
+                    value={line.quantity}
+                    onChange={(event) =>
+                      patchIngredient(index, { quantity: event.target.value })
+                    }
+                    className={`${SMALL} w-[4.5rem] text-center`}
+                  />
+                )}
                 <select
                   aria-label="Unit"
                   value={line.unit}
@@ -459,13 +490,32 @@ export function RecipeEditor({
                       ))}
                     </optgroup>
                   ))}
+                  {/* The other half of the same problem: a seasoning that was
+                      never measured at all. */}
+                  <optgroup label="No amount">
+                    <option value={UNMEASURED}>to taste</option>
+                  </optgroup>
                 </select>
               </div>
+
+              {line.quantity.trim().startsWith("~") && line.unit !== UNMEASURED && (
+                <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                  Roughly this much — it will read as{" "}
+                  <span className="text-quantity">~{line.quantity.trim().slice(1)}</span>,
+                  and still comes off your shelves.
+                </p>
+              )}
+              {line.unit === UNMEASURED && (
+                <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                  No amount. Nothing comes off your shelves for this one — say
+                  how much in the note below.
+                </p>
+              )}
 
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <input
                   aria-label="Preparation note"
-                  placeholder="finely chopped"
+                  placeholder={line.unit === UNMEASURED ? "to taste" : "finely chopped"}
                   value={line.note}
                   onChange={(event) => patchIngredient(index, { note: event.target.value })}
                   className={`${SMALL} min-w-36 flex-1`}

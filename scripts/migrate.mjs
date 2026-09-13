@@ -53,6 +53,10 @@ const ADDED_COLUMNS = [
   // bare numbers until somebody says what they are.
   { table: "items", column: "count_noun", definition: "TEXT" },
 
+  // "~70g", for the medium onion nobody has ever weighed. Old rows are all
+  // exact by definition - nothing could have said otherwise until now.
+  { table: "recipe_ingredients", column: "approx", definition: "INTEGER NOT NULL DEFAULT 0" },
+
   // Recipes became documents rather than lists: a blurb, timings, a source.
   { table: "recipes", column: "description", definition: "TEXT" },
   { table: "recipes", column: "prep_minutes", definition: "INTEGER" },

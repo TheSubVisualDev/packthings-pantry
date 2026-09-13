@@ -1,5 +1,5 @@
 import type { Item } from "./types";
-import { dimensionOf, UNITS_BY_DIMENSION } from "./units";
+import { dimensionOf, UNITS_BY_DIMENSION, UNMEASURED } from "./units";
 
 /**
  * The recipe document: one JSON shape, used by the Claude endpoint, the paste
@@ -51,6 +51,8 @@ export interface ParsedIngredient {
   pack_unit: string | null;
   note: string | null;
   optional: boolean;
+  /** "~70g": roughly this much. Display only - it still comes off the shelf. */
+  approx: boolean;
   section: string | null;
   position: number;
 }
@@ -168,24 +170,44 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
         return;
       }
 
-      const quantity =
-        typeof line.quantity === "string" ? Number(line.quantity) : line.quantity;
-      if (typeof quantity !== "number" || !Number.isFinite(quantity) || quantity <= 0) {
-        problems.push({
-          path: `${path}.quantity`,
-          message: "quantity must be a number greater than zero.",
-        });
-        return;
-      }
-
       const unit = asTrimmedString(line.unit)?.toLowerCase();
       if (!unit) {
         problems.push({ path: `${path}.unit`, message: "Missing unit." });
         return;
       }
 
-      const dimension = dimensionOf(unit);
-      if (!dimension) {
+      /**
+       * A line nobody measured, which is a legal thing for a recipe to say.
+       *
+       * "Salt, to taste" and "oil for frying" are how recipes are actually
+       * written, and demanding a number for them is how a person transcribing
+       * one gives up halfway. The quantity is fixed at 1 rather than accepted
+       * from the caller: there is no amount, so there is nothing for a caller
+       * to get right, and a stored 1 keeps the NOT NULL column honest without
+       * ever being shown.
+       */
+      const unmeasured = unit === UNMEASURED;
+
+      const rawQuantity =
+        typeof line.quantity === "string" ? Number(line.quantity) : line.quantity;
+      let quantity = 1;
+      if (!unmeasured) {
+        if (
+          typeof rawQuantity !== "number" ||
+          !Number.isFinite(rawQuantity) ||
+          rawQuantity <= 0
+        ) {
+          problems.push({
+            path: `${path}.quantity`,
+            message: `quantity must be a number greater than zero, or use unit "${UNMEASURED}" for an amount nobody measured.`,
+          });
+          return;
+        }
+        quantity = rawQuantity;
+      }
+
+      const dimension = unmeasured ? null : dimensionOf(unit);
+      if (!unmeasured && !dimension) {
         problems.push({
           path: `${path}.unit`,
           message: `"${unit}" is not a unit this pantry uses. Legal units: ${legalUnits().join(", ")}.`,
@@ -201,6 +223,16 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
       const packUnit = asTrimmedString(line.pack_unit)?.toLowerCase() ?? null;
 
       let packSize: number | null = null;
+      if (unmeasured && rawPackSize !== undefined && rawPackSize !== null) {
+        // A pack size is "what one of these comes to", and there is no one of
+        // these. Refused rather than dropped, because a caller that sent one
+        // has misunderstood which of the two it wanted.
+        problems.push({
+          path: `${path}.pack_size`,
+          message: `A "${UNMEASURED}" line has no amount, so it cannot have a pack_size.`,
+        });
+        return;
+      }
       if (rawPackSize !== undefined && rawPackSize !== null) {
         if (typeof rawPackSize !== "number" || !Number.isFinite(rawPackSize) || rawPackSize <= 0) {
           problems.push({
@@ -230,6 +262,7 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
           message: `"${itemName}" isn't in this kitchen yet.`,
         });
       } else if (
+        !unmeasured &&
         item.dimension !== dimension &&
         !(packSize && packUnit && dimensionOf(packUnit) === item.dimension)
       ) {
@@ -254,6 +287,8 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
         pack_unit: packSize ? packUnit : null,
         note: asTrimmedString(line.note),
         optional: line.optional === true,
+        // Meaningless on a line with no amount to be approximate about.
+        approx: line.approx === true && !unmeasured,
         section: asTrimmedString(line.section),
         position: ingredients.length,
       });
@@ -360,7 +395,7 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
 
 /** Every unit a recipe line may use, flat. */
 export function legalUnits(): string[] {
-  return Object.values(UNITS_BY_DIMENSION).flat();
+  return [...Object.values(UNITS_BY_DIMENSION).flat(), UNMEASURED];
 }
 
 /**
@@ -393,19 +428,23 @@ export function recipeJsonSchema() {
         maxItems: MAX_INGREDIENTS,
         items: {
           type: "object",
-          required: ["item_name", "quantity", "unit"],
+          required: ["item_name", "unit"],
           properties: {
             item_name: {
               type: "string",
               description:
                 "Matched against pantry item names, case-insensitively. A name the pantry doesn't have is accepted with a warning, not rejected.",
             },
-            quantity: { type: "number", exclusiveMinimum: 0 },
+            quantity: {
+              type: "number",
+              exclusiveMinimum: 0,
+              description: `Omit it only when unit is "${UNMEASURED}".`,
+            },
             unit: {
               type: "string",
               enum: legalUnits(),
               description:
-                "Must be one of these. Conversion only happens within a dimension - grams never become millilitres.",
+                `Must be one of these. Conversion only happens within a dimension - grams never become millilitres. "${UNMEASURED}" is for an amount nobody measured - salt to taste, oil for frying - and needs no quantity; put the wording in \`note\`.`,
             },
             pack_size: {
               type: "number",
@@ -420,6 +459,12 @@ export function recipeJsonSchema() {
             },
             note: { type: "string", description: "\"finely chopped\", \"at room temperature\"." },
             optional: { type: "boolean", default: false },
+            approx: {
+              type: "boolean",
+              default: false,
+              description:
+                "Roughly this much, printed as \"~70g\". Use it when the real instruction is \"1 medium onion\" and the grams are a guess.",
+            },
             section: { type: "string", description: "\"For the sauce\"." },
           },
         },
