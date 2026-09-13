@@ -58,7 +58,17 @@ function readCapability(): Capability {
     "PushManager" in window &&
     "Notification" in window;
 
-  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  /**
+   * iOS, including the iPads that will not admit to it.
+   *
+   * iPadOS 13 onwards reports itself as "Macintosh" in the user agent, so the
+   * obvious test misses every iPad - and an iPad is exactly a device where
+   * this matters, because Safari there needs the same add-to-home-screen step
+   * an iPhone does. A Mac has no touch points; an iPad has five.
+   */
+  const iOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   const standalone =
     window.matchMedia("(display-mode: standalone)").matches ||
     // Safari's own flag, which is the only reliable one on iOS.
