@@ -75,14 +75,16 @@ export default async function PasteRecipePage() {
           &larr; Recipes
         </Link>
         <h1 className="mt-2 text-[26px] font-extrabold tracking-[-0.02em]">
-          Paste a recipe from Claude
+          Paste a recipe
         </h1>
         <p className="mt-2 mb-6 text-[15px] leading-relaxed font-medium text-muted-foreground">
-          Works in any chat, on any device, with nothing to set up. If you can{" "}
+          Off a website, out of a message, or typed from memory — paste it as
+          it is and it gets picked apart. If you would rather have Claude write
+          it exactly, there is a tab for that, or you can{" "}
           <Link href="/claude" className="font-bold text-primary underline underline-offset-2">
             add the connector
           </Link>
-          , that&apos;s less fiddly — this is the way in when you can&apos;t.
+          .
         </p>
 
         <PasteRecipe briefing={briefingFor(items)} />

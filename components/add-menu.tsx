@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   ArrowUpDown,
   Barcode,
+  ClipboardType,
   ListChecks,
   NotebookPen,
   Plus,
@@ -39,6 +40,9 @@ const actions = [
   { key: "receipt", label: "Scan receipt", Icon: Receipt, href: "/pantry/receipt" },
   { key: "list", label: "Shopping list", Icon: ShoppingBasket, href: "/pantry/list" },
   { key: "recipe", label: "New recipe", Icon: NotebookPen, href: "/recipes/new" },
+  // Pasting one written out is how a recipe usually arrives - off a website,
+  // out of a message - and it was three taps deep behind the Claude page.
+  { key: "paste", label: "Paste a recipe", Icon: ClipboardType, href: "/recipes/paste" },
   { key: "cooked", label: "Cooked log", Icon: ListChecks, href: "/cooked" },
 ] as const;
 

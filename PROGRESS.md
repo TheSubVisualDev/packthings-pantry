@@ -3,10 +3,9 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 13 Sep 2026, after batch B pushed
-**Doing right now:** C — plain-text recipe paste (reading how the paste box
-works today)
-**Next after that:** D — bug report / feature request form
+**Last updated:** 13 Sep 2026, after batch C pushed
+**Doing right now:** D — bug report / feature request, with your tinder flow
+**Next after that:** E — shopping lists without a kitchen
 **Blocked on you:** nothing yet. F (meal planner) is where I stop and ask.
 
 ---
@@ -17,8 +16,8 @@ works today)
 |---|---|---|
 | A | Six visual fixes from the screenshots | **done, pushed** `04cd93f` |
 | B | `~` approximate amounts and "to taste" | **done, pushed** `6fc9246` |
-| C | Paste a plain-text recipe and have it parsed | in progress |
-| D | Bug report / feature request, with photos | not started |
+| C | Paste a plain-text recipe and have it parsed | **done, pushed** |
+| D | Bug report / feature request, with photos | in progress |
 | E | Shopping lists without a kitchen | not started |
 | F | Weekly meal planner + nutrition | **needs your call** |
 
@@ -55,17 +54,33 @@ at `../backups/pre-approx-2026-09-13.db`.
   have any and lists it if you have none. Nutrition skips it.
 - `npm run check:amounts` — 40 cases.
 
-## C — paste a plain-text recipe · in progress
+## C — paste a plain-text recipe · done
 
-The ask: paste a wall of text (ingredients, steps) and have the site pick it
-apart. Today's paste box only accepts JSON, which means it only works if you
-have already asked Claude to write some.
+No LLM involved — it is regex heuristics, which is why it could be built.
+`/recipes/paste` now opens on **Written out** instead of JSON, and it is in
+the + menu rather than three taps deep behind the Claude page.
 
-## D — bug report / feature request · not started
+Reads: `2 x 400g tins chopped tomatoes` (two numbers, both kept), `1 onion
+(about 150g)` (the brackets are a note, not the amount), fractions both
+written and vulgar, ranges, `oz`/`lb`/`cups` converted and reported, `salt
+and pepper to taste` split in two, sections, and a paste with no headings at
+all. It never invents an amount: a line it cannot read comes back unmeasured
+with the original words kept.
 
-Your ask: a form in the app where people write in and attach pictures, stored
-in the DB, plus a skill that reads them and collates them into yes/no for
-your approval.
+Nothing saves until you have looked at it, and Keep it lands in the **editor**
+rather than the recipe page, because a read recipe is a draft.
+
+`npm run check:recipe-text` — 50 cases.
+
+## D — bug report / feature request · in progress
+
+The flow you asked for:
+
+1. Anyone writes in from inside the app, with pictures.
+2. Every report shows on a page only you can see.
+3. You swipe through them, tinder-style — approve or deny.
+4. When you ask me to collate, I take the approved ones and work on them,
+   and the denied ones get cleared out.
 
 ## E — shopping lists without a kitchen · not started
 

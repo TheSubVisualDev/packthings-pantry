@@ -15,6 +15,7 @@
     "check:amounts": "node --import ./scripts/ts-imports.mjs scripts/check-amounts.mjs",
     "check:estimates": "node --import ./scripts/ts-imports.mjs scripts/check-estimates.mjs",
     "check:receipt": "node --import ./scripts/ts-imports.mjs scripts/check-receipt.mjs",
+    "check:recipe-text": "node --import ./scripts/ts-imports.mjs scripts/check-recipe-text.mjs",
     "check:match": "node --import ./scripts/ts-imports.mjs scripts/check-match.mjs",
     "check:cookbook": "node --import ./scripts/ts-imports.mjs scripts/check-cookbook.mjs",
     "check:recipe-tags": "node --import ./scripts/ts-imports.mjs scripts/check-recipe-tags.mjs",
