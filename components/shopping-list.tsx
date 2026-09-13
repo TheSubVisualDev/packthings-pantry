@@ -243,15 +243,31 @@ export function ShoppingList({
             free text: half of what goes on a shopping list is something you
             have never bought before. */}
         <div className="min-w-36 flex-1">
-          <SoftSelect
-            key={seq}
-            autoFocus={seq > 0}
-            id="shopping-name"
-            name="name"
-            options={profiles.map((profile) => profile.name)}
-            onValueChange={setDraft}
-            className={`${SMALL} w-full pr-9`}
-          />
+          {/* A picker with nothing in it is a dropdown arrow that opens on an
+              empty box - which is what a list with no kitchen behind it got.
+              There are no stock names to offer, so it is just a field. */}
+          {profiles.length === 0 ? (
+            <input
+              key={seq}
+              autoFocus={seq > 0}
+              id="shopping-name"
+              name="name"
+              placeholder="What do you need?"
+              aria-label="What to buy"
+              onChange={(event) => setDraft(event.target.value)}
+              className={`${SMALL} w-full`}
+            />
+          ) : (
+            <SoftSelect
+              key={seq}
+              autoFocus={seq > 0}
+              id="shopping-name"
+              name="name"
+              options={profiles.map((profile) => profile.name)}
+              onValueChange={setDraft}
+              className={`${SMALL} w-full pr-9`}
+            />
+          )}
         </div>
         <input
           name="quantity"
@@ -336,8 +352,12 @@ export function ShoppingList({
 
       {lines.length === 0 ? (
         <p className="rounded-[20px] bg-card p-6 text-sm font-semibold text-muted-foreground shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-          Nothing on the list. Cooking something you&apos;re short of will offer
-          to add what&apos;s missing.
+          {/* The second sentence is about comparing a recipe to shelves, which
+              a list with no kitchen behind it cannot do. Promising it there
+              would be the empty state describing a different app. */}
+          {profiles.length === 0
+            ? "Nothing on the list yet. Type what you need above."
+            : "Nothing on the list. Cooking something you’re short of will offer to add what’s missing."}
         </p>
       ) : (
         <div className="space-y-4">

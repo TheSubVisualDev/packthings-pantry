@@ -385,9 +385,21 @@ CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id);
 -- What to buy. Per kitchen, because the list is about a particular set of
 -- shelves. Quantity and unit are optional: half of what goes on a shopping list
 -- is "bread", with no number attached.
+-- A list belongs to a kitchen, or to one person.
+--
+-- The second exists because somebody with no kitchen still wants to write down
+-- what to buy - and /kitchens already says an account without one is a normal
+-- state, "you can follow people and write recipes without ever tracking a tin
+-- of beans". Writing a list needs no shelves, only a pen. What a personal list
+-- does not get is everything that compares it to shelves: restock suggestions,
+-- shop grouping, the trip.
+--
+-- An existing database gets this shape from scripts/rebuild-shopping-list.mjs,
+-- because kitchen_id was NOT NULL and SQLite cannot drop a column constraint.
 CREATE TABLE IF NOT EXISTS shopping_list (
   id         INTEGER PRIMARY KEY,
-  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  kitchen_id INTEGER REFERENCES kitchens(id) ON DELETE CASCADE,
+  owner_id   INTEGER REFERENCES users(id) ON DELETE CASCADE,
   item_id    INTEGER REFERENCES items(id) ON DELETE SET NULL,
   item_name  TEXT NOT NULL,
   quantity   REAL,
@@ -399,10 +411,15 @@ CREATE TABLE IF NOT EXISTS shopping_list (
   -- the useful version names the recipe, and null is the honest answer for a
   -- line somebody simply typed.
   source     TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  -- One or the other, never both and never neither. Without this the two
+  -- scopes would eventually overlap on some row and no query would agree about
+  -- whose line it was.
+  CHECK ((kitchen_id IS NULL) <> (owner_id IS NULL))
 );
 
 CREATE INDEX IF NOT EXISTS idx_shopping_list_kitchen ON shopping_list(kitchen_id, bought_at);
+CREATE INDEX IF NOT EXISTS idx_shopping_list_owner ON shopping_list(owner_id, bought_at);
 
 -- The trip a kitchen is on: one recipe, pinned, until it is cooked or dropped.
 --

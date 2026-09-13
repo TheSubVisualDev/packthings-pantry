@@ -9,6 +9,7 @@ import {
   type Role,
 } from "./kitchens";
 import { getUser, getUserByApiToken, type User } from "./users";
+import type { ListScope } from "./shopping";
 
 /** Which kitchen you were last looking at. A preference, not a permission. */
 export const KITCHEN_COOKIE = "pantry_kitchen";
@@ -133,4 +134,49 @@ export async function apiContext(
 
   const context = await currentKitchen();
   return context.ok ? context : { ok: false };
+}
+
+/**
+ * Who this shopping list belongs to.
+ *
+ * A kitchen's list needs the same role as its stock, because a list is a claim
+ * about what that kitchen is short of. Somebody with no kitchen gets their own
+ * list instead of a refusal - /kitchens already says an account without one is
+ * a normal state, "you can follow people and write recipes without ever
+ * tracking a tin of beans", and writing down what to buy needs no shelves,
+ * only a pen.
+ *
+ * A viewer in somebody else's kitchen is still refused rather than quietly
+ * given a personal list. They chose that kitchen; silently writing their line
+ * somewhere else would be answering a different question from the one asked.
+ */
+export async function listAccess(): Promise<
+  | { ok: true; user: User; kitchen: KitchenMembership | null; scope: ListScope }
+  | { ok: false; error: string }
+> {
+  const context = await currentKitchen();
+  if (!context.ok) return { ok: false, error: "Sign in first." };
+
+  if (!context.kitchen) {
+    return {
+      ok: true,
+      user: context.user,
+      kitchen: null,
+      scope: { owner: context.user.id },
+    };
+  }
+
+  if (!atLeast(context.kitchen.role, "editor")) {
+    return {
+      ok: false,
+      error: `You can look at ${context.kitchen.name}, but not change its list.`,
+    };
+  }
+
+  return {
+    ok: true,
+    user: context.user,
+    kitchen: context.kitchen,
+    scope: { kitchen: context.kitchen.id },
+  };
 }

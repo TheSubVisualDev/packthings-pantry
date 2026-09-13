@@ -1,8 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Bug, Check, Lightbulb, X } from "lucide-react";
 import { submitReport, type FileReportResult } from "@/app/report/actions";
 
@@ -22,7 +21,16 @@ export function ReportForm({ from }: { from: string | null }) {
   const [kind, setKind] = useState<"bug" | "idea">("bug");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [photos, setPhotos] = useState<File[]>([]);
+  /**
+   * The chosen pictures, each with the object URL that shows it.
+   *
+   * The URL is made once, when the file is picked, and lives exactly as long
+   * as the file does. It was derived from `photos` with useMemo and revoked in
+   * an effect, which is tidier and wrong: React runs an effect's cleanup on
+   * the extra mount it does in development, so every URL was revoked
+   * immediately after being created and no preview ever appeared.
+   */
+  const [photos, setPhotos] = useState<{ file: File; url: string }[]>([]);
   const [result, setResult] = useState<FileReportResult | null>(null);
   const [pending, startSending] = useTransition();
   const picker = useRef<HTMLInputElement>(null);
@@ -47,21 +55,43 @@ export function ReportForm({ from }: { from: string | null }) {
     }
   }
 
-  // Object URLs are revoked together when the set changes: a preview left
-  // behind holds the whole image in memory for as long as the tab is open.
-  const previews = useMemo(
-    () => photos.map((file) => URL.createObjectURL(file)),
-    [photos],
-  );
+  /**
+   * Let go of the URLs when the form goes, and only then.
+   *
+   * A preview left behind holds the whole image in memory for as long as the
+   * tab is open. Read through a ref so the cleanup sees what is there when it
+   * actually runs rather than what was there when it was written.
+   */
+  const held = useRef<{ file: File; url: string }[]>([]);
+  useEffect(() => {
+    held.current = photos;
+  }, [photos]);
   useEffect(
-    () => () => previews.forEach((url) => URL.revokeObjectURL(url)),
-    [previews],
+    () => () => held.current.forEach(({ url }) => URL.revokeObjectURL(url)),
+    [],
   );
 
   function addPhotos(chosen: FileList | null) {
     if (!chosen) return;
-    setPhotos((current) => [...current, ...Array.from(chosen)].slice(0, 4));
+    const added = Array.from(chosen).map((file) => ({
+      file,
+      url: URL.createObjectURL(file),
+    }));
+    setPhotos((current) => {
+      const next = [...current, ...added];
+      // Anything over the limit never gets shown, so its URL is dead weight.
+      for (const spare of next.slice(4)) URL.revokeObjectURL(spare.url);
+      return next.slice(0, 4);
+    });
     if (picker.current) picker.current.value = "";
+  }
+
+  function dropPhoto(at: number) {
+    setPhotos((current) => {
+      const going = current[at];
+      if (going) URL.revokeObjectURL(going.url);
+      return current.filter((_, index) => index !== at);
+    });
   }
 
   function send() {
@@ -73,7 +103,7 @@ export function ReportForm({ from }: { from: string | null }) {
       form.set("body", body);
       form.set("page", whereFrom());
       form.set("agent", navigator.userAgent);
-      for (const file of photos) form.append("photos", file);
+      for (const { file } of photos) form.append("photos", file);
 
       const sent = await submitReport(form);
       setResult(sent);
@@ -200,18 +230,31 @@ export function ReportForm({ from }: { from: string | null }) {
           {/* A screenshot IS the report, most of the time. Every useful thing
               the testers sent came with one. */}
           <div className="mt-2 flex flex-wrap gap-2">
-            {previews.map((url, index) => (
+            {photos.map(({ file, url }, index) => (
               <div
                 key={url}
                 className="relative h-24 w-20 overflow-hidden rounded-[12px] bg-chip"
               >
-                <Image src={url} alt="" fill sizes="80px" className="object-cover" />
+                {/*
+                  A plain img, not next/image.
+
+                  next/image routes everything through the optimizer, which
+                  only accepts the hostnames next.config allows - and a blob:
+                  URL is not a hostname at all, so the request failed and the
+                  frame stayed empty. There is nothing to optimise here anyway:
+                  the file is already on this device.
+                */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={file.name}
+                  draggable={false}
+                  className="h-full w-full object-cover"
+                />
                 <button
                   type="button"
-                  onClick={() =>
-                    setPhotos((current) => current.filter((_, at) => at !== index))
-                  }
-                  aria-label="Remove this picture"
+                  onClick={() => dropPhoto(index)}
+                  aria-label={`Remove ${file.name}`}
                   className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white"
                 >
                   <X className="h-3.5 w-3.5" strokeWidth={3} />

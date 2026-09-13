@@ -26,18 +26,30 @@ export default async function ShoppingPage({
 }) {
   const context = await currentKitchen();
   if (!context.ok) redirect("/login?next=%2Fpantry%2Flist");
-  if (!context.kitchen) redirect("/kitchens?need=stock");
 
   const { shop } = await searchParams;
   const filter = shop?.trim() || null;
 
-  const [lines, restock, profiles, shops, trip] = await Promise.all([
-    getList(context.kitchen.id, filter),
-    getRestockSuggestions(context.kitchen.id),
-    getItemProfiles(context.kitchen.id),
-    getShops(context.kitchen.id),
-    getTrip(context.kitchen.id),
-  ]);
+  /**
+   * A list without a kitchen, which is most of this page switched off.
+   *
+   * Everything else here compares the list to shelves - what is running low,
+   * which shop usually has it, what tonight's trip is for - and there are no
+   * shelves. So it is the list and nothing else, which is exactly what was
+   * asked for: somewhere to write down what to buy without first setting up a
+   * kitchen to not track anything in.
+   */
+  const kitchen = context.kitchen;
+
+  const [lines, restock, profiles, shops, trip] = kitchen
+    ? await Promise.all([
+        getList({ kitchen: kitchen.id }, filter),
+        getRestockSuggestions(kitchen.id),
+        getItemProfiles(kitchen.id),
+        getShops(kitchen.id),
+        getTrip(kitchen.id),
+      ])
+    : [await getList({ owner: context.user.id }, null), [], [], [], null];
   const todo = lines.filter((line) => !line.bought_at).length;
 
   return (
@@ -46,19 +58,21 @@ export default async function ShoppingPage({
 
       <main className="mx-auto w-full max-w-[560px] px-5 py-7 pb-32 sm:px-9">
         <Link
-          href="/pantry"
+          href={kitchen ? "/pantry" : "/recipes"}
           className="text-sm font-semibold text-muted-foreground hover:text-foreground print:hidden"
         >
-          ← Stock
+          {kitchen ? "← Stock" : "← Recipes"}
         </Link>
         <div className="mt-2 mb-1 flex items-center justify-between gap-3">
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">Shopping</h1>
           <PrintButton label="On paper" />
         </div>
         <p className="mb-6 text-sm font-semibold text-muted-foreground">
-          {filter
-            ? `What ${filter} has, plus anything you can get anywhere.`
-            : `Shared with everyone in ${context.kitchen.name}.`}
+          {!kitchen
+            ? "Yours alone. Make a kitchen and it can tell you what you are running low on."
+            : filter
+              ? `What ${filter} has, plus anything you can get anywhere.`
+              : `Shared with everyone in ${kitchen.name}.`}
         </p>
 
         {/* What the trip is for, at the top of the list that is for it. */}
@@ -68,9 +82,23 @@ export default async function ShoppingPage({
           </div>
         )}
 
-        <ShopFilter shops={shops} active={filter} />
-        <RestockPanel suggestions={restock} />
+        {kitchen && <ShopFilter shops={shops} active={filter} />}
+        {kitchen && <RestockPanel suggestions={restock} />}
         <ShoppingList lines={lines} filter={filter} profiles={profiles} />
+
+        {!kitchen && (
+          <p className="mt-6 rounded-[16px] bg-chip p-4 text-sm font-semibold text-muted-foreground print:hidden">
+            This list is just a list.{" "}
+            <Link
+              href="/kitchens"
+              className="font-bold text-primary underline underline-offset-2"
+            >
+              Make a kitchen
+            </Link>{" "}
+            and it starts knowing what you already have, what is running out,
+            and which shop you get things from.
+          </p>
+        )}
       </main>
     </>
   );

@@ -48,11 +48,35 @@ export interface ShoppingLine {
  * nobody has said a shop for, can be got here as much as anywhere, and hiding it
  * would mean walking out without it.
  */
+/**
+ * Whose list this is.
+ *
+ * A kitchen's, or one person's. The second exists because a tester asked for
+ * it and /kitchens already half agreed: an account without a kitchen is a
+ * normal state there, "you can follow people and write recipes without ever
+ * tracking a tin of beans". Writing down what to buy is squarely in that
+ * category - it needs no shelves, only a pen. What it does not get is
+ * everything that compares the list to shelves: restock suggestions, shop
+ * grouping, and the trip.
+ *
+ * One type rather than an optional second argument, so every query is forced
+ * to say which it means and none of them can default to the wrong one.
+ */
+export type ListScope = { kitchen: number } | { owner: number };
+
+/** The WHERE fragment and its argument, so the scope is written down once. */
+function scoped(scope: ListScope): { sql: string; arg: number } {
+  return "kitchen" in scope
+    ? { sql: "s.kitchen_id = ?", arg: scope.kitchen }
+    : { sql: "s.owner_id = ?", arg: scope.owner };
+}
+
 export async function getList(
-  kitchenId: number,
+  scope: ListScope,
   shop?: string | null,
 ): Promise<ShoppingLine[]> {
   const filter = shop?.trim() || null;
+  const where = scoped(scope);
 
   const result = await getDb().execute({
     sql: `SELECT s.id, s.item_id, s.item_name, s.quantity, s.unit, s.bought_at,
@@ -61,7 +85,7 @@ export async function getList(
           LEFT JOIN users u ON u.id = s.added_by
           LEFT JOIN items i ON i.id = s.item_id
           LEFT JOIN shops ps ON ps.id = i.preferred_shop_id
-          WHERE s.kitchen_id = ?
+          WHERE ${where.sql}
             AND (
               ? IS NULL
               OR NOT EXISTS (SELECT 1 FROM item_shops isx WHERE isx.item_id = i.id)
@@ -76,7 +100,7 @@ export async function getList(
           -- important group.
           ORDER BY (s.bought_at IS NOT NULL), ps.name IS NULL, ps.name COLLATE NOCASE,
                    s.created_at, s.id`,
-    args: [kitchenId, filter, filter],
+    args: [where.arg, filter, filter],
   });
   // Plain objects: the list is a client component. See plainRows in lib/db.ts.
   return plainRows<ShoppingLine>(result);
@@ -84,7 +108,7 @@ export async function getList(
 
 /** Returns the new line id, which is what lets a caller take it off again. */
 export async function addLine(
-  kitchenId: number,
+  scope: ListScope,
   userId: number,
   line: {
     name: string;
@@ -101,10 +125,11 @@ export async function addLine(
   },
 ): Promise<number> {
   const result = await getDb().execute({
-    sql: `INSERT INTO shopping_list (kitchen_id, item_id, item_name, quantity, unit, added_by, source)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO shopping_list (kitchen_id, owner_id, item_id, item_name, quantity, unit, added_by, source)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
-      kitchenId,
+      "kitchen" in scope ? scope.kitchen : null,
+      "kitchen" in scope ? null : scope.owner,
       line.itemId ?? null,
       line.name,
       line.quantity,
@@ -118,37 +143,45 @@ export async function addLine(
 
 /** Ticking is a toggle, because the commonest correction is an accidental tap. */
 export async function setBought(
-  kitchenId: number,
+  scope: ListScope,
   lineId: number,
   bought: boolean,
 ): Promise<void> {
+  const where = scoped(scope);
   await getDb().execute({
-    sql: `UPDATE shopping_list SET bought_at = ${bought ? "CURRENT_TIMESTAMP" : "NULL"}
-          WHERE id = ? AND kitchen_id = ?`,
-    args: [lineId, kitchenId],
+    // The scope stays in the WHERE clause, not just the id: it is what stops
+    // a guessed line id reaching into somebody else's list.
+    sql: `UPDATE shopping_list AS s SET bought_at = ${bought ? "CURRENT_TIMESTAMP" : "NULL"}
+          WHERE s.id = ? AND ${where.sql}`,
+    args: [lineId, where.arg],
   });
 }
 
-export async function removeLine(kitchenId: number, lineId: number): Promise<void> {
+export async function removeLine(scope: ListScope, lineId: number): Promise<void> {
+  const where = scoped(scope);
   await getDb().execute({
-    sql: "DELETE FROM shopping_list WHERE id = ? AND kitchen_id = ?",
-    args: [lineId, kitchenId],
+    sql: `DELETE FROM shopping_list AS s WHERE s.id = ? AND ${where.sql}`,
+    args: [lineId, where.arg],
   });
 }
 
-export async function clearBought(kitchenId: number): Promise<number> {
+export async function clearBought(scope: ListScope): Promise<number> {
+  const where = scoped(scope);
   const result = await getDb().execute({
-    sql: "DELETE FROM shopping_list WHERE kitchen_id = ? AND bought_at IS NOT NULL",
-    args: [kitchenId],
+    sql: `DELETE FROM shopping_list AS s
+          WHERE ${where.sql} AND s.bought_at IS NOT NULL`,
+    args: [where.arg],
   });
   return result.rowsAffected;
 }
 
 /** Names already on the list, so nothing gets added twice in one go. */
-export async function pendingNames(kitchenId: number): Promise<Set<string>> {
+export async function pendingNames(scope: ListScope): Promise<Set<string>> {
+  const where = scoped(scope);
   const result = await getDb().execute({
-    sql: "SELECT item_name FROM shopping_list WHERE kitchen_id = ? AND bought_at IS NULL",
-    args: [kitchenId],
+    sql: `SELECT s.item_name FROM shopping_list AS s
+          WHERE ${where.sql} AND s.bought_at IS NULL`,
+    args: [where.arg],
   });
   return new Set(
     (result.rows as unknown as { item_name: string }[]).map((row) =>

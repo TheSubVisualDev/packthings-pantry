@@ -615,11 +615,12 @@ export async function cookAndList(
   );
   if (ranOut.length === 0) return { ...result, listed: [] };
 
-  const already = await pendingNames(access.kitchen.id);
+  // Cooking spends stock, so this path always has a kitchen behind it.
+  const already = await pendingNames({ kitchen: access.kitchen.id });
   const listed: ListedLine[] = [];
   for (const line of ranOut) {
     if (already.has(line.item_name.toLowerCase())) continue;
-    const id = await addLine(access.kitchen.id, access.user.id, {
+    const id = await addLine({ kitchen: access.kitchen.id }, access.user.id, {
       name: line.item_name,
       quantity: null,
       unit: null,
@@ -652,7 +653,7 @@ export async function undoCookAndList(
 
   const access = await requireKitchenRole("editor");
   if (access.ok && lineIds.length > 0) {
-    for (const id of lineIds) await removeLine(access.kitchen.id, id);
+    for (const id of lineIds) await removeLine({ kitchen: access.kitchen.id }, id);
     revalidatePath("/pantry/list");
   }
 

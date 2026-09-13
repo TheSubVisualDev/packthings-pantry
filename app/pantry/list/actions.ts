@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { pin } from "@/lib/trip";
-import { requireKitchenRole } from "@/lib/session";
+import { listAccess, requireKitchenRole } from "@/lib/session";
 import { getRecipe } from "@/lib/queries";
 import {
   addLine,
@@ -25,9 +25,16 @@ export interface ListResult {
   message?: string;
 }
 
-/** The list belongs to the kitchen, so editing it needs the same role as stock. */
+/**
+ * Whose list is being edited.
+ *
+ * A kitchen's needs the same role as its stock. Somebody with no kitchen gets
+ * their own list rather than a refusal - see listAccess. Everything on this
+ * page that only compares the list to shelves still needs a kitchen, and says
+ * so where it is used.
+ */
 async function access() {
-  return requireKitchenRole("editor");
+  return listAccess();
 }
 
 export async function addItemToList(
@@ -46,7 +53,7 @@ export async function addItemToList(
     return { ok: false, error: "That quantity doesn't look right." };
   }
 
-  await addLine(gate.kitchen.id, gate.user.id, {
+  await addLine(gate.scope, gate.user.id, {
     name,
     quantity,
     unit: quantity === null ? null : String(formData.get("unit") ?? "g"),
@@ -60,7 +67,7 @@ export async function tick(lineId: number, bought: boolean): Promise<ListResult>
   const gate = await access();
   if (!gate.ok) return { ok: false, error: gate.error };
 
-  await setBought(gate.kitchen.id, lineId, bought);
+  await setBought(gate.scope, lineId, bought);
   revalidatePath("/pantry/list");
   return { ok: true };
 }
@@ -69,7 +76,7 @@ export async function drop(lineId: number): Promise<ListResult> {
   const gate = await access();
   if (!gate.ok) return { ok: false, error: gate.error };
 
-  await removeLine(gate.kitchen.id, lineId);
+  await removeLine(gate.scope, lineId);
   revalidatePath("/pantry/list");
   return { ok: true };
 }
@@ -78,7 +85,7 @@ export async function clearDone(): Promise<ListResult> {
   const gate = await access();
   if (!gate.ok) return { ok: false, error: gate.error };
 
-  const gone = await clearBought(gate.kitchen.id);
+  const gone = await clearBought(gate.scope);
   revalidatePath("/pantry/list");
   return { ok: true, message: `${gone} cleared.` };
 }
@@ -100,6 +107,41 @@ export async function addShortfall(
   const recipe = await getRecipe(recipeId, gate.user.id);
   if (!recipe) return { ok: false, error: "No such recipe." };
 
+  /**
+   * No kitchen means no shelves, which means everything is short.
+   *
+   * Not a lesser version of the answer - it is the correct one. Somebody
+   * without a kitchen browsing a recipe and wanting to shop for it wants the
+   * whole ingredient list, written as the recipe writes it, and every
+   * comparison below this point would be comparing against nothing.
+   */
+  if (!gate.kitchen) {
+    const already = await pendingNames(gate.scope);
+    let listed = 0;
+
+    for (const line of recipe.ingredients) {
+      if (line.optional === 1) continue;
+      if (already.has(line.item_name.toLowerCase())) continue;
+
+      await addLine(gate.scope, gate.user.id, {
+        name: line.item_name,
+        quantity: scaleQuantity(line.quantity, recipe.base_servings, servings),
+        unit: line.unit,
+        source: recipe.name,
+      });
+      listed += 1;
+    }
+
+    revalidatePath("/pantry/list");
+    return {
+      ok: true,
+      message:
+        listed > 0
+          ? `${listed} ${listed === 1 ? "thing" : "things"} added for ${recipe.name}.`
+          : "It is all on the list already.",
+    };
+  }
+
   const stock = await getDb().execute({
     sql: "SELECT * FROM items WHERE kitchen_id = ?",
     args: [gate.kitchen.id],
@@ -119,7 +161,7 @@ export async function addShortfall(
   const byId = new Map(items.map((item) => [item.id, item]));
   const links = await getLinks(gate.kitchen.id, recipeId);
 
-  const already = await pendingNames(gate.kitchen.id);
+  const already = await pendingNames(gate.scope);
   let added = 0;
   let onList = 0;
 
@@ -139,7 +181,7 @@ export async function addShortfall(
     // Nothing in stock under that name: buy it, without pretending to know
     // how much of it the shelf already has.
     if (!item) {
-      await addLine(gate.kitchen.id, gate.user.id, {
+      await addLine(gate.scope, gate.user.id, {
         name: line.item_name,
         quantity: wanted,
         unit: line.unit,
@@ -170,7 +212,7 @@ export async function addShortfall(
     // An unconvertible line can't be compared to stock, so it goes on the list
     // as written and the human decides.
     if (!needed.ok) {
-      await addLine(gate.kitchen.id, gate.user.id, {
+      await addLine(gate.scope, gate.user.id, {
         name: line.item_name,
         quantity: wanted,
         unit: line.unit,
@@ -199,7 +241,7 @@ export async function addShortfall(
     const short = needed.quantity - onHand;
     if (short <= 0) continue;
 
-    await addLine(gate.kitchen.id, gate.user.id, {
+    await addLine(gate.scope, gate.user.id, {
       name: item.name,
       quantity: Math.ceil(short * 100) / 100,
       unit: item.canonical_unit,
@@ -260,7 +302,7 @@ export async function addRestock(): Promise<ListResult> {
   }
 
   for (const suggestion of suggestions) {
-    await addLine(access.kitchen.id, access.user.id, {
+    await addLine({ kitchen: access.kitchen.id }, access.user.id, {
       name: suggestion.name,
       // Whole packs when it comes in packs, the amount when it does not.
       // "1 pack" is something you pick up; "4 eggs" is something you count out
