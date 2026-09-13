@@ -74,6 +74,18 @@ const ADDED_COLUMNS = [
   { table: "users", column: "reminder_day", definition: "INTEGER" },
   { table: "users", column: "reminder_hour", definition: "INTEGER" },
 
+  // When somebody finished being shown round, so it is offered once and never
+  // again. Null means they have not - including everybody who signed up before
+  // there was anything to be shown, which is why it is not back-filled: being
+  // offered a tour of an app you already use is a smaller annoyance than never
+  // being offered one at all, and it is one tap to leave.
+  { table: "users", column: "onboarded_at", definition: "TIMESTAMP" },
+
+  // How many this kitchen usually cooks for. Seeds the planner rather than
+  // overriding any recipe: a recipe's own base servings is a fact about the
+  // recipe, and this is a fact about the household.
+  { table: "kitchens", column: "default_servings", definition: "INTEGER" },
+
   // Recipes became documents rather than lists: a blurb, timings, a source.
   { table: "recipes", column: "description", definition: "TEXT" },
   { table: "recipes", column: "prep_minutes", definition: "INTEGER" },

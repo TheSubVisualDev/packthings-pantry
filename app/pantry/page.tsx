@@ -17,6 +17,7 @@ import { macroGroup } from "@/lib/nutrition";
 import { getTags } from "@/lib/tags";
 import { getRescues } from "@/lib/queries";
 import { currentKitchen } from "@/lib/session";
+import { hasBeenWelcomed } from "@/lib/users";
 import type { Item } from "@/lib/types";
 
 // Live stock - never prerender against the database at build time.
@@ -108,7 +109,21 @@ export default async function PantryPage({
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
   // Stock lives in a kitchen, so there's nothing to show without one.
-  if (!context.kitchen) redirect("/kitchens?need=stock");
+  /**
+   * The screen a brand new account lands on, so it is where the tour starts.
+   *
+   * Only when they have never been shown round. Somebody who skipped it, or
+   * who deliberately left their only kitchen, gets the kitchens page - being
+   * sent back to an onboarding you already dismissed is the loop that makes
+   * people close an app.
+   */
+  if (!context.kitchen) {
+    redirect(
+      (await hasBeenWelcomed(context.user.id))
+        ? "/kitchens?need=stock"
+        : "/welcome",
+    );
+  }
   const { kitchen } = context;
 
   const [items, facts, places, rescues, tags, trip] = await Promise.all([

@@ -265,6 +265,8 @@ CREATE TABLE IF NOT EXISTS users (
   -- Per-user key for the Claude endpoint. Replacing a row's token revokes that
   -- person's API access without touching anyone else's.
   api_token     TEXT UNIQUE,
+  -- When they finished being shown round. Null means they have not been.
+  onboarded_at  TIMESTAMP,
   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -291,6 +293,9 @@ CREATE TABLE IF NOT EXISTS kitchens (
   id         INTEGER PRIMARY KEY,
   name       TEXT NOT NULL,
   owner_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  -- How many this kitchen usually cooks for. Seeds the planner; a recipe's own
+  -- base servings is a fact about the recipe and is never overwritten by it.
+  default_servings INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

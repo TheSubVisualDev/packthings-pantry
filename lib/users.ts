@@ -320,3 +320,21 @@ export async function redeemInvite(
     };
   }
 }
+
+/**
+ * Whether somebody has been shown round.
+ *
+ * Its own query rather than a column on the session user, because it is asked
+ * once on one screen and the session is read on every request - and the answer
+ * stops changing permanently after the first time anybody sees it.
+ */
+export async function hasBeenWelcomed(userId: number): Promise<boolean> {
+  const result = await getDb().execute({
+    sql: "SELECT onboarded_at FROM users WHERE id = ?",
+    args: [userId],
+  });
+  return Boolean(
+    (result.rows[0] as unknown as { onboarded_at: string | null } | undefined)
+      ?.onboarded_at,
+  );
+}
