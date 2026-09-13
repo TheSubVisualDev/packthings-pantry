@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CalendarDays } from "lucide-react";
 import { redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -76,9 +77,21 @@ export default async function TonightPage({
       <SiteHeader active="tonight" meta={`${ranked.length} to choose from`} />
 
       <div className="mx-auto w-full max-w-[720px] px-5 pt-6 pb-32 sm:px-9 sm:py-7">
-        <h1 className="mb-1 text-[26px] font-extrabold tracking-[-0.02em]">
-          What to cook
-        </h1>
+        <div className="mb-1 flex items-center justify-between gap-3">
+          <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
+            What to cook
+          </h1>
+          {/* The two halves of the same question. This page answers "what
+              tonight, given what is in"; the planner answers "what this week,
+              and what do I need to buy for it". */}
+          <Link
+            href="/plan"
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-chip px-3.5 text-xs font-bold text-muted-foreground"
+          >
+            <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.8} />
+            The week
+          </Link>
+        </div>
         <p className="mb-5 text-sm font-semibold text-muted-foreground">
           Ranked on what is going off, what you have, and what you had recently.
         </p>

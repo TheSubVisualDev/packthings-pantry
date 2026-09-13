@@ -62,6 +62,12 @@ const ADDED_COLUMNS = [
   // below rather than guessed at here.
   { table: "users", column: "is_admin", definition: "INTEGER NOT NULL DEFAULT 0" },
 
+  // What this kitchen calls its meals, as a JSON array of up to three names.
+  // Null means the default, which is dinner alone: planning one meal a day is
+  // what most households actually do, and three empty rows a day is a planner
+  // that looks like homework before anybody has touched it.
+  { table: "kitchens", column: "meal_slots", definition: "TEXT" },
+
   // Recipes became documents rather than lists: a blurb, timings, a source.
   { table: "recipes", column: "description", definition: "TEXT" },
   { table: "recipes", column: "prep_minutes", definition: "INTEGER" },

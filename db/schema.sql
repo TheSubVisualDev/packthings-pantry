@@ -613,3 +613,36 @@ CREATE TABLE IF NOT EXISTS report_photos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_report_photos_report ON report_photos(report_id);
+
+-- What is being cooked, and when.
+--
+-- The pin this replaces held exactly one recipe per kitchen - "the trip" - and
+-- that was the whole planning story: what you are shopping for right now. A
+-- tester asked for the week, so a plan is many rows with a date and a slot on
+-- them, and the trip becomes the nearest one.
+--
+-- A slot can hold a recipe OR a line of text, never both. "Thursday: leftovers"
+-- and "Saturday: out" are real answers about the week, and a planner that only
+-- accepts recipes makes somebody either lie or leave a gap that reads as
+-- undecided. The CHECK is what stops a row meaning two things at once.
+CREATE TABLE IF NOT EXISTS meal_plan (
+  id         INTEGER PRIMARY KEY,
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  -- 'YYYY-MM-DD' as text, and local rather than UTC. A meal plan is about
+  -- which evening you are cooking on, which is a fact about the kitchen's
+  -- calendar and not about an instant in time - storing a timestamp would put
+  -- Sunday's dinner on Monday for anybody an hour east of here.
+  on_date    TEXT NOT NULL,
+  -- Which meal of that day: an index into the kitchen's slot names.
+  slot       INTEGER NOT NULL,
+  recipe_id  INTEGER REFERENCES recipes(id) ON DELETE CASCADE,
+  note       TEXT,
+  -- How many it is being cooked for, when that is not the recipe's own number.
+  servings   INTEGER,
+  added_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (kitchen_id, on_date, slot),
+  CHECK ((recipe_id IS NULL) <> (note IS NULL))
+);
+
+CREATE INDEX IF NOT EXISTS idx_meal_plan_week ON meal_plan(kitchen_id, on_date);
