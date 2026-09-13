@@ -3,10 +3,9 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 13 Sep 2026, after batch E pushed
-**Doing right now:** nothing — A to E are all done and live
-**Blocked on you:** **F.** The meal planner is the last item and it is the
-one with four ways to build it. Options are at the bottom of this file.
+**Last updated:** 13 Sep 2026, starting F
+**Doing right now:** F1 — the week grid and the meal slots
+**Blocked on you:** nothing. You answered F, I'm building it.
 
 ---
 
@@ -19,7 +18,7 @@ one with four ways to build it. Options are at the bottom of this file.
 | C | Paste a plain-text recipe and have it parsed | **done, pushed** |
 | D | Bug report / feature request, with photos | **done, pushed** |
 | E | Shopping lists without a kitchen | **done, pushed** |
-| F | Weekly meal planner + nutrition | **needs your call** |
+| F | Weekly meal planner + nutrition | in progress (F1 of 4) |
 
 ---
 
@@ -117,7 +116,29 @@ stayed empty. Underneath, the object URLs were being revoked immediately
 after creation by React's development double-mount. Both fixed and driven in
 a real browser: preview decodes, upload lands in Blob.
 
-## F — weekly meal planner + nutrition · needs your call
+## F — weekly meal planner + nutrition · in progress
 
-The biggest item by a distance and the one with the most ways to build it.
-I'll stop here and put the options to you rather than guess.
+What you asked for: **up to 3 meal slots a day (configurable) across 7 days**,
+a **Sunday push notification** (configurable) to plan the week ahead, nutrition
+**totalled across the planned week** with compare-to-actual coming later, and
+to do something fun with it.
+
+Four stages, each pushed as it lands.
+
+| | Stage | State |
+|---|---|---|
+| F1 | Schema, the week grid, configurable slots | in progress |
+| F2 | The fun bit + shop for the whole week in one go | not started |
+| F3 | Nutrition totalled across the planned week | not started |
+| F4 | The Sunday nudge — service worker, web push, cron | not started |
+
+**F4 is the one to know about.** There's no service worker and no push
+anywhere in the app yet, so that stage is: a service worker, VAPID keys, a
+subscriptions table, and a Vercel cron. It'll work on Android and desktop
+straight away; on iPhone only once the app is added to the home screen —
+which your manifest already supports, so that part is fine.
+
+The fun, for F2: the week draws itself in the recipe tints so a planned week
+is a stripe of colour, and **Fill the gaps** uses the ranker `/tonight`
+already has to propose what goes in the empty slots — using up what's about
+to go off and not repeating what you had on Tuesday.
