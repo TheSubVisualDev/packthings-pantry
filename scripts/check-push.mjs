@@ -2,6 +2,10 @@
 //
 //   npm run check:push
 //
+// The cron fires once a day, at 17:00 UTC - Vercel's Hobby plan allows no more
+// than that - so the DAY is what has to be read correctly, and reading it from
+// the server's own clock is how everybody gets nudged a day early all summer.
+//
 // This app deploys to Frankfurt and is used in Britain. Those are the same
 // day at every hour anybody plans a week at, but they are NOT the same hour -
 // and twice a year the gap between them changes while the server's own clock
@@ -107,9 +111,10 @@ check("a year of hours, all in range", bad, []);
 /**
  * Every hour of a week is reachable.
  *
- * The cron runs hourly and matches on the hour, so an hour that never comes up
- * is a reminder that would never fire. Midnight is the one at risk: hour12 and
- * some locales give "24" for it, which would never match a stored 0.
+ * The cron only reads the day now, so nothing turns on this today - it is kept
+ * because the hour is still stored and becomes load-bearing again the moment
+ * the cron can run more than once a day. Midnight is the one at risk: hour12
+ * and some locales give "24" for it, which would never match a stored 0.
  */
 const seen = new Set();
 clock = at("2026-06-01T00:00:00Z");

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb, plainRows } from "@/lib/db";
-import { dueThisHour, londonNow, nudge, pushConfigured } from "@/lib/push";
+import { dueToday, londonNow, nudge, pushConfigured } from "@/lib/push";
 import { addDays, getPlanned, isoDate, weekStart } from "@/lib/plan";
 
 export const dynamic = "force-dynamic";
@@ -8,9 +8,10 @@ export const dynamic = "force-dynamic";
 /**
  * The weekly nudge, fired by a cron.
  *
- * Hourly, because everybody picks their own hour and the alternative is one
- * fixed time that suits whoever wrote it. Each run asks who is due in the next
- * sixty minutes of London time and sends to their devices.
+ * Once a day at 17:00 UTC, which is early evening either side of the clock
+ * change. It wanted to be hourly, so everybody could pick their own time -
+ * Vercel's Hobby plan allows one cron run a day, so the day is what people
+ * choose and the hour is the app's. See dueToday.
  *
  * It looks at the week before it sends, and says something true about it. "You
  * have not planned next week" and "four of next week's dinners are in, shall
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
   }
 
   const now = londonNow();
-  const due = await dueThisHour();
+  const due = await dueToday();
   if (due.length === 0) {
     return NextResponse.json({ ...now, due: 0, sent: 0 });
   }

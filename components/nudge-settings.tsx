@@ -12,8 +12,16 @@ import {
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-/** Evening hours, because nobody plans next week at four in the morning. */
-const HOURS = [16, 17, 18, 19, 20, 21];
+/**
+ * The hour is the app's, not yours.
+ *
+ * It was a picker. Vercel's Hobby plan runs a cron once a day and no more, so
+ * the day is what somebody chooses and the time is fixed at early evening - and
+ * a picker whose value is quietly ignored is worse than no picker at all. The
+ * column is still there, so this becomes a select again the day the cron can
+ * run hourly.
+ */
+const FIXED_HOUR = 18;
 
 
 /** Nothing to subscribe to: none of this changes while the page is open. */
@@ -86,7 +94,7 @@ export function NudgeSettings({
   configured: boolean;
   current: { day: number; hour: number } | null;
 }) {
-  const [when, setWhen] = useState(current ?? { day: 0, hour: 18 });
+  const [when, setWhen] = useState(current ?? { day: 0, hour: FIXED_HOUR });
   const [on, setOn] = useState(current !== null);
   const [result, setResult] = useState<PushResult | null>(null);
   const [pending, startWorking] = useTransition();
@@ -214,8 +222,8 @@ export function NudgeSettings({
   return (
     <div>
       <p className="text-sm font-medium text-muted-foreground">
-        One notification, on the evening you choose, asking whether next week
-        has anything in it. Nothing else is ever sent.
+        One notification, on the day you choose, asking whether next week has
+        anything in it. Nothing else is ever sent.
       </p>
 
       {!installed && (
@@ -253,21 +261,9 @@ export function NudgeSettings({
           ))}
         </select>
 
-        <label className="sr-only" htmlFor="nudge-hour">
-          What time
-        </label>
-        <select
-          id="nudge-hour"
-          value={when.hour}
-          onChange={(event) => move({ ...when, hour: Number(event.target.value) })}
-          className="h-11 rounded-[12px] border border-border bg-page px-3 font-semibold outline-none focus:border-primary"
-        >
-          {HOURS.map((hour) => (
-            <option key={hour} value={hour}>
-              {String(hour).padStart(2, "0")}:00
-            </option>
-          ))}
-        </select>
+        <span className="text-sm font-semibold text-muted-foreground">
+          early evening
+        </span>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -304,7 +300,7 @@ export function NudgeSettings({
 
       {on && (
         <p className="mt-2 text-xs font-semibold text-muted-foreground">
-          {DAYS[when.day]}s at {String(when.hour).padStart(2, "0")}:00, UK time.
+          {DAYS[when.day]}s, early evening, UK time.
         </p>
       )}
 

@@ -38,3 +38,6 @@ next-env.d.ts
 
 # Scratch database the cascade cross-check builds and removes.
 .cascade-check.db
+
+.vercel
+.env*

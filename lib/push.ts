@@ -183,22 +183,30 @@ export interface DueReminder {
 }
 
 /**
- * Who is due a nudge this hour.
+ * Who is due a nudge today.
  *
- * Matched on the hour rather than the minute because the cron runs hourly, and
- * a reminder that has to land in a particular minute is a promise this cannot
- * keep. Only people with a live device: sending to nobody is work, and
- * counting it as sent would hide the fact that their phone stopped listening.
+ * Matched on the day alone, and not on the hour, because Vercel's Hobby plan
+ * allows a cron to run once a day and no more. The run is fixed at 17:00 UTC -
+ * early evening either side of the clock change - and the hour somebody picked
+ * is kept but not honoured.
+ *
+ * The column stays because the design is right and the limit is not: on a plan
+ * with hourly crons this becomes one extra AND. The UI says "early evening"
+ * rather than offering a time it cannot keep, which is the half of this that
+ * matters - a picker whose value is ignored is worse than no picker.
+ *
+ * Only people with a live device. Sending to nobody is work, and counting it
+ * as sent would hide the fact that their phone stopped listening.
  */
-export async function dueThisHour(at: Date = new Date()): Promise<DueReminder[]> {
-  const { day, hour } = londonNow(at);
+export async function dueToday(at: Date = new Date()): Promise<DueReminder[]> {
+  const { day } = londonNow(at);
 
   const result = await getDb().execute({
     sql: `SELECT DISTINCT u.id AS user_id, u.handle
           FROM users u
           JOIN push_subscriptions p ON p.user_id = u.id AND p.failed_at IS NULL
-          WHERE u.reminder_day = ? AND u.reminder_hour = ?`,
-    args: [day, hour],
+          WHERE u.reminder_day = ?`,
+    args: [day],
   });
   return plainRows<DueReminder>(result);
 }
