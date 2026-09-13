@@ -3,21 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { pin } from "@/lib/trip";
 import { listAccess, requireKitchenRole } from "@/lib/session";
-import { getRecipe } from "@/lib/queries";
+import { getItems, getRecipe } from "@/lib/queries";
 import {
   addLine,
   clearBought,
   getRestockSuggestions,
   pendingNames,
+  recipeShortfall,
   removeLine,
   setBought,
 } from "@/lib/shopping";
-import { resolveAmount, scaleQuantity } from "@/lib/units";
-import { getLinks, resolveWithLinks } from "@/lib/cookbook";
+import { scaleQuantity } from "@/lib/units";
+import { getLinks } from "@/lib/cookbook";
 import { indexStock } from "@/lib/pantry-match";
-import { totalOnHand } from "@/lib/containers";
-import { getDb } from "@/lib/db";
-import type { Item } from "@/lib/types";
 
 export interface ListResult {
   ok: boolean;
@@ -142,114 +140,36 @@ export async function addShortfall(
     };
   }
 
-  const stock = await getDb().execute({
-    sql: "SELECT * FROM items WHERE kitchen_id = ?",
-    args: [gate.kitchen.id],
-  });
-  const items = stock.rows as unknown as Item[];
-
   /**
-   * What each line means on these shelves.
-   *
-   * This was the last place still matching by lowercased name, and against
-   * recipe_ingredients.item_id - the column that belongs to whichever kitchen
-   * happened to be current when the recipe was written. So a shared recipe
-   * could compare your shortfall against somebody else's cupboard, and "firm
-   * tofu" against a row called "Tofu" was always a thing to buy.
+   * One snapshot of the shelves, judged by the same helper the week planner
+   * uses. This was a hundred lines here, and a second copy of "what does this
+   * recipe cost me" is a second place for the container rule to be got wrong -
+   * which AGENTS.md keeps a count of, and the count is five.
    */
-  const index = indexStock(items);
-  const byId = new Map(items.map((item) => [item.id, item]));
-  const links = await getLinks(gate.kitchen.id, recipeId);
+  const stock = await getItems(gate.kitchen.id);
 
-  const already = await pendingNames(gate.scope);
-  let added = 0;
-  let onList = 0;
+  const { wanted, alreadyListed } = recipeShortfall(
+    recipe,
+    servings,
+    {
+      index: indexStock(stock),
+      byId: new Map(stock.map((item) => [item.id, item])),
+      links: await getLinks(gate.kitchen.id, recipeId),
+    },
+    await pendingNames(gate.scope),
+  );
 
-  for (const line of recipe.ingredients) {
-    if (line.optional === 1) continue;
-    if (already.has(line.item_name.toLowerCase())) {
-      // Already waiting to be bought. Left alone rather than topped up: the
-      // amount on the list is one a person may have already adjusted.
-      onList += 1;
-      continue;
-    }
-
-    const { item } = resolveWithLinks(line, links, index, byId);
-
-    const wanted = scaleQuantity(line.quantity, recipe.base_servings, servings);
-
-    // Nothing in stock under that name: buy it, without pretending to know
-    // how much of it the shelf already has.
-    if (!item) {
-      await addLine(gate.scope, gate.user.id, {
-        name: line.item_name,
-        quantity: wanted,
-        unit: line.unit,
-        source: recipe.name,
-      });
-      added += 1;
-      continue;
-    }
-
-    const needed = resolveAmount(
-      wanted,
-      line.unit,
-      { size: line.pack_size, unit: line.pack_unit },
-      item.dimension,
-    );
-
-    /**
-     * A line nobody measured, against a shelf that has some: nothing to buy.
-     *
-     * There is no amount to compare, and the recipe's whole claim is "you need
-     * salt" - which this kitchen satisfies. Without this, every recipe with a
-     * seasoning in it put that seasoning on the shopping list, for ever. A
-     * kitchen with NO salt never reaches here: the no-item branch above has
-     * already listed it.
-     */
-    if (!needed.ok && needed.reason === "unmeasured") continue;
-
-    // An unconvertible line can't be compared to stock, so it goes on the list
-    // as written and the human decides.
-    if (!needed.ok) {
-      await addLine(gate.scope, gate.user.id, {
-        name: line.item_name,
-        quantity: wanted,
-        unit: line.unit,
-        itemId: item.id,
-        source: recipe.name,
-      });
-      added += 1;
-      continue;
-    }
-
-    /**
-     * Everything on the shelf, not just the open container.
-     *
-     * `quantity` has meant "what is in the OPEN one" since containers arrived,
-     * so this used to put things on the shopping list that were already in the
-     * cupboard: two sealed bottles behind an empty one read as empty. The
-     * fifth instance of the bug AGENTS.md keeps a count of.
-     *
-     * Unspecified means "there is some and nobody has said how much", which is
-     * not a number you can subtract - so it is left off the list rather than
-     * guessed at, the same as everywhere else.
-     */
-    const onHand = totalOnHand(item);
-    if (onHand === null) continue;
-
-    const short = needed.quantity - onHand;
-    if (short <= 0) continue;
-
+  for (const line of wanted) {
     await addLine(gate.scope, gate.user.id, {
-      name: item.name,
-      quantity: Math.ceil(short * 100) / 100,
-      unit: item.canonical_unit,
-      itemId: item.id,
+      name: line.name,
+      quantity: line.quantity,
+      unit: line.unit,
+      itemId: line.itemId,
       source: recipe.name,
     });
-    added += 1;
   }
+
+  const added = wanted.length;
 
   /**
    * Asking what a recipe is short of is saying you intend to cook it.
@@ -279,8 +199,8 @@ export async function addShortfall(
   return {
     ok: true,
     message:
-      onList > 0
-        ? `Already on the list${onList === 1 ? "" : ` (${onList} of them)`}.`
+      alreadyListed > 0
+        ? `Already on the list${alreadyListed === 1 ? "" : ` (${alreadyListed} of them)`}.`
         : "You already have everything.",
   };
 }

@@ -8,11 +8,18 @@ import {
   clearMeal,
   getPlanned,
   getSlots,
+  isoDate,
   moveMeal,
   planMeal,
   setSlots,
+  weekDates,
   weekStart,
 } from "@/lib/plan";
+import { getItems, getRecipe, getTonightFacts } from "@/lib/queries";
+import { rankTonight } from "@/lib/tonight";
+import { addLine, pendingNames, recipeShortfall } from "@/lib/shopping";
+import { indexStock } from "@/lib/pantry-match";
+import { getLinks } from "@/lib/cookbook";
 
 export interface PlanResult {
   ok: boolean;
@@ -185,5 +192,192 @@ export async function copyWeekForward(start: string): Promise<PlanResult> {
       copied > 0
         ? `${copied} ${copied === 1 ? "meal" : "meals"} copied into next week.`
         : "Next week is already full.",
+  };
+}
+
+/**
+ * Fills every empty slot from here to Sunday with something worth cooking.
+ *
+ * The fun one, and it is not a random shuffle. It runs the same ranker
+ * /tonight uses, which already knows what is about to go off, what the shelves
+ * can supply and what was cooked recently - so a filled week uses up the
+ * spinach, does not put Tuesday's dinner on Wednesday, and leans towards
+ * things you can actually make.
+ *
+ * Only forwards. Filling in Monday on a Thursday would be the app writing down
+ * a week that did not happen.
+ */
+export async function fillTheGaps(start: string): Promise<PlanResult> {
+  const gate = await access();
+  if (!gate.ok) return { ok: false, error: gate.error };
+
+  const from = readDate(start);
+  if (!from || weekStart(from) !== from) {
+    return { ok: false, error: "That is not the start of a week." };
+  }
+
+  const slots = await getSlots(gate.kitchen.id);
+  const today = isoDate(new Date());
+
+  const [facts, planned] = await Promise.all([
+    getTonightFacts(gate.kitchen.id, gate.user.id),
+    getPlanned(gate.kitchen.id, from, addDays(from, 6)),
+  ]);
+
+  if (facts.length === 0) {
+    return {
+      ok: false,
+      error: "Nothing in this kitchen's cookbook to choose from yet.",
+    };
+  }
+
+  const taken = new Set(planned.map((meal) => `${meal.on_date}:${meal.slot}`));
+
+  /**
+   * What is already in the week, so the same dinner is not proposed twice.
+   *
+   * Counted from the whole week rather than only the days being filled: a
+   * Monday you planned yourself is exactly the reason not to suggest the same
+   * thing on Thursday, and the ranker cannot see the plan.
+   */
+  const used = new Set(
+    planned
+      .map((meal) => meal.recipe_id)
+      .filter((id): id is number => id !== null),
+  );
+
+  const ranked = rankTonight(facts);
+  let filled = 0;
+  /**
+   * Whether it stopped because it ran out of recipes rather than out of days.
+   *
+   * Worth saying. A cookbook of three recipes fills three days and leaves four
+   * blank, and without a word about why that reads as the button half working.
+   */
+  let ranDry = false;
+
+  for (const date of weekDates(from)) {
+    // Today counts as ahead: somebody planning a week on Sunday evening means
+    // to include Sunday's dinner.
+    if (date < today) continue;
+
+    for (let slot = 0; slot < slots.length; slot += 1) {
+      if (taken.has(`${date}:${slot}`)) continue;
+
+      const pick = ranked.find((candidate) => !used.has(candidate.id));
+      // Fewer recipes than empty slots. The week fills as far as it can and
+      // says how far, rather than going round the cookbook twice - a planner
+      // that proposes the same dinner on Monday and Thursday has not
+      // understood what it was asked.
+      if (!pick) {
+        ranDry = true;
+        break;
+      }
+
+      await planMeal(gate.kitchen.id, gate.user.id, {
+        date,
+        slot,
+        recipeId: pick.id,
+      });
+      used.add(pick.id);
+      filled += 1;
+    }
+  }
+
+  revalidatePath("/plan");
+  revalidatePath("/tonight");
+
+  if (filled === 0) {
+    return { ok: false, error: "Nothing left to fill, or nothing new to fill it with." };
+  }
+  const days = `${filled} ${filled === 1 ? "day" : "days"} filled in`;
+  return {
+    ok: true,
+    message: ranDry
+      ? `${days} — that is every recipe in the cookbook once. Add more and the rest of the week fills too.`
+      : `${days}, using up what is going off first.`,
+  };
+}
+
+/**
+ * Puts everything the week is short of onto the shopping list, in one go.
+ *
+ * One trip for seven dinners, which is how shopping actually works and is the
+ * thing a paper meal plan cannot do. Every recipe is judged against the SAME
+ * snapshot of the shelves, and a name spoken for by Monday is not listed again
+ * for Thursday - otherwise a week with pasta twice in it asks you to buy pasta
+ * twice.
+ *
+ * It does not add up the amounts across days. Two dinners needing 200g each is
+ * not reliably 400g on a shelf that already holds 300g, and quietly doubling a
+ * number somebody will act on in a shop is worse than listing it once and
+ * letting them look.
+ */
+export async function shopForTheWeek(start: string): Promise<PlanResult> {
+  const gate = await access();
+  if (!gate.ok) return { ok: false, error: gate.error };
+
+  const from = readDate(start);
+  if (!from || weekStart(from) !== from) {
+    return { ok: false, error: "That is not the start of a week." };
+  }
+
+  const today = isoDate(new Date());
+  const planned = (await getPlanned(gate.kitchen.id, from, addDays(from, 6)))
+    // Shopping for Monday on Thursday is shopping for a dinner already eaten.
+    .filter((meal) => meal.recipe_id !== null && meal.on_date >= today);
+
+  if (planned.length === 0) {
+    return { ok: false, error: "Nothing left to shop for this week." };
+  }
+
+  const stock = await getItems(gate.kitchen.id);
+  const shelves = {
+    index: indexStock(stock),
+    byId: new Map(stock.map((item) => [item.id, item])),
+    links: new Map<number, number | null>(),
+  };
+
+  const already = await pendingNames({ kitchen: gate.kitchen.id });
+  let added = 0;
+  const shoppedFor: string[] = [];
+
+  for (const meal of planned) {
+    const recipe = await getRecipe(meal.recipe_id!, gate.user.id);
+    if (!recipe) continue;
+
+    // Per recipe, because the links that say which jar an ingredient means are
+    // written when a recipe is adopted and are specific to it.
+    shelves.links = await getLinks(gate.kitchen.id, recipe.id);
+
+    const { wanted } = recipeShortfall(
+      recipe,
+      meal.servings ?? recipe.base_servings,
+      shelves,
+      already,
+    );
+
+    for (const line of wanted) {
+      await addLine({ kitchen: gate.kitchen.id }, gate.user.id, {
+        name: line.name,
+        quantity: line.quantity,
+        unit: line.unit,
+        itemId: line.itemId,
+        source: recipe.name,
+      });
+      added += 1;
+    }
+    if (wanted.length > 0) shoppedFor.push(recipe.name);
+  }
+
+  revalidatePath("/pantry/list");
+  revalidatePath("/plan");
+
+  if (added === 0) {
+    return { ok: true, message: "You already have everything for this week." };
+  }
+  return {
+    ok: true,
+    message: `${added} ${added === 1 ? "thing" : "things"} added for ${shoppedFor.length} ${shoppedFor.length === 1 ? "meal" : "meals"}.`,
   };
 }

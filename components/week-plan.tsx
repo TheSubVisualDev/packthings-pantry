@@ -2,13 +2,22 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { Check, CopyPlus, Settings2, X } from "lucide-react";
+import {
+  Check,
+  CopyPlus,
+  Settings2,
+  ShoppingBasket,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import {
   copyWeekForward,
   emptySlot,
+  fillTheGaps,
   putInSlot,
   renameSlots,
+  shopForTheWeek,
   type PlanResult,
 } from "@/app/plan/actions";
 import { MAX_SLOTS, SLOT_SUGGESTIONS, shortDay, type PlannedDay } from "@/lib/plan";
@@ -67,9 +76,50 @@ export function WeekPlan({
   }
 
   const planned = days.flatMap((day) => day.meals).filter(Boolean).length;
+  /**
+   * Slots still to fill from today on.
+   *
+   * Not every empty slot: filling in Monday on a Thursday would be the app
+   * writing down a week that did not happen, so the button greys out once the
+   * days ahead are done even if the days behind are bare.
+   */
+  const empties = days
+    .filter((day) => day.date >= today)
+    .flatMap((day) => day.meals)
+    .filter((meal) => meal === null).length;
 
   return (
     <div className="space-y-3">
+      {/*
+        The two things you do to a whole week, rather than to one day of it.
+
+        Above the days because they are what the page is for: filling seven
+        slots one tap at a time is a chore, and the point of a planner that
+        knows the shelves is that it can do most of it and then be corrected.
+      */}
+      {canEdit && (
+        <div className="flex gap-2 print:hidden">
+          <button
+            type="button"
+            onClick={() => run(() => fillTheGaps(start))}
+            disabled={pending || empties === 0}
+            className="flex h-12 flex-1 items-center justify-center gap-2 rounded-[14px] bg-primary text-sm font-extrabold text-primary-foreground disabled:opacity-40"
+          >
+            <Sparkles className="h-4 w-4 shrink-0" strokeWidth={2.8} />
+            {pending ? "Thinking…" : "Fill the gaps"}
+          </button>
+          <button
+            type="button"
+            onClick={() => run(() => shopForTheWeek(start))}
+            disabled={pending || planned === 0}
+            className="flex h-12 flex-1 items-center justify-center gap-2 rounded-[14px] bg-card text-sm font-extrabold shadow-[0_1px_3px_rgba(0,0,0,0.05)] disabled:opacity-40"
+          >
+            <ShoppingBasket className="h-4 w-4 shrink-0" strokeWidth={2.8} />
+            Shop for it
+          </button>
+        </div>
+      )}
+
       {canEdit && (
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           <button

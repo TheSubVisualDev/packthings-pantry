@@ -1,4 +1,9 @@
 import { getDb, plainRows } from "./db";
+import { resolveWithLinks } from "./cookbook";
+import { totalOnHand } from "./containers";
+import type { StockIndex } from "./pantry-match";
+import { resolveAmount, scaleQuantity } from "./units";
+import type { Item, RecipeIngredient } from "./types";
 
 /**
  * The shopping list.
@@ -255,4 +260,130 @@ export async function getRestockSuggestions(
           : null,
     }),
   );
+}
+
+/**
+ * What one recipe would need buying, given these shelves.
+ *
+ * Lifted out of the "add what's missing" button so the week planner can ask
+ * the same question about seven dinners at once. It was a hundred lines inside
+ * a server action, and a second copy of "what does this recipe cost me" is a
+ * second place for the container rule to be got wrong - which AGENTS.md keeps
+ * a count of, and the count is five.
+ *
+ * Pure, and takes the shelves rather than fetching them: shopping for a week
+ * means asking about several recipes against one snapshot of stock, and
+ * re-reading the cupboard between each one would let a line be added twice.
+ */
+/** One line to put on the list, as the shortfall worked it out. */
+export interface ShortfallLine {
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  itemId?: number;
+}
+
+export interface ShortfallResult {
+  wanted: ShortfallLine[];
+  /** How many of its lines were already waiting to be bought. */
+  alreadyListed: number;
+}
+
+export function recipeShortfall(
+  recipe: {
+    name: string;
+    base_servings: number;
+    ingredients: RecipeIngredient[];
+  },
+  servings: number,
+  shelves: {
+    index: StockIndex;
+    byId: Map<number, Item>;
+    links: Map<number, number | null>;
+  },
+  /**
+   * Lowercased names already spoken for, so nothing is listed twice. Mutated:
+   * anything this returns is added, so a second call for another day of the
+   * same week does not list it again.
+   */
+  already: Set<string>,
+): ShortfallResult {
+  const wanted: ShortfallLine[] = [];
+  /**
+   * Lines this recipe wanted that were already waiting to be bought.
+   *
+   * Reported rather than inferred by the caller. "Nothing added" means two
+   * different things - you have everything, or it is already on the list - and
+   * telling somebody they have everything when it is merely already listed is
+   * a lie they would act on in a shop.
+   */
+  let alreadyListed = 0;
+
+  for (const line of recipe.ingredients) {
+    if (line.optional === 1) continue;
+    // Already waiting to be bought, or already added for an earlier day of
+    // this same week. Left alone rather than topped up: the amount on the list
+    // is one a person may have already adjusted.
+    if (already.has(line.item_name.toLowerCase())) {
+      alreadyListed += 1;
+      continue;
+    }
+
+    const { item } = resolveWithLinks(line, shelves.links, shelves.index, shelves.byId);
+    const need = scaleQuantity(line.quantity, recipe.base_servings, servings);
+
+    // Nothing in stock under that name: buy it, without pretending to know how
+    // much of it the shelf already has.
+    if (!item) {
+      wanted.push({ name: line.item_name, quantity: need, unit: line.unit });
+      already.add(line.item_name.toLowerCase());
+      continue;
+    }
+
+    const converted = resolveAmount(
+      need,
+      line.unit,
+      { size: line.pack_size, unit: line.pack_unit },
+      item.dimension,
+    );
+
+    // "Salt, to taste" against a shelf that has some: nothing to buy. There is
+    // no amount to compare and the recipe's whole claim is that you need salt.
+    if (!converted.ok && converted.reason === "unmeasured") continue;
+
+    // Unconvertible goes on as written and the human decides.
+    if (!converted.ok) {
+      wanted.push({
+        name: line.item_name,
+        quantity: need,
+        unit: line.unit,
+        itemId: item.id,
+      });
+      already.add(line.item_name.toLowerCase());
+      continue;
+    }
+
+    /**
+     * Everything on the shelf, not just the open container.
+     *
+     * `quantity` has meant "what is in the OPEN one" since containers arrived.
+     * Unspecified means there is some and nobody has said how much, which is
+     * not a number to subtract, so it is left off rather than guessed at.
+     */
+    const onHand = totalOnHand(item);
+    if (onHand === null) continue;
+
+    const short = converted.quantity - onHand;
+    if (short <= 0) continue;
+
+    wanted.push({
+      name: item.name,
+      quantity: Math.ceil(short * 100) / 100,
+      unit: item.canonical_unit,
+      itemId: item.id,
+    });
+    already.add(item.name.toLowerCase());
+  }
+
+  return { wanted, alreadyListed };
 }
