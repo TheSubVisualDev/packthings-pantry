@@ -138,6 +138,16 @@ export function AccountMenu({
           >
             Settings
           </Link>
+          {/* Both halves of writing in behind one item. Splitting "report a
+              bug" from "ask for a feature" makes somebody decide which their
+              thing is before they can start typing it. */}
+          <Link
+            href="/report"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 text-sm font-semibold hover:bg-chip"
+          >
+            Report or request
+          </Link>
 
           <div className="my-1 border-t border-border" />
           <form action={logout}>

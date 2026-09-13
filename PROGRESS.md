@@ -3,9 +3,9 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 13 Sep 2026, after batch C pushed
-**Doing right now:** D — bug report / feature request, with your tinder flow
-**Next after that:** E — shopping lists without a kitchen
+**Last updated:** 13 Sep 2026, after batch D pushed
+**Doing right now:** E — shopping lists without a kitchen
+**Next after that:** F, which is where I stop and ask
 **Blocked on you:** nothing yet. F (meal planner) is where I stop and ask.
 
 ---
@@ -17,8 +17,8 @@ timestamp to see how fresh it is.
 | A | Six visual fixes from the screenshots | **done, pushed** `04cd93f` |
 | B | `~` approximate amounts and "to taste" | **done, pushed** `6fc9246` |
 | C | Paste a plain-text recipe and have it parsed | **done, pushed** |
-| D | Bug report / feature request, with photos | in progress |
-| E | Shopping lists without a kitchen | not started |
+| D | Bug report / feature request, with photos | **done, pushed** |
+| E | Shopping lists without a kitchen | in progress |
 | F | Weekly meal planner + nutrition | **needs your call** |
 
 ---
@@ -72,15 +72,29 @@ rather than the recipe page, because a read recipe is a draft.
 
 `npm run check:recipe-text` — 50 cases.
 
-## D — bug report / feature request · in progress
+## D — bug report / feature request · done
 
-The flow you asked for:
+Exactly the flow you asked for.
 
-1. Anyone writes in from inside the app, with pictures.
-2. Every report shows on a page only you can see.
-3. You swipe through them, tinder-style — approve or deny.
-4. When you ask me to collate, I take the approved ones and work on them,
-   and the denied ones get cleared out.
+1. **`/report`** — one form, both halves. A toggle at the top: *Something's
+   broken* / *I wish it did*. One line is all that's required, up to four
+   pictures, and it fills in which page they were on and which browser by
+   itself. In the account menu as **Report or request**.
+2. **`/reports`** — yours only. Anyone else gets a 404, not a refusal: a page
+   that says "you're not allowed" has told them there's a there.
+3. **The tinder bit** — one card, swipe it, drag tilts it and fades in
+   ON THE LIST / NOT FOR NOW. Arrow keys work. Buttons stay for anyone who
+   doesn't know the gesture. Undo puts the last one back.
+4. **Say "collate the reports"** and the `reports` skill takes the approved
+   ones oldest first, looks at the screenshots, does them, and marks each
+   done with a note that the person who reported it sees on their own page.
+
+Nothing is deleted by a swipe. Clearing the turned-down ones is a separate
+command I'll confirm with you first — an idea that keeps being asked for
+after it was turned down is worth knowing, and a deleted row can't tell you.
+
+`@admin` is the one who can triage. `scripts/reports.mjs admin <handle>`
+adds another.
 
 ## E — shopping lists without a kitchen · not started
 

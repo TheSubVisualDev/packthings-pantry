@@ -549,3 +549,50 @@ CREATE TABLE IF NOT EXISTS recipe_tag_links (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_recipe_tags_owner_name
   ON recipe_tags(owner_id, LOWER(name));
 CREATE INDEX IF NOT EXISTS idx_recipe_tag_links_tag ON recipe_tag_links(tag_id);
+
+-- Writing in from inside the app.
+--
+-- A tester round produced a dozen findings spread across a chat, screenshots
+-- with no context and a note somebody wrote on their phone and never sent.
+-- Every one of them had to be transcribed by hand. This is the same thing with
+-- the transcription removed: it arrives knowing who wrote it, what page they
+-- were on and what they were looking at.
+--
+-- `status` is the whole point. A report is a claim until somebody with the say
+-- decides, so the decision is a column rather than a deletion - a rejected idea
+-- that keeps being asked for is itself information, and a deleted one cannot
+-- tell you that.
+CREATE TABLE IF NOT EXISTS reports (
+  id         INTEGER PRIMARY KEY,
+  -- Kept when the account goes, because the report is still true.
+  author_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  kind       TEXT NOT NULL DEFAULT 'bug',   -- bug | idea
+  title      TEXT NOT NULL,                 -- one line, the thing itself
+  body       TEXT,                          -- what they were doing, optional
+  -- Where they were standing when they wrote it. The single most useful field
+  -- on a bug report and the one nobody ever remembers to include.
+  page       TEXT,
+  -- Which browser. Not for statistics: for the bug that only happens on one.
+  agent      TEXT,
+  status     TEXT NOT NULL DEFAULT 'new',   -- new | approved | rejected | done
+  decided_at TIMESTAMP,
+  decided_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  -- What was done about it, written when it is marked done.
+  outcome    TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_reports_author ON reports(author_id);
+
+-- A screenshot is the report, most of the time. Separate rows rather than a
+-- JSON column so a photo can be dropped without rewriting the report, and so
+-- the cascade takes them when the report goes.
+CREATE TABLE IF NOT EXISTS report_photos (
+  id        INTEGER PRIMARY KEY,
+  report_id INTEGER NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+  url       TEXT NOT NULL,
+  position  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_photos_report ON report_photos(report_id);

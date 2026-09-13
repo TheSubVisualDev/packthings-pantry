@@ -57,6 +57,11 @@ const ADDED_COLUMNS = [
   // exact by definition - nothing could have said otherwise until now.
   { table: "recipe_ingredients", column: "approx", definition: "INTEGER NOT NULL DEFAULT 0" },
 
+  // Who gets to decide what happens to a report. Invite-only and no self-serve
+  // signup, so the first account is whoever set the thing up - back-filled
+  // below rather than guessed at here.
+  { table: "users", column: "is_admin", definition: "INTEGER NOT NULL DEFAULT 0" },
+
   // Recipes became documents rather than lists: a blurb, timings, a source.
   { table: "recipes", column: "description", definition: "TEXT" },
   { table: "recipes", column: "prep_minutes", definition: "INTEGER" },
@@ -407,3 +412,22 @@ const salvaged = await client.execute(`
   WHERE ri.item_id IS NOT NULL AND i.kitchen_id IS NOT NULL
 `);
 console.log(`cookbook_links: ${salvaged.rowsAffected} carried over from recipe_ingredients.item_id`);
+
+/**
+ * Somebody has to be able to decide what happens to a report.
+ *
+ * The lowest user id, and only when nobody is an admin yet. This app is
+ * invite-only with no self-serve signup, so the first account is whoever set
+ * it up - there is no case where that is a stranger. Guarded on the count so a
+ * later re-run cannot hand it back to somebody who was deliberately demoted.
+ */
+const admins = await client.execute("SELECT COUNT(*) AS n FROM users WHERE is_admin = 1");
+if (admins.rows[0].n === 0) {
+  const first = await client.execute(
+    "UPDATE users SET is_admin = 1 WHERE id = (SELECT MIN(id) FROM users) RETURNING handle",
+  );
+  const who = first.rows[0]?.handle;
+  console.log(who ? `is_admin: @${who} is the admin` : "is_admin: no users yet");
+} else {
+  console.log(`is_admin: ${admins.rows[0].n} already set, left alone`);
+}
