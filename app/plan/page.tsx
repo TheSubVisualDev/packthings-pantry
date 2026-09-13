@@ -5,7 +5,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { PrintButton } from "@/components/print-button";
 import { WeekPlan, type Pickable } from "@/components/week-plan";
-import { getRecipesWithMatches } from "@/lib/queries";
+import { getItems, getRecipe, getRecipesWithMatches } from "@/lib/queries";
+import { perPortion, weekMacros } from "@/lib/recipe-nutrition";
+import { WeekNutrition } from "@/components/week-nutrition";
 import {
   addDays,
   getSlots,
@@ -95,6 +97,44 @@ export default async function PlanPage({
   const planned = days.flatMap((day) => day.meals).filter(Boolean).length;
   const thisWeek = weekStart(today);
 
+  /**
+   * What the week adds up to, asked before the shopping rather than after the
+   * eating - which is the only moment at which the answer can change anything.
+   *
+   * The recipes are fetched here rather than carried on the plan rows because
+   * the figures need every ingredient of every one, and putting that on the
+   * week query would load seven recipes in full to draw seven coloured bars.
+   */
+  const onThePlan = days
+    .flatMap((day) => day.meals)
+    .filter(
+      (meal): meal is NonNullable<typeof meal> =>
+        meal !== null && meal.recipe_id !== null,
+    );
+
+  const [items, full] = await Promise.all([
+    getItems(kitchen.id),
+    Promise.all(
+      onThePlan.map((meal) => getRecipe(meal.recipe_id!, context.user.id)),
+    ),
+  ]);
+
+  const nutrition = weekMacros(
+    full.flatMap((recipe, index) =>
+      recipe
+        ? [
+            {
+              ingredients: recipe.ingredients,
+              baseServings: recipe.base_servings,
+              servings: onThePlan[index].servings ?? recipe.base_servings,
+              name: recipe.name,
+            },
+          ]
+        : [],
+    ),
+    new Map(items.map((item) => [item.name.toLowerCase(), item])),
+  );
+
   return (
     <>
       <SiteHeader
@@ -157,6 +197,8 @@ export default async function PlanPage({
           options={options}
           canEdit={kitchen.role !== "viewer"}
         />
+
+        <WeekNutrition week={nutrition} each={perPortion(nutrition)} />
 
         {planned === 0 && (
           <p className="mt-5 rounded-[16px] bg-chip p-4 text-sm font-semibold text-muted-foreground print:hidden">

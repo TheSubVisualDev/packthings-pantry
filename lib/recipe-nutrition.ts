@@ -191,3 +191,110 @@ export function recipeMacros(
 
   return { ...divided, counted, estimated, total: ingredients.length, missing };
 }
+
+/** What a week of planned meals comes to, and how much of it is guesswork. */
+export interface WeekMacros extends Macros {
+  /** Meals with a recipe on them at all. */
+  meals: number;
+  /** Of those, how many produced any figures. */
+  counted: number;
+  /** Portions the week amounts to, which is what the per-portion figure is over. */
+  portions: number;
+  /** Meals with nothing to go on, by name, so it can say what is missing. */
+  missing: string[];
+}
+
+/**
+ * Adds up a week of planned meals.
+ *
+ * The question a weekly planner is for is "does this week look reasonable",
+ * asked before the shopping rather than after the eating - which is the only
+ * moment at which the answer can still change anything.
+ *
+ * It reports a WEEK total and a PER PORTION average, and the second is the one
+ * worth reading. A week total depends on how many people you cooked for, which
+ * makes it incomparable with anybody else's week and with your own last week;
+ * the average portion is the same shape of number the recipe page already
+ * shows, which means the two can be read together.
+ *
+ * A meal with no figures behind it is named rather than silently dropped. Half
+ * a week's ingredients missing from the nutrition tables would otherwise
+ * produce a confident total over three dinners, which is worse than no total.
+ */
+export function weekMacros(
+  meals: {
+    ingredients: RecipeIngredient[];
+    baseServings: number;
+    /** What it is planned for, when that is not the recipe's own number. */
+    servings: number;
+    name: string;
+  }[],
+  itemsByName: Map<string, Item>,
+): WeekMacros {
+  const totals: Record<(typeof KEYS)[number], number | null> = {
+    kcal_100: null,
+    protein_100: null,
+    carbs_100: null,
+    fat_100: null,
+    fibre_100: null,
+    salt_100: null,
+  };
+
+  let counted = 0;
+  let portions = 0;
+  const missing: string[] = [];
+
+  for (const meal of meals) {
+    /**
+     * Each meal at the servings it is planned for, not at its base.
+     *
+     * recipeMacros divides by servings to give a portion, so multiplying back
+     * up by the same number is what turns it into the whole dish again - and
+     * the whole dish is what the week is made of.
+     */
+    const macros = recipeMacros(
+      meal.ingredients,
+      itemsByName,
+      meal.servings,
+      meal.baseServings,
+    );
+
+    if (macros.counted === 0) {
+      missing.push(meal.name);
+      continue;
+    }
+
+    counted += 1;
+    portions += meal.servings;
+
+    for (const key of KEYS) {
+      const value = macros[key];
+      if (value === null) continue;
+      totals[key] = (totals[key] ?? 0) + value * meal.servings;
+    }
+  }
+
+  return {
+    ...totals,
+    meals: meals.length,
+    counted,
+    portions,
+    missing,
+  };
+}
+
+/** The same week divided by its portions: what one plate averaged. */
+export function perPortion(week: WeekMacros): Macros {
+  const over = week.portions > 0 ? week.portions : 1;
+  const each = (key: (typeof KEYS)[number]) =>
+    week[key] === null ? null : week[key]! / over;
+
+  return {
+    kcal_100: each("kcal_100"),
+    protein_100: each("protein_100"),
+    carbs_100: each("carbs_100"),
+    fat_100: each("fat_100"),
+    fibre_100: each("fibre_100"),
+    salt_100: each("salt_100"),
+  };
+}
