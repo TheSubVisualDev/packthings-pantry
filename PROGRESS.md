@@ -3,10 +3,10 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 13 Sep 2026, after batch D pushed
-**Doing right now:** E — shopping lists without a kitchen
-**Next after that:** F, which is where I stop and ask
-**Blocked on you:** nothing yet. F (meal planner) is where I stop and ask.
+**Last updated:** 13 Sep 2026, after batch E pushed
+**Doing right now:** nothing — A to E are all done and live
+**Blocked on you:** **F.** The meal planner is the last item and it is the
+one with four ways to build it. Options are at the bottom of this file.
 
 ---
 
@@ -18,7 +18,7 @@ timestamp to see how fresh it is.
 | B | `~` approximate amounts and "to taste" | **done, pushed** `6fc9246` |
 | C | Paste a plain-text recipe and have it parsed | **done, pushed** |
 | D | Bug report / feature request, with photos | **done, pushed** |
-| E | Shopping lists without a kitchen | in progress |
+| E | Shopping lists without a kitchen | **done, pushed** |
 | F | Weekly meal planner + nutrition | **needs your call** |
 
 ---
@@ -96,7 +96,26 @@ after it was turned down is worth knowing, and a deleted row can't tell you.
 `@admin` is the one who can triage. `scripts/reports.mjs admin <handle>`
 adds another.
 
-## E — shopping lists without a kitchen · not started
+## E — shopping lists without a kitchen · done
+
+A list belongs to a kitchen **or** to a person now. No kitchen gets the list
+and nothing else — restock, shop grouping and the trip all compare it to
+shelves that aren't there, so they're off rather than dead. "Add what's
+missing" from a recipe works and adds everything, which is correct: with no
+shelves, everything is short.
+
+Needed a table rebuild (`kitchen_id` was NOT NULL and SQLite can't drop a
+constraint). `scripts/rebuild-shopping-list.mjs`, dry-run then applied,
+backup at `../backups/pre-personal-list-2026-09-13.db`.
+
+## Also fixed, from you mid-session
+
+**The pictures field didn't update when uploading.** Two causes. The preview
+went through `next/image`, which only accepts the hostnames next.config
+allows — a `blob:` URL isn't a hostname, so it failed silently and the frame
+stayed empty. Underneath, the object URLs were being revoked immediately
+after creation by React's development double-mount. Both fixed and driven in
+a real browser: preview decodes, upload lands in Blob.
 
 ## F — weekly meal planner + nutrition · needs your call
 
