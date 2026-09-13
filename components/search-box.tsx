@@ -68,7 +68,11 @@ export function SearchBox({
         aria-label="Search"
         // The native clear affordance is suppressed so it cannot sit next to
         // ours; a search field with two crosses in it is a puzzle.
-        className="min-h-12 w-full rounded-[14px] border border-border bg-card pr-11 pl-11 font-semibold outline-none focus:border-primary [&::-webkit-search-cancel-button]:hidden"
+        // The placeholder is set a size smaller than what you type. At body
+        // size "Search recipes, ingredients, people" was cut off mid-word on a
+        // phone - "…ingredients, peo" - which reads as a bug rather than as a
+        // hint. Typed text keeps the full size; only the hint shrinks.
+        className="min-h-12 w-full rounded-[14px] border border-border bg-card pr-11 pl-11 font-semibold outline-none placeholder:text-[13px] focus:border-primary [&::-webkit-search-cancel-button]:hidden"
       />
       {term && (
         <button

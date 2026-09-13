@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { describeAmount, formatQuantity } from "@/lib/units";
+import { formatQuantity, splitAmount } from "@/lib/units";
 import type { RecipeDraft, RecipePhotos } from "@/components/recipe-editor";
 
 /**
@@ -101,34 +101,46 @@ export function RecipePreview({
               </h3>
             )}
             <ul className="overflow-hidden rounded-[16px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              {section.lines.map((line, lineIndex) => (
-                <li
-                  key={lineIndex}
-                  className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-3 last:border-b-0"
-                >
-                  <span className="min-w-0 font-bold break-words">
-                    {line.item_name}
-                    {line.optional && (
-                      <span className="ml-1.5 text-xs font-semibold text-muted-foreground">
-                        optional
-                      </span>
+              {/* The same two lines the recipe page prints, so the preview is
+                  a preview rather than a third way of saying an amount. */}
+              {section.lines.map((line, lineIndex) => {
+                const amount = line.quantity.trim()
+                  ? splitAmount(Number(line.quantity), line.unit, {
+                      size: line.pack_size.trim() ? Number(line.pack_size) : null,
+                      unit: line.pack_size.trim() ? line.pack_unit : null,
+                    })
+                  : { primary: "", secondary: null };
+
+                return (
+                  <li
+                    key={lineIndex}
+                    className="border-b border-border px-4 py-3 last:border-b-0"
+                  >
+                    <div className="font-bold break-words">
+                      {amount.primary && (
+                        <span className="text-quantity">{amount.primary} </span>
+                      )}
+                      {line.item_name}
+                      {line.optional && (
+                        <span className="ml-1.5 text-xs font-semibold text-muted-foreground">
+                          optional
+                        </span>
+                      )}
+                    </div>
+                    {(amount.secondary || line.note.trim()) && (
+                      <div className="text-sm font-semibold text-muted-foreground">
+                        {amount.secondary && (
+                          <span className="text-quantity">{amount.secondary}</span>
+                        )}
+                        {amount.secondary && line.note.trim() && " · "}
+                        {line.note.trim() && (
+                          <span className="font-medium">{line.note}</span>
+                        )}
+                      </div>
                     )}
-                    {line.note.trim() && (
-                      <span className="ml-1.5 text-sm font-medium text-muted-foreground">
-                        · {line.note}
-                      </span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-sm font-semibold text-quantity">
-                    {line.quantity.trim()
-                      ? describeAmount(Number(line.quantity), line.unit, {
-                          size: line.pack_size.trim() ? Number(line.pack_size) : null,
-                          unit: line.pack_size.trim() ? line.pack_unit : null,
-                        })
-                      : "—"}
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         ))

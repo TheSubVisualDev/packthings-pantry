@@ -149,18 +149,28 @@ export function QuickAdjust({ items }: { items: Item[] }) {
               : item;
 
             return (
+              /*
+                One shape for every row, however long the name is.
+
+                This wrapped: a name past about twenty characters pushed the
+                stepper onto a second line, where justify-between left it
+                against the left edge - so a list of real items alternated
+                between two layouts and looked broken. The stepper is a fixed
+                width and never wraps; long names take a second line instead,
+                which is the half that can afford one.
+              */
               <li
                 key={item.id}
-                className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3.5 last:border-b-0"
+                className="flex items-center justify-between gap-3 border-b border-border px-4 py-3.5 last:border-b-0"
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="font-bold break-words">{item.name}</div>
                   <div className="text-sm font-semibold text-quantity">
                     {describeStock(shown)}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-1.5">
                   <button
                     type="button"
                     aria-label={`Take from ${item.name}`}
@@ -185,7 +195,7 @@ export function QuickAdjust({ items }: { items: Item[] }) {
                         [item.id]: event.target.value,
                       }))
                     }
-                    className="w-20 rounded-[12px] border border-border bg-background px-2 py-2 text-center font-semibold outline-none focus:border-primary"
+                    className="w-16 rounded-[12px] border border-border bg-background px-1 py-2 text-center font-semibold outline-none focus:border-primary"
                   />
                   <button
                     type="button"

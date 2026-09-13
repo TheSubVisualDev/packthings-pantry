@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
-import { BookOpenText, Check, List } from "lucide-react";
+import { BookOpenText, Check, List, ShoppingBasket } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import {
   cookRecipe,
@@ -21,6 +21,7 @@ import {
   formatQuantity,
   resolveAmount,
   scaleQuantity,
+  splitAmount,
 } from "@/lib/units";
 import type { Item } from "@/lib/types";
 
@@ -160,10 +161,16 @@ function resolve(
 
 function StatusBadge({ status }: { status: Status }) {
   const base =
-    "shrink-0 rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap print:hidden";
+    "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap print:hidden";
   if (status.kind === "in-stock")
     return (
-      <span className={`${base} bg-chip text-muted-foreground`}>In stock</span>
+      /* A tick, because "In stock" and "To buy" were the same grey chip in the
+         same place, and a tester reported reading one as the other. The words
+         were never the difference at a glance; the shape is. */
+      <span className={`${base} bg-chip text-muted-foreground`}>
+        <Check className="h-3 w-3" strokeWidth={3.5} aria-hidden />
+        In stock
+      </span>
     );
   if (status.kind === "short")
     return (
@@ -179,8 +186,13 @@ function StatusBadge({ status }: { status: Status }) {
       // Deliberately not the destructive colour the other two use. An
       // ingredient you have not bought is a shopping item, not a fault - and a
       // recipe written before you own any of it went red from top to bottom,
-      // which made writing one down feel like doing something wrong.
-      <span className={`${base} bg-chip text-muted-foreground`}>To buy</span>
+      // which made writing one down feel like doing something wrong. It is
+      // outlined rather than filled so it cannot be mistaken for the in-stock
+      // chip, which is what kept happening while both were flat grey.
+      <span className={`${base} border border-primary/35 bg-primary/8 text-primary`}>
+        <ShoppingBasket className="h-3 w-3" strokeWidth={3} aria-hidden />
+        To buy
+      </span>
     );
   return (
     <span
@@ -410,6 +422,21 @@ export function CookPanel({
             </span>
           )}
         </div>
+        {/*
+          What the ticks are for, said once.
+
+          A filled brand-coloured circle beside every ingredient reads as "you
+          have this" - a tester said exactly that, and then found the status
+          chip on the other end of the row disagreeing with it. The circles are
+          a cooking checklist, not a stock report, and one line saying so costs
+          less than inventing a third visual language for them.
+        */}
+        {hasKitchen && inCookbook && (
+          <p className="mb-2 text-xs font-semibold text-muted-foreground print:hidden">
+            Ticked ones come off your shelves when you cook. Untick anything you
+            left out.
+          </p>
+        )}
         {sections.map((section) => (
           <div key={section.name ?? ""} className="mb-3 last:mb-0">
             {section.name && (
@@ -418,7 +445,13 @@ export function CookPanel({
               </h3>
             )}
             <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              {section.entries.map(({ line, swap, display, status }) => (
+              {section.entries.map(({ line, swap, display, status }) => {
+                const amount = splitAmount(
+                  display,
+                  line.unit,
+                  { size: line.pack_size, unit: line.pack_unit },
+                );
+                return (
                 <li
                   key={line.id}
                   className="border-b border-border px-4 py-3.5 last:border-b-0 sm:px-5"
@@ -447,8 +480,20 @@ export function CookPanel({
                       )}
                     </button>
                   )}
+                  {/*
+                    The amount leads the line, with the name.
+
+                    It used to be a bold name over a small grey "2 (600g)", and
+                    a tester read that whole second line as fine print and
+                    missed the amount. What you measure belongs where the eye
+                    already is; what one pack comes to and how to cut it are
+                    both second-line facts, so they share the quiet line.
+                  */}
                   <div className={`min-w-0 flex-1 ${ticked[line.id] === false ? "opacity-45" : ""}`}>
                     <div className="font-bold break-words">
+                      {amount.primary && (
+                        <span className="text-quantity">{amount.primary} </span>
+                      )}
                       {line.item_name}
                       {line.optional && (
                         <span className="ml-1.5 text-xs font-semibold text-muted-foreground">
@@ -456,18 +501,15 @@ export function CookPanel({
                         </span>
                       )}
                     </div>
-                    <div className="text-sm font-semibold text-quantity">
-                      {describeAmount(display, line.unit, {
-                        size: line.pack_size,
-                        unit: line.pack_unit,
-                      })}
-                      {line.note && (
-                        <span className="font-medium text-muted-foreground">
-                          {" "}
-                          &middot; {line.note}
-                        </span>
-                      )}
-                    </div>
+                    {(amount.secondary || line.note) && (
+                      <div className="text-sm font-semibold text-muted-foreground">
+                        {amount.secondary && (
+                          <span className="text-quantity">{amount.secondary}</span>
+                        )}
+                        {amount.secondary && line.note && " · "}
+                        {line.note && <span className="font-medium">{line.note}</span>}
+                      </div>
+                    )}
                   </div>
                   <StatusBadge status={status} />
                   </div>
@@ -488,7 +530,8 @@ export function CookPanel({
                     />
                   )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </div>
         ))}

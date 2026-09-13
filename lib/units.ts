@@ -172,3 +172,51 @@ export function unitSuffix(unit: string | null | undefined): string {
   if (!unit || unit === "count") return "";
   return SYMBOL_UNITS.has(unit) ? unit : ` ${unit}`;
 }
+
+/**
+ * Units that are things rather than measures, and so are counted in the
+ * plural. "2 tins", not "2 tin" - a recipe that says the latter reads like a
+ * form field, which is exactly what a tester said it read like.
+ */
+const COUNTABLE_UNITS = new Set(["tin", "pack", "jar"]);
+
+/** "1 tin", "2 tins", "100g", "2" - a number with its unit said properly. */
+export function sayAmount(quantity: number, unit: string): string {
+  const number = formatQuantity(quantity);
+  if (!unit || unit === "count") return number;
+  if (SYMBOL_UNITS.has(unit)) return `${number}${unit}`;
+  if (COUNTABLE_UNITS.has(unit) && quantity !== 1) return `${number} ${unit}s`;
+  return `${number} ${unit}`;
+}
+
+/**
+ * An ingredient line split into the two things it says.
+ *
+ * The primary is what you measure with - "2 tins", "100g", "1". The secondary
+ * is what that comes to when the unit is a package, which is the number you
+ * want when you are standing at the shelf rather than at the hob.
+ *
+ * They were one string, "2 (600g)", printed under a bold ingredient name. A
+ * tester read the whole second line as small grey fine print and missed the
+ * amount entirely, so the amount now leads the line with the name, and the
+ * package size and the preparation note share the quieter one below it.
+ */
+export function splitAmount(
+  quantity: number,
+  unit: string,
+  pack: { size: number | null; unit: string | null },
+  approx = false,
+): { primary: string; secondary: string | null } {
+  // An unmeasured line has no number to say - "salt, to taste" is the whole
+  // amount. Handled here so every screen that prints an amount gets it right
+  // rather than each one remembering to check.
+  if (unit === "some") return { primary: "", secondary: null };
+
+  const primary = `${approx ? "~" : ""}${sayAmount(quantity, unit)}`;
+  if (!pack.size || !pack.unit) return { primary, secondary: null };
+
+  return {
+    primary,
+    secondary: `${approx ? "~" : ""}${sayAmount(quantity * pack.size, pack.unit)}`,
+  };
+}

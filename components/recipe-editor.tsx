@@ -236,7 +236,15 @@ export function RecipeEditor({
           type="button"
           onClick={onSave}
           disabled={pending}
-          className="shrink-0 rounded-[14px] bg-primary px-5 py-2.5 text-sm font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
+          /*
+            A fixed width, because this bar is blurred.
+
+            "Save changes" becoming "Saving…" resized the button, and resizing
+            an element that sits on a backdrop-blur left the old frame painted
+            behind the new one on iOS - two overlapping buttons, one clipped.
+            Nothing reflows now, so there is nothing to ghost.
+          */
+          className="min-w-[132px] shrink-0 rounded-[14px] bg-primary px-5 py-2.5 text-center text-sm font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
         >
           {pending ? "Saving…" : recipeId ? "Save changes" : "Create recipe"}
         </button>

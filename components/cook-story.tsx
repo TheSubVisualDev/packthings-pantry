@@ -97,6 +97,25 @@ export function CookStory({
 
   const step = steps[at];
   const last = at === steps.length - 1;
+
+  const back = () => setAt((n) => Math.max(0, n - 1));
+  const forward = () => setAt((n) => Math.min(steps.length - 1, n + 1));
+
+  /**
+   * Arrow keys, for a laptop propped on the counter. The same two moves the
+   * tap zones and the footer buttons make, so there is one definition of what
+   * forward means.
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "ArrowRight") forward();
+      if (event.key === "ArrowLeft") back();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [steps.length]);
+
   // Nothing until the clock has been read, so no countdown is painted from a
   // placeholder - the same rule the timer tray follows. Rung timers stay in
   // the list: an alarm nobody acknowledged is exactly the one to keep showing.
@@ -166,7 +185,34 @@ export function CookStory({
         </div>
       </header>
 
-      <div className="flex-1 px-5 pt-6 pb-6">
+      {/*
+        Tap the sides to move, the way the segments at the top imply.
+
+        A tester saw the Instagram-style progress bar and went straight for the
+        right-hand side of the screen - which did nothing, because the only way
+        forward was a button at the bottom. The segments were already making
+        that promise; this keeps it, and the footer buttons stay for anybody who
+        does not know the gesture.
+
+        Hit-tested on the container rather than laid out as two overlay panes:
+        a pane over the step would swallow the timer chips and the Meanwhile
+        row, and a pane under it would never be reached. Anything that is
+        already a button or a link keeps its own tap.
+      */}
+      <div
+        className="flex-1 px-5 pt-6 pb-6"
+        onClick={(event) => {
+          const target = event.target as HTMLElement;
+          if (target.closest("button, a, input, textarea, select")) return;
+
+          const box = event.currentTarget.getBoundingClientRect();
+          const across = (event.clientX - box.left) / box.width;
+          if (across < 0.3) back();
+          // The last step ends in a decision - cooking spends stock - so the
+          // forward zone stops rather than firing it by accident.
+          else if (across > 0.7 && !last) forward();
+        }}
+      >
         {step.section && (
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-[oklch(0.72_0.02_65)]">
             {step.section}
@@ -277,7 +323,7 @@ export function CookStory({
       <footer className="sticky bottom-0 flex items-center gap-3 border-t border-white/10 bg-[oklch(0.22_0.012_55)] px-5 py-4">
         <button
           type="button"
-          onClick={() => setAt((n) => Math.max(0, n - 1))}
+          onClick={back}
           disabled={at === 0}
           aria-label="Previous step"
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 disabled:opacity-30"
@@ -299,7 +345,7 @@ export function CookStory({
         ) : (
           <button
             type="button"
-            onClick={() => setAt((n) => Math.min(steps.length - 1, n + 1))}
+            onClick={forward}
             className="h-12 flex-1 rounded-[14px] bg-white text-[15px] font-extrabold text-[oklch(0.22_0.012_55)]"
           >
             Next
