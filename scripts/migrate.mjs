@@ -68,6 +68,12 @@ const ADDED_COLUMNS = [
   // that looks like homework before anybody has touched it.
   { table: "kitchens", column: "meal_slots", definition: "TEXT" },
 
+  // When to be nudged about planning the week ahead. Null day means never,
+  // which is the default: an app that starts sending notifications because you
+  // signed up has decided something that was not its to decide.
+  { table: "users", column: "reminder_day", definition: "INTEGER" },
+  { table: "users", column: "reminder_hour", definition: "INTEGER" },
+
   // Recipes became documents rather than lists: a blurb, timings, a source.
   { table: "recipes", column: "description", definition: "TEXT" },
   { table: "recipes", column: "prep_minutes", definition: "INTEGER" },

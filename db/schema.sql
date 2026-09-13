@@ -646,3 +646,28 @@ CREATE TABLE IF NOT EXISTS meal_plan (
 );
 
 CREATE INDEX IF NOT EXISTS idx_meal_plan_week ON meal_plan(kitchen_id, on_date);
+
+-- Where to send a notification, per device.
+--
+-- Per device rather than per person: somebody with a phone and a laptop has
+-- two subscriptions and wants the nudge on whichever they are holding. The
+-- endpoint is the identity - it is what the push service issued - so it is the
+-- primary key and re-subscribing on the same device replaces rather than
+-- duplicates.
+--
+-- A subscription dies without telling you. The browser can drop one, the push
+-- service can expire one, and the only way to find out is to send to it and be
+-- told 404 or 410 - which is what `failed_at` records, so a dead endpoint is
+-- retired rather than retried every week for ever.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint   TEXT PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  p256dh     TEXT NOT NULL,
+  auth       TEXT NOT NULL,
+  -- What subscribed, roughly, so a list of three devices is readable.
+  agent      TEXT,
+  failed_at  TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);

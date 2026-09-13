@@ -52,6 +52,19 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  /**
+   * The cron, which carries its own secret rather than a session.
+   *
+   * Vercel's scheduler sends `Authorization: Bearer $CRON_SECRET`, which this
+   * gate would try to resolve to a user, fail, and turn into a 401 before the
+   * route ever ran. The route checks that header itself and refuses anything
+   * else - it sends push notifications to real phones, so left open it is a
+   * button on the internet for making somebody's pocket buzz.
+   */
+  if (request.nextUrl.pathname === "/api/nudge") {
+    return NextResponse.next();
+  }
+
   // Session first, then the back door, and only then the database. Ordered by
   // cost: the first two are arithmetic, the third is a network hop to Hetzner,
   // and it only ever runs for an /api request that presented a bearer token.

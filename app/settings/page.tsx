@@ -7,10 +7,12 @@ import { PasswordChange } from "@/components/password-change";
 import { ProfileSettings } from "@/components/profile-settings";
 import { RevealToken } from "@/components/reveal-token";
 import { RotateTokenButton } from "@/components/rotate-token-button";
+import { NudgeSettings } from "@/components/nudge-settings";
 import { SiteHeader } from "@/components/site-header";
 import { logout } from "@/app/login/actions";
 import { currentKitchen } from "@/lib/session";
 import { listLiveInvites } from "@/lib/users";
+import { getReminder, pushConfigured } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +31,11 @@ export default async function SettingsPage() {
   if (!session.ok) redirect("/login?next=%2Fsettings");
 
   const { user, kitchen } = session;
-  const [invites, headerList] = await Promise.all([listLiveInvites(user.id), headers()]);
+  const [invites, headerList, reminder] = await Promise.all([
+    listLiveInvites(user.id),
+    headers(),
+    getReminder(user.id),
+  ]);
 
   const host = headerList.get("host") ?? "";
   const protocol = host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https";
@@ -87,6 +93,13 @@ export default async function SettingsPage() {
               </Link>
             </section>
           )}
+
+          {/* Above the Claude key, because this is a thing everybody might
+              want and that is a thing one person in ten will. */}
+          <section className={CARD}>
+            <h2 className={LABEL}>Plan the week</h2>
+            <NudgeSettings configured={pushConfigured()} current={reminder} />
+          </section>
 
           <section className={CARD}>
             <h2 className={LABEL}>Your Claude key</h2>
