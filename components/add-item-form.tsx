@@ -2,10 +2,16 @@
 
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Sparkles, Undo2 } from "lucide-react";
+import { ChevronLeft, Sparkles, Undo2 } from "lucide-react";
 import { addItem, type AddItemState } from "@/app/pantry/actions";
 import { ChipPicker } from "@/components/chip-picker";
-import { CountStepper, Vessel, vesselKindFor, vesselModeFor } from "@/components/vessel";
+import {
+  CountStepper,
+  Vessel,
+  vesselKindFor,
+  vesselModeFor,
+  type VesselMode,
+} from "@/components/vessel";
 import { plural } from "@/lib/containers";
 import { dimensionOf, UNITS_BY_DIMENSION } from "@/lib/units";
 import { probableDuplicate, suggestFor, type ItemProfile } from "@/lib/suggest";
@@ -32,6 +38,19 @@ const AMOUNT_LABEL: Record<Dimension, string> = {
   mass: "Weight",
   volume: "Volume",
   count: "Quantity",
+};
+
+/**
+ * What the "how much" screen says under its heading.
+ *
+ * Keyed on the control that is actually on screen, not on the dimension.
+ * "Drag the level" with no container drawn - which is every item until a pack
+ * size is known - is the form describing something that is not there.
+ */
+const AMOUNT_HINT: Record<VesselMode, string> = {
+  fill: "Drag the level, or type it.",
+  count: "Tap up and down, or type it.",
+  none: "However much is there now.",
 };
 
 /** Values a barcode scan can arrive with; everything is optional. */
@@ -110,19 +129,23 @@ export function AddItemForm({
    * people distrust every clever form they meet afterwards.
    */
   /**
-   * Whether the optional half of the form is showing.
+   * Which of the four questions is on screen.
    *
-   * Closed by default, and that is the whole point of the guessing. Adding
-   * pasta used to cost twelve fields - name, amount, unit, two checkboxes, a
+   * Adding pasta costs twelve fields - name, amount, unit, two checkboxes, a
    * restock target, tags, shops, a location, an expiry date, a shelf life and
-   * an "already open" box - of which eleven are optional and most are now
-   * answered from the nearest thing you already own. Leaving them on screen
-   * meant reading eleven questions to answer one.
+   * an "already open" box - of which eleven are optional and most are answered
+   * from the nearest thing you already own. They used to be one page with the
+   * optional eleven folded behind a toggle, which meant the first thing anybody
+   * met was a wall with a lid on it.
    *
-   * The fields are hidden rather than unmounted, so everything guessed still
-   * posts with the form. What is not shown is still true.
+   * One question at a time instead, asked in the order you handle a thing
+   * coming out of a bag: what it is, how much, how it comes, where it goes.
+   *
+   * The stages are hidden rather than unmounted, so everything guessed still
+   * posts with the form and moving back and forth loses nothing. What is not
+   * shown is still true - the same rule the old toggle relied on.
    */
-  const [showAll, setShowAll] = useState(false);
+  const [stage, setStage] = useState(0);
 
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -250,11 +273,56 @@ export function AddItemForm({
     shelfLife ? `keeps ${shelfLife}d open` : null,
   ].filter(Boolean);
 
+  /** What each stage is asking, for the heading and the progress bar. */
+  const STAGES = [
+    { title: "What is it?", hint: "A name is all this one needs." },
+    { title: "How much?", hint: AMOUNT_HINT[mode] },
+    { title: "How does it come?", hint: "Skip it if it is loose." },
+    { title: "Where does it live?", hint: "All optional." },
+  ];
+
+  /**
+   * Whether this stage has been answered enough to leave.
+   *
+   * Only the first two can block, and only on the one field each genuinely
+   * needs. A gate that asks for more than the database does is a gate that
+   * stops people adding a tin of beans.
+   */
+  const canLeave =
+    stage === 0 ? name.trim().length > 0 : stage === 1 ? unspecified || amount.trim() !== "" : true;
+
+  const last = stage === STAGES.length - 1;
+
   return (
     <form action={formAction} className="space-y-4">
+      {/* One segment per question, the same shape the cook screen uses for
+          steps - a form with a known number of screens should say how many. */}
+      <div className="flex gap-1">
+        {STAGES.map((each, index) => (
+          <span
+            key={each.title}
+            className={`h-1 flex-1 rounded-full ${
+              index < stage ? "bg-primary" : index === stage ? "bg-ink" : "bg-border"
+            }`}
+          />
+        ))}
+      </div>
+
+      <div>
+        <h2 className="text-[22px] font-extrabold tracking-[-0.02em]">
+          {STAGES[stage].title}
+        </h2>
+        <p className="text-sm font-semibold text-muted-foreground">
+          {STAGES[stage].hint}
+        </p>
+      </div>
+
       {prefill.barcode && (
         <input type="hidden" name="barcode" value={prefill.barcode} />
       )}
+
+      {/* Stage 1 - what it is, and what it is filed under. */}
+      <div hidden={stage !== 0} className="space-y-4">
       <div>
         <label htmlFor="name" className={LABEL}>
           Name
@@ -263,7 +331,10 @@ export function AddItemForm({
           id="name"
           name="name"
           type="text"
-          required
+          // Not `required`. A required field inside a hidden stage refuses to
+          // submit AND cannot be focused to say why, so the browser silently
+          // does nothing on the last screen. The stage gate below will not let
+          // you past without it, and the action checks it again on arrival.
           maxLength={80}
           value={name}
           onChange={(event) => setName(event.target.value)}
@@ -300,6 +371,32 @@ export function AddItemForm({
         )}
       </div>
 
+      <div>
+        <span className={LABEL}>
+          Tags <span className="normal-case text-muted-foreground">optional</span>
+        </span>
+        {/* The first tag is the one it gets filed under, which is why the
+            picker marks it rather than explaining it. */}
+        <ChipPicker
+          key={`tags-${chipKey("tags")}`}
+          name="tags"
+          options={tags}
+          onDirty={() => setTouched((c) => ({ ...c, tags: true }))}
+          defaultValue={prefill.tags || suggestion.tags?.join(", ") || ""}
+          placeholder="Asian, sauce, soya…"
+          primaryNote={(first) => (
+            <>
+              Filed under <strong className="text-foreground">{first}</strong> — the
+              first one. Remove it to file under another.
+            </>
+          )}
+        />
+      </div>
+
+      </div>
+
+      {/* Stage 2 - how much, asked of somebody holding the thing. */}
+      <div hidden={stage !== 1} className="space-y-4">
       {/*
         How much, asked the way somebody holding the thing can answer.
 
@@ -349,7 +446,8 @@ export function AddItemForm({
             min="0"
             step="any"
             inputMode="decimal"
-            required
+            // See the note on `name` - required inside a hidden stage is a
+            // form that will not submit and will not say so.
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             className={FIELD}
@@ -408,32 +506,6 @@ export function AddItemForm({
         </div>
       )}
 
-      {/* Everything below is optional, guessed where it can be, and folded
-          away until asked for. */}
-      <div>
-        <button
-          type="button"
-          onClick={() => setShowAll((value) => !value)}
-          aria-expanded={showAll}
-          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[14px] bg-chip px-4 text-left text-sm font-bold"
-        >
-          <span className="min-w-0 flex-1 truncate">
-            {summary.length > 0 ? (
-              <span className="font-semibold text-muted-foreground">
-                {summary.join(" · ")}
-              </span>
-            ) : (
-              "Tags, shop, location, dates"
-            )}
-          </span>
-          <ChevronDown
-            className={`h-4 w-4 shrink-0 transition-transform ${showAll ? "rotate-180" : ""}`}
-            strokeWidth={3}
-          />
-        </button>
-      </div>
-
-      <div hidden={!showAll} className="space-y-4">
       <label className="flex items-center gap-2.5 text-sm font-bold">
         <input
           type="checkbox"
@@ -445,6 +517,10 @@ export function AddItemForm({
         Don&apos;t track how much of this there is
       </label>
 
+      </div>
+
+      {/* Stage 3 - the packaging, which is what a jar is. */}
+      <div hidden={stage !== 2} className="space-y-4">
       <div>
         <label className="flex items-center gap-2.5 text-sm font-bold">
           <input
@@ -514,51 +590,10 @@ export function AddItemForm({
         />
       </div>
 
-      <div>
-        <span className={LABEL}>
-          Tags <span className="normal-case text-muted-foreground">optional</span>
-        </span>
-        {/* The first tag is the one it gets filed under, which is why the
-            picker marks it rather than explaining it. */}
-        <ChipPicker
-          key={`tags-${chipKey("tags")}`}
-          name="tags"
-          options={tags}
-          onDirty={() => setTouched((c) => ({ ...c, tags: true }))}
-          defaultValue={prefill.tags || suggestion.tags?.join(", ") || ""}
-          placeholder="Asian, sauce, soya…"
-          primaryNote={(first) => (
-            <>
-              Filed under <strong className="text-foreground">{first}</strong> — the
-              first one. Remove it to file under another.
-            </>
-          )}
-        />
       </div>
 
-      <div>
-        <span className={LABEL}>
-          Bought from <span className="normal-case text-muted-foreground">optional</span>
-        </span>
-        {/* Several, because plenty of things are available in more than one
-            place. The first is where you usually go, which is what groups the
-            shopping list. */}
-        <ChipPicker
-          key={`shops-${chipKey("shops")}`}
-          name="shops"
-          options={shops}
-          onDirty={() => setTouched((c) => ({ ...c, shops: true }))}
-          defaultValue={prefill.shops || suggestion.shops?.join(", ") || ""}
-          placeholder="Tesco, the Asian supermarket…"
-          primaryNote={(first) => (
-            <>
-              Usually <strong className="text-foreground">{first}</strong> — the first
-              one. That is the trip it gets grouped into.
-            </>
-          )}
-        />
-      </div>
-
+      {/* Stage 4 - where it lives and when it goes off. All skippable. */}
+      <div hidden={stage !== 3} className="space-y-4">
       {/* These three were one flex row with an unclosed div, so the shelf-life
           block ended up as a third child of the location/expires row and all
           three fought over a phone's width - the location select rendered as
@@ -627,7 +662,31 @@ export function AddItemForm({
         </div>
       </div>
 
+      <div>
+        <span className={LABEL}>
+          Bought from <span className="normal-case text-muted-foreground">optional</span>
+        </span>
+        {/* Several, because plenty of things are available in more than one
+            place. The first is where you usually go, which is what groups the
+            shopping list. */}
+        <ChipPicker
+          key={`shops-${chipKey("shops")}`}
+          name="shops"
+          options={shops}
+          onDirty={() => setTouched((c) => ({ ...c, shops: true }))}
+          defaultValue={prefill.shops || suggestion.shops?.join(", ") || ""}
+          placeholder="Tesco, the Asian supermarket…"
+          primaryNote={(first) => (
+            <>
+              Usually <strong className="text-foreground">{first}</strong> — the first
+              one. That is the trip it gets grouped into.
+            </>
+          )}
+        />
       </div>
+
+      </div>
+
 
       {/* The duplicate case is already said, better, beside the name field -
           with a link to the row you actually want. Saying it again down here
@@ -639,13 +698,63 @@ export function AddItemForm({
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-[14px] bg-primary px-4 py-4 text-[15px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
-      >
-        {pending ? "Adding…" : "Add to pantry"}
-      </button>
+      {/*
+        What the form already worked out, on the last screen.
+
+        The old toggle showed this as a one-line summary so the guess could be
+        checked without opening anything. The stages mean it has all been seen
+        by now, but seen three screens ago - so it is repeated where the button
+        is, which is the moment somebody is deciding whether it is right.
+      */}
+      {last && summary.length > 0 && (
+        <p className="rounded-[14px] bg-chip px-4 py-3 text-sm font-semibold text-muted-foreground">
+          {summary.join(" · ")}
+        </p>
+      )}
+
+      <div className="flex gap-3">
+        {stage > 0 && (
+          <button
+            type="button"
+            onClick={() => setStage((n) => n - 1)}
+            aria-label="Back a step"
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-chip text-muted-foreground"
+          >
+            <ChevronLeft className="h-5 w-5" strokeWidth={3} />
+          </button>
+        )}
+
+        {last ? (
+          <button
+            type="submit"
+            disabled={pending}
+            className="h-14 flex-1 rounded-[14px] bg-primary px-4 text-[15px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
+          >
+            {pending ? "Adding…" : "Add to pantry"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setStage((n) => n + 1)}
+            disabled={!canLeave}
+            className="h-14 flex-1 rounded-[14px] bg-primary px-4 text-[15px] font-extrabold text-primary-foreground disabled:opacity-40"
+          >
+            Continue
+          </button>
+        )}
+      </div>
+
+      {/* The last two screens ask for nothing compulsory, so there is a way
+          straight to the end from the moment the amount is known. */}
+      {!last && stage > 0 && canLeave && (
+        <button
+          type="submit"
+          disabled={pending}
+          className="w-full text-sm font-bold text-muted-foreground underline underline-offset-2 disabled:opacity-40"
+        >
+          {pending ? "Adding…" : "Just add it"}
+        </button>
+      )}
     </form>
   );
 }
