@@ -3,9 +3,10 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 13 Sep 2026, starting F
-**Doing right now:** F1 — the week grid and the meal slots
-**Blocked on you:** nothing. You answered F, I'm building it.
+**Last updated:** 13 Sep 2026 — **everything is done and pushed**
+**Doing right now:** nothing
+**Waiting on you:** five environment variables, so the Sunday nudge works on
+the live site. They're at the bottom of this file. Everything else is live.
 
 ---
 
@@ -18,7 +19,7 @@ timestamp to see how fresh it is.
 | C | Paste a plain-text recipe and have it parsed | **done, pushed** |
 | D | Bug report / feature request, with photos | **done, pushed** |
 | E | Shopping lists without a kitchen | **done, pushed** |
-| F | Weekly meal planner + nutrition | in progress (F1 of 4) |
+| F | Weekly meal planner + nutrition | **done, pushed** |
 
 ---
 
@@ -127,18 +128,53 @@ Four stages, each pushed as it lands.
 
 | | Stage | State |
 |---|---|---|
-| F1 | Schema, the week grid, configurable slots | in progress |
-| F2 | The fun bit + shop for the whole week in one go | not started |
-| F3 | Nutrition totalled across the planned week | not started |
-| F4 | The Sunday nudge — service worker, web push, cron | not started |
+| F1 | Schema, the week grid, configurable slots | **done** |
+| F2 | The fun bit + shop for the whole week in one go | **done** |
+| F3 | Nutrition totalled across the planned week | **done** |
+| F4 | The Sunday nudge — service worker, web push, cron | **done** |
 
-**F4 is the one to know about.** There's no service worker and no push
-anywhere in the app yet, so that stage is: a service worker, VAPID keys, a
-subscriptions table, and a Vercel cron. It'll work on Android and desktop
-straight away; on iPhone only once the app is added to the home screen —
-which your manifest already supports, so that part is fine.
+`/plan` — seven rows, not seven columns, because seven columns on a phone is
+fifty pixels a cell. Reachable from Tonight and the + menu.
 
-The fun, for F2: the week draws itself in the recipe tints so a planned week
-is a stripe of colour, and **Fill the gaps** uses the ranker `/tonight`
-already has to propose what goes in the empty slots — using up what's about
-to go off and not repeating what you had on Tuesday.
+- **Up to 3 meals a day**, named by the kitchen, defaulting to dinner alone.
+- A slot takes a recipe **or** a line of text — Leftovers, Out, Takeaway.
+- Every planned meal draws in its recipe's own tint, so a planned week is a
+  stripe of colour and four days of the same brown are visible at a glance.
+- **Fill the gaps** runs the `/tonight` ranker: uses up what's going off,
+  never repeats within the week, only fills forwards, and tells you when it
+  ran out of recipes rather than going round the cookbook twice.
+- **Shop for it** — one trip for seven dinners, judged against one snapshot
+  of the shelves so pasta twice in a week isn't bought twice.
+- **Repeat next week**, because most weeks are mostly last week.
+- **Nutrition per plate**, with the week total under it and a plain count of
+  how many planned meals are actually behind the number.
+- **The nudge** — pick any day and evening hour. Reads the week before it
+  sends, so "nothing planned yet" and "four meals in, finish it off?" are
+  different messages.
+
+`npm run check:plan` (dates, DST, slots) and `npm run check:push` (when it
+fires, across both clock changes).
+
+---
+
+## The one thing left for you
+
+The Sunday nudge needs five variables on Vercel. They're already in your
+`.env.local` — copy them across:
+
+```
+vercel env add VAPID_PUBLIC_KEY production
+vercel env add VAPID_PRIVATE_KEY production
+vercel env add NEXT_PUBLIC_VAPID_KEY production
+vercel env add VAPID_SUBJECT production
+vercel env add CRON_SECRET production
+```
+
+Until then the settings panel says notifications aren't set up, and nothing
+else is affected.
+
+**Then test it on your phone**, not in a browser tab: Settings → Plan the
+week → Nudge me → Send one now. I couldn't verify delivery from here —
+headless Chromium refuses notifications outright, which is exactly why that
+button exists. On an iPhone it only works once the app is on your home
+screen.
