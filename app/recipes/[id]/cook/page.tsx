@@ -4,6 +4,7 @@ import { CookStory, type StoryStep } from "@/components/cook-story";
 import { getRecipe } from "@/lib/queries";
 import { currentKitchen } from "@/lib/session";
 import { describeLine, scaleQuantity } from "@/lib/units";
+import { displayTitle } from "@/lib/recipe-display";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +85,7 @@ export default async function CookPage({
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-[oklch(0.22_0.012_55)] px-8 text-center text-[oklch(0.96_0.008_60)]">
         <p className="text-[17px] font-bold">
-          {recipe.name} has no method written down yet.
+          {displayTitle(recipe.name)} has no method written down yet.
         </p>
         <Link
           href={`/recipes/${recipe.id}`}
@@ -99,7 +100,7 @@ export default async function CookPage({
   return (
     <CookStory
       recipeId={recipe.id}
-      name={recipe.name}
+      name={displayTitle(recipe.name)}
       servings={forServings}
       steps={steps}
     />

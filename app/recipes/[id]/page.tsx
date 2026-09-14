@@ -38,6 +38,7 @@ import { recipeTint } from "@/lib/tint";
 import { currentKitchen } from "@/lib/session";
 import { myRating } from "@/lib/recipe-store";
 import { getUser } from "@/lib/users";
+import { displayTitle } from "@/lib/recipe-display";
 
 export const dynamic = "force-dynamic";
 
@@ -222,7 +223,7 @@ export default async function RecipePage({
             is somebody else's ink. */}
         <div className="hidden print:block">
           <h1 className="text-[22px] font-extrabold tracking-[-0.02em]">
-            {recipe.name}
+            {displayTitle(recipe.name)}
           </h1>
           <p className="mt-1 text-sm font-semibold">
             Serves {recipe.base_servings}
@@ -294,7 +295,7 @@ export default async function RecipePage({
                 recipe.photo_url ? "text-white" : ""
               }`}
             >
-              {recipe.name}
+              {displayTitle(recipe.name)}
             </h1>
             {recipe.description && (
               <p

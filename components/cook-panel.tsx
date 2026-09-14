@@ -12,6 +12,7 @@ import {
   type UndoResult,
 } from "@/app/recipes/[id]/actions";
 import { totalOnHand } from "@/lib/containers";
+import { displayItemName } from "@/lib/recipe-display";
 import { SubstitutePicker } from "@/components/substitute-picker";
 import { NewPackDates } from "@/components/new-pack-dates";
 import { AddShortfallButton } from "@/components/add-shortfall-button";
@@ -549,7 +550,10 @@ export function CookPanel({
                       {amount.primary && (
                         <span className="text-quantity">{amount.primary} </span>
                       )}
-                      {line.item_name}
+                      {/* "1 Brown Onions" is nobody's sentence. Names are
+                          stored plural for the stock list; this is the one
+                          place that reads as a sentence instead of a row. */}
+                      {displayItemName(line.item_name, line.quantity, line.unit)}
                       {line.optional && (
                         <span className="ml-1.5 text-xs font-semibold text-muted-foreground">
                           optional

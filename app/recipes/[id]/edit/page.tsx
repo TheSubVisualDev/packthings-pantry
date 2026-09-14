@@ -9,6 +9,7 @@ import { getItems, getRecipe } from "@/lib/queries";
 import { currentKitchen } from "@/lib/session";
 import { draftFromRecipe } from "@/lib/recipe-draft";
 import { getSectionNames } from "@/lib/recipe-sections";
+import { displayTitle } from "@/lib/recipe-display";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,7 @@ export default async function EditRecipePage({
           href={`/recipes/${recipe.id}`}
           className="text-sm font-semibold text-muted-foreground hover:text-foreground"
         >
-          &larr; {recipe.name}
+          &larr; {displayTitle(recipe.name)}
         </Link>
         <h1
           className={`mt-2 text-[26px] font-extrabold tracking-[-0.02em] ${
