@@ -168,10 +168,23 @@ export function NavTransitions() {
       });
     }
 
-    // Capture, so this runs before any component's own handler and a link that
-    // wants to do something else can still preventDefault and be left alone.
-    document.addEventListener("click", onClick, true);
-    return () => document.removeEventListener("click", onClick, true);
+    /**
+     * Bubble, not capture.
+     *
+     * Capture was backwards and the comment that justified it was wrong: in
+     * the capture phase this runs BEFORE every component handler, so the
+     * `event.defaultPrevented` check above could never be true and a link that
+     * meant to do something else instead - open a sheet, toggle a row, stop
+     * for a confirmation - had its click taken and turned into a page
+     * transition anyway. Which is a full snapshot-and-swap of the whole
+     * screen for something that was not a navigation at all.
+     *
+     * On the document rather than on each link, so it still covers everything
+     * without anything opting in; last in the order, so anything that wanted
+     * the click has already had it.
+     */
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
   }, [router]);
 
   return null;

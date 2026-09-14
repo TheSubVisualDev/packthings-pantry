@@ -56,7 +56,17 @@ export async function SiteHeader({
       // Named so the page can slide underneath it without it sliding too - see
       // the view-transition rules in globals.css.
       data-site-header
-      className="border-b border-border bg-surface-raised pt-[env(safe-area-inset-top)] print:hidden"
+      /*
+        relative z-50 because of data-site-header, not in spite of it.
+
+        The view-transition-name that keeps this still during a page slide also
+        makes it a stacking context - so the account dropdown's own z-50 became
+        relative to the header rather than to the page, and the header itself
+        had no z-index at all. Everything rendered after it drew on top: cards,
+        sticky bars, the tab bar. The menu was not behind them by one layer, it
+        was in a different conversation about layers.
+      */
+      className="relative z-50 border-b border-border bg-surface-raised pt-[env(safe-area-inset-top)] print:hidden"
     >
       <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-9 sm:py-5">
         <div className="flex min-w-0 items-center gap-2.5 sm:gap-7">

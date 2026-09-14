@@ -196,12 +196,26 @@ button:not(.no-squish),
 [role="button"]:not(.no-squish),
 summary,
 label:has(> input[type="checkbox"]) {
+  /*
+    The colour transitions are FAST, and that is not a detail.
+    
+    They were 220ms, the same as everything else, which on a phone is fine
+    because there is no hover - and on a desktop meant every row a mouse
+    passed over spent a fifth of a second fading its background in and then
+    another fading it out. Across a list of thirty that is the whole page
+    shimmering, and it was reported exactly that way: everything flickers when
+    you interact with anything, on desktop.
+    
+    A hover is not an animation, it is an answer to "is the pointer here" - it
+    should be quick enough to read as the cursor rather than as a transition.
+    The transform keeps the long spring, because that one IS the animation.
+  */
   transition:
     transform var(--settle) var(--spring),
-    background-color var(--quick) var(--ease-out),
-    color var(--quick) var(--ease-out),
-    box-shadow var(--quick) var(--ease-out),
-    opacity var(--quick) var(--ease-out);
+    background-color var(--tap) var(--ease-out),
+    color var(--tap) var(--ease-out),
+    box-shadow var(--tap) var(--ease-out),
+    opacity var(--tap) var(--ease-out);
   transform-origin: center;
 }
 
