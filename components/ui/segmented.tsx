@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 /**
  * One segmented control, for the four places that had invented their own.
@@ -68,12 +68,18 @@ export function Segmented({
    * cancelled leaves the pill where the URL actually says it is rather than
    * where somebody hoped it would be.
    */
-  const [tapped, setTapped] = useState<string | null>(null);
-  const showing = tapped ?? active;
+  const [tapped, setTapped] = useState<{ key: string; from: string } | null>(null);
 
-  useEffect(() => {
-    setTapped(null);
-  }, [active]);
+  /**
+   * Derived, not reset in an effect.
+   *
+   * The guess is stored alongside the `active` it was made against, so it
+   * expires by simply no longer matching once the navigation lands - no effect
+   * watching a prop to clear state, which is a render that exists only to
+   * undo a previous one. A navigation that fails or is cancelled expires it
+   * the same way.
+   */
+  const showing = tapped && tapped.from === active ? tapped.key : active;
 
   return (
     <div
@@ -90,7 +96,7 @@ export function Segmented({
             <Link
               key={option.key}
               href={option.href}
-              onClick={() => setTapped(option.key)}
+              onClick={() => setTapped({ key: option.key, from: active })}
               // aria-current follows the URL, never the optimistic guess: a
               // screen reader should not be told you are somewhere you are
               // still on your way to.
@@ -121,7 +127,27 @@ export function Segmented({
                 <motion.span
                   layoutId={`pill-${group}`}
                   aria-hidden
-                  transition={{ type: "spring", stiffness: 700, damping: 42, mass: 0.6 }}
+                  /*
+                    Arrives late and leaves instantly.
+
+                    A page transition is a picture of the old page over a
+                    picture of the new one, and the pill was fading up through
+                    both of them - a white lozenge appearing over a slide that
+                    had not finished, which is the sort of thing you cannot
+                    un-see. It waits for the page to be still, and on the way
+                    out it is simply gone.
+
+                    Only the opacity is delayed. The layout spring that moves
+                    it between segments is untouched and still starts on the
+                    tap, because that one is a response and must not wait for
+                    anything.
+                  */
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{
+                    layout: { type: "spring", stiffness: 700, damping: 42, mass: 0.6 },
+                    opacity: { duration: 0.12, delay: 0.08 },
+                  }}
                   className="absolute inset-0 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
                 />
               )}

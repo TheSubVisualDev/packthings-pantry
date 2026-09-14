@@ -4,6 +4,7 @@ import { PantryMark } from "@/components/pantry-mark";
 import { Segmented } from "@/components/ui/segmented";
 import { getKitchensFor } from "@/lib/kitchens";
 import { currentKitchen } from "@/lib/session";
+import { isAdmin } from "@/lib/reports";
 
 const tabs = [
   { href: "/pantry", key: "stock", label: "Stock" },
@@ -37,7 +38,9 @@ export async function SiteHeader({
   // Reached through the Basic-auth back door there is no account and so no
   // kitchen; the header still has to render.
   const context = await currentKitchen();
-  const kitchens = context.ok ? await getKitchensFor(context.user.id) : [];
+  const [kitchens, admin] = context.ok
+    ? await Promise.all([getKitchensFor(context.user.id), isAdmin(context.user.id)])
+    : [[], false];
 
   return (
     /*
@@ -101,6 +104,7 @@ export async function SiteHeader({
             current={context.ok ? context.kitchen : null}
             kitchens={kitchens}
             handle={context.ok ? context.user.handle : null}
+            isAdmin={admin}
           />
         </div>
       </div>

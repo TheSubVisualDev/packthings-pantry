@@ -20,10 +20,13 @@ export function AccountMenu({
   current,
   kitchens,
   handle,
+  isAdmin = false,
 }: {
   current: KitchenMembership | null;
   kitchens: KitchenMembership[];
   handle: string | null;
+  /** Whether to offer the admin link at all. */
+  isAdmin?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -148,6 +151,17 @@ export function AccountMenu({
           >
             Report or request
           </Link>
+          {/* Only for whoever runs the pantry. Everyone else's /admin is a
+              404, so showing the link to them would be an invitation to one. */}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2.5 text-sm font-semibold hover:bg-chip"
+            >
+              Admin
+            </Link>
+          )}
 
           <div className="my-1 border-t border-border" />
           <form action={logout}>
