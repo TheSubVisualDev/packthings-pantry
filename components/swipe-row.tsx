@@ -49,13 +49,26 @@ export function SwipeRow({
   /**
    * How far is far enough.
    *
-   * Deliberately past the point of an accidental brush. A list this long gets
-   * scrolled one-handed with a thumb that does not travel in a straight line,
-   * and the cost of a false positive here is somebody's shelf emptied without
-   * them asking - so it wants most of the panel's width, not a flick.
+   * Tuned up after the first version was reported as too sensitive in the
+   * hand. Everything here was originally guessed with a mouse, and a mouse
+   * drags in a straight line at a steady speed; a thumb scrolling a long list
+   * one-handed does neither, and it throws off quite a lot of sideways
+   * velocity on the way past.
+   *
+   * The flick was the loose one. Committing on 32px at 520px/s meant a fast
+   * scroll with any diagonal in it could empty a shelf - so the distance now
+   * wants four fifths of the panel, and the flick wants to be both fast AND
+   * already most of the way there, which a scroll is not.
+   *
+   * These are the numbers to change if it is still wrong. Raising COMMIT
+   * makes it harder to trigger by accident and harder to trigger on purpose,
+   * in that order.
    */
-  const REVEAL = 104;
-  const COMMIT = 72;
+  const REVEAL = 120;
+  const COMMIT = 96;
+  /** A flick still counts, but it has to be a flick and not a fast scroll. */
+  const FLICK_SPEED = 1000;
+  const FLICK_DISTANCE = 64;
 
   // The panels behind only show once the row has actually started moving, so a
   // stationary list carries no coloured edges waiting to be noticed.
@@ -71,7 +84,7 @@ export function SwipeRow({
         <motion.div
           aria-hidden
           style={{ opacity: leftPanel }}
-          className="absolute inset-y-0 right-0 flex w-[104px] items-center justify-center gap-1.5 bg-destructive text-xs font-extrabold text-white"
+          className="absolute inset-y-0 right-0 flex w-[120px] items-center justify-center gap-1.5 bg-destructive text-xs font-extrabold text-white"
         >
           <Trash2 className="h-4 w-4" strokeWidth={2.75} />
           Used up
@@ -82,7 +95,7 @@ export function SwipeRow({
       <motion.div
         aria-hidden
         style={{ opacity: rightPanel }}
-        className="absolute inset-y-0 left-0 flex w-[104px] items-center justify-center gap-1.5 bg-primary text-xs font-extrabold text-primary-foreground"
+        className="absolute inset-y-0 left-0 flex w-[120px] items-center justify-center gap-1.5 bg-primary text-xs font-extrabold text-primary-foreground"
       >
         <Plus className="h-4 w-4" strokeWidth={3} />
         {addLabel}
@@ -96,18 +109,33 @@ export function SwipeRow({
          * scroll. Without this the list fights the gesture and neither wins.
          */
         dragDirectionLock
+        // No coasting: the row should stop where the thumb stopped, so what
+        // you saw when you let go is what gets judged.
+        dragMomentum={false}
         dragConstraints={{ left: onUsedUp ? -REVEAL : 0, right: REVEAL }}
         dragElastic={{ left: onUsedUp ? 0.05 : 0, right: 0.05 }}
         onDragEnd={(_, info) => {
+          /**
+           * A gesture that went sideways more than it went up.
+           *
+           * The axis lock decides which way to MOVE the row, and it decides
+           * early - so a scroll with a bit of lean can lock to x and then be
+           * judged as a swipe. This checks the whole gesture after the fact:
+           * if it travelled further vertically than horizontally, it was
+           * somebody scrolling past and nothing should happen.
+           */
+          if (Math.abs(info.offset.y) > Math.abs(info.offset.x)) return;
+
           // Distance OR a decisive flick - a short fast swipe is as deliberate
           // as a long slow one, and only accepting length punishes the people
-          // who are quickest with it.
+          // who are quickest with it. The flick has to be both fast and most
+          // of the way there, or a fast scroll qualifies.
           const left =
             info.offset.x < -COMMIT ||
-            (info.velocity.x < -520 && info.offset.x < -32);
+            (info.velocity.x < -FLICK_SPEED && info.offset.x < -FLICK_DISTANCE);
           const right =
             info.offset.x > COMMIT ||
-            (info.velocity.x > 520 && info.offset.x > 32);
+            (info.velocity.x > FLICK_SPEED && info.offset.x > FLICK_DISTANCE);
 
           if (left && onUsedUp) {
             setCommitting("left");
