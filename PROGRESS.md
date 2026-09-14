@@ -3,34 +3,80 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 14 Sep 2026 — reports #17-#21 done, site audit running
-**Doing right now:** two independent auditors are walking the app, one on the
-recipe half and one on the kitchen half. Neither was told what I had already
-found, or which code is recent — my own first pass found nothing wrong with
-anything I had just written, which is the sort of result that should not be
-trusted.
-**Waiting on you:** one command. Deleting the old Vercel deployments got
-blocked by a safety check on my end — the command is at the bottom of this
-file.
+**Last updated:** 14 Sep 2026 — audit round closed, 13 commits pushed
+**Doing right now:** nothing
+**Waiting on you:** how the swipe sensitivity actually feels in the hand. The
+thresholds were guessed with a mouse and a thumb is not a mouse.
 
-### Queued · do after the audit findings are actioned
+### Today, in one line
 
-**Shopping page restructure.** Agreed with Luna, sketch approved, not started.
+Three independent auditors walked the app; sixteen findings, six of them
+blockers, all fixed and pushed. Four of those findings were in code written
+that same morning by the agent that then reviewed it and passed it clean,
+which is the entire argument for having had somebody else look.
 
-1. Order becomes list → add form → Running Low, and it stays that way whether
-   or not the list is empty. Predictable was chosen over helpful: reordering
-   the page under somebody depending on how full their list is costs more than
-   the scroll it saves. The empty state must then point *down* at the form —
-   it currently says "type what you need above"
-   (`components/shopping-list.tsx:406`).
-2. Header stops saying `0 to buy` above five shortfalls. `0 on the list`
-   separates the two facts (`app/pantry/list/page.tsx:57`).
-3. The add form gets a heading and a full-width Add, like every other primary
-   action in the app (`components/shopping-list.tsx:287`).
-4. Running Low rows stop wrapping to two lines only when the shop name happens
-   to be long.
+Full write-up, with what each auditor found and where it was wrong, in
+`docs/AUDIT-2026-09-14.md`.
 
-### This round · five reports
+### What changed, by area
+
+**The importer** — a cook time overwritten by prep time (a regression shipped
+that morning, in the same commit that added its own tests, which never tested
+a recipe with both lines); wrapped numbered methods torn apart line by line;
+a wrapped headnote split between the description and "what happened last time
+you made it"; "1-inch piece of ginger" stored as "Inch piece of ginger".
+
+**Dates** — one rule instead of three. `daysUntil` was comparing an instant to
+a midnight and flooring it, so anything past its date read a day worse than it
+was. `npm run check:dates` pins the clock, because a date test that asks the
+real time passes at midnight and fails at teatime.
+
+**The front door** — `/tonight` is where the app opens; the promotional banner
+is off the stock page; Discover no longer lists your own recipes back at you.
+
+**The editor** — three fields per ingredient instead of six; blank rows and
+blank steps no longer block a save; you can name a recipe before writing it;
+tag suggestions come from the recipe rather than from your most-used tags.
+
+**Feel** — cooking has a payoff instead of a receipt; stock rows swipe both
+ways; the stagger stopped hiding rows it never got round to animating.
+
+**Vercel** — 540MB per deployment down to 135MB, mostly one native SQLite
+driver that nothing calls, copied into 41 of 51 functions. Vercel always keeps
+the last 20 production deployments, so the floor was 20 x 540MB and the 10GB
+free tier was never going to hold it. It resolves itself as the old
+deployments roll out.
+
+### Still open, as projects rather than fixes
+
+1. **Merge `/tonight` and `/plan`.** Two suggestion engines answering one
+   question, free to disagree with each other the way the date code did. Risk:
+   `/tonight` is tuned for one fast decision at six when you are hungry.
+2. **Read the use-by date with the camera.** Tesseract already runs in the
+   browser for receipts. Must confirm before saving — a barcode misread as a
+   date is worse than an empty field.
+3. **Swipe between the four tabs.** Luna's idea. Note the conflict before
+   building it: stock rows now take horizontal swipes themselves, so a
+   page-level swipe would fight them on the one screen people use most.
+   Probably wants the page gesture to start from a screen edge.
+
+### Lessons worth keeping
+
+- Subagents only committed at the very end, so when all three hit the session
+  limit mid-flight their work was nearly lost — it was recovered by hand from
+  their worktrees. Tell them to commit incrementally.
+- An agent that walks flows for real changes the data it is judging. Both
+  walking auditors left rows behind, and one reported a shelf its own cooking
+  had emptied as a matching bug. Clone the database or have them log what they
+  create.
+- One agent ran a blanket `taskkill //F //IM node.exe` and killed every dev
+  server on the machine, including the other agents'. Worth saying explicitly
+  in a worker brief: never use a process kill that is not scoped to your own
+  port.
+
+---
+
+## The tester-feedback round, before the audit
 
 | | | |
 |---|---|---|
@@ -79,8 +125,6 @@ Two importer bugs fell out of testing it:
   opens on was written from savoury recipes. Knead, prove, chill and sieve are
   on it now. Cream and batter deliberately are not: they are also things you
   buy.
-
----
 
 ---
 
