@@ -12,7 +12,25 @@ const nextConfig: NextConfig = {
   // Minor version disclosure, flagged in the phase 1 pen test.
   poweredByHeader: false,
 
+  /**
+   * No source maps in the deployed functions.
+   *
+   * Vercel counts Function Storage across every deployment it keeps, not just
+   * the live one, and the free tier is 10GB - which this hit 75% of. Of the
+   * 31MB of server output, 23MB was .map files: three quarters of what gets
+   * stored on every push was debug data for code nobody attaches a debugger
+   * to. A stack trace from production is read against the repository at that
+   * commit, which is what git is for.
+   *
+   * Browser maps go too. They are public, so they hand the whole unminified
+   * client to anybody who opens devtools, and they are downloaded by real
+   * phones on real connections.
+   */
+  productionBrowserSourceMaps: false,
+
   experimental: {
+    serverSourceMaps: false,
+
     /**
      * Headroom, not the fix.
      *
