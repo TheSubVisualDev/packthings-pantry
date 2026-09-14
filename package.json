@@ -24,7 +24,8 @@
     "check:tonight": "node --import ./scripts/ts-imports.mjs scripts/check-tonight.mjs",
     "check:step-timers": "node --import ./scripts/ts-imports.mjs scripts/check-step-timers.mjs",
     "check:suggest": "node --import ./scripts/ts-imports.mjs scripts/check-suggest.mjs",
-    "shots": "node --env-file=.env.local scripts/screenshot.mjs"
+    "shots": "node --env-file=.env.local scripts/screenshot.mjs",
+    "check:bundle": "node scripts/check-bundle.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

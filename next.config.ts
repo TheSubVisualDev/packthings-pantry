@@ -9,6 +9,34 @@ const nextConfig: NextConfig = {
     "/api/claude-guide": ["./docs/RECIPES-FOR-CLAUDE.md"],
   },
 
+  /**
+   * Image-resizing binaries for machines this does not run on.
+   *
+   * sharp ships a native build per platform plus a WebAssembly fallback for
+   * the ones it has no build for. Vercel runs linux-x64, so it uses exactly
+   * one of them and traces the rest in anyway - the wasm fallback alone is
+   * 8.7MB, in five functions, 43.6MB per deployment, for code that is reached
+   * only when the native binary is missing.
+   *
+   * Whatever this build machine is gets excluded too: a trace collected on
+   * Windows carries win32 binaries that a Linux function could not load if it
+   * tried. The linux-x64 build is deliberately NOT listed - that is the one
+   * doing the work.
+   */
+  outputFileTracingExcludes: {
+    "*": [
+      "node_modules/@img/sharp-wasm32/**",
+      "node_modules/@img/sharp-win32-x64/**",
+      "node_modules/@img/sharp-win32-ia32/**",
+      "node_modules/@img/sharp-win32-arm64/**",
+      "node_modules/@img/sharp-darwin-x64/**",
+      "node_modules/@img/sharp-darwin-arm64/**",
+      "node_modules/@img/sharp-libvips-win32-x64/**",
+      "node_modules/@img/sharp-libvips-darwin-x64/**",
+      "node_modules/@img/sharp-libvips-darwin-arm64/**",
+    ],
+  },
+
   // Minor version disclosure, flagged in the phase 1 pen test.
   poweredByHeader: false,
 

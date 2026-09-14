@@ -1,4 +1,26 @@
-import { createClient, type Client } from "@libsql/client";
+/**
+ * The web client, not the default one, and this is a storage decision.
+ *
+ * `@libsql/client` resolves to its node build, which depends on the `libsql`
+ * native addon so that a `file:` URL can open a SQLite file directly. This app
+ * never opens a file - it talks to sqld in Nuremberg over a WebSocket, which
+ * is what connectionUrl below is entirely about - so that addon is carried and
+ * never called.
+ *
+ * It is not free to carry. Vercel traces a separate bundle per route, and the
+ * addon is 8.5MB: 41 of this app's 51 functions had a copy, which came to
+ * 347MB of the 540MB stored on every single deployment. Vercel counts that
+ * across every deployment it retains, and the free tier's 10GB had been blown
+ * through to 16GB. Sixty-four per cent of the bill was one binary nothing
+ * executes.
+ *
+ * The /web build speaks http, https, ws and wss and nothing else, so if a
+ * `file:` URL ever appears here it will fail loudly at connect rather than
+ * quietly work - which is the right way round. The scripts that DO open local
+ * files (clone-db, check-cascade) import @libsql/client directly and are
+ * unaffected; they run on this machine and ship nowhere.
+ */
+import { createClient, type Client } from "@libsql/client/web";
 
 let client: Client | undefined;
 

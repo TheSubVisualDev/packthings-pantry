@@ -41,6 +41,25 @@ rather than listing them.
 the client opens a fresh TCP and TLS connection per query and pools nothing.
 Set `LIBSQL_PROTOCOL=http` to roll that back without a deploy.
 
+**`lib/db.ts` imports `@libsql/client/web`, and that slash-web matters.** The
+default export resolves to the node build, which depends on an 8.5MB native
+addon so a `file:` URL can open a SQLite file directly. Nothing in the app
+opens a file - it talks to sqld over a WebSocket - but Vercel traces a bundle
+per route and 41 of 51 functions each got a copy: 347MB of the 540MB stored on
+every deployment, for a binary nothing calls. Storage is counted across every
+deployment retained, and the free tier's 10GB had gone to 16GB. Changing the
+import back "to be consistent with the scripts" puts all of it straight back.
+The scripts import `@libsql/client` on purpose - `clone-db` and
+`check-cascade` really do open local files, and they ship nowhere.
+
+**`du` on `.next/server` lies about deployment size.** It said 8.9MB while the
+real figure was 540MB, because it does not see the `node_modules` that file
+tracing copies into each function. `npm run check:bundle` reads the
+`*.nft.json` trace lists and reports size times number-of-functions, which is
+what Vercel actually charges for. Vercel keeps the last 20 production
+deployments whatever the retention policy says, so the steady state is roughly
+twenty times that number - budget against 20x, not 1x.
+
 **A recipe line may have no amount at all.** `some` is a unit with no
 dimension - "salt, to taste", "oil for frying" - and every conversion refuses
 it with `reason: "unmeasured"`, which is deliberately not the same as
