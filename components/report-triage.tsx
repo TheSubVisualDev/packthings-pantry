@@ -18,6 +18,20 @@ import type { ReportWithAuthor } from "@/lib/reports";
  * is itself worth knowing, and a deleted row cannot tell you that.
  */
 export function ReportTriage({ queue }: { queue: ReportWithAuthor[] }) {
+  /**
+   * The pile, as it was when you sat down.
+   *
+   * Frozen on purpose. `queue` is a server prop of everything still undecided,
+   * so deciding one revalidated the page, dropped it out of the list, and left
+   * the index pointing one past where it had been - which skipped the next
+   * card every single time. Reported as "confirming one gets rid of the next",
+   * which is exactly what it did.
+   *
+   * The same bug, in the same shape, as the onboarding steps: an index into a
+   * list that changes length underneath it. Walking a frozen copy is the only
+   * version of this that cannot drift.
+   */
+  const [cards] = useState(() => queue);
   const [at, setAt] = useState(0);
   const [decided, setDecided] = useState<Record<number, "approved" | "rejected">>({});
   const [pending, startDeciding] = useTransition();
@@ -33,8 +47,8 @@ export function ReportTriage({ queue }: { queue: ReportWithAuthor[] }) {
   const [dragged, setDragged] = useState(0);
   const [from, setFrom] = useState<number | null>(null);
 
-  const card = queue[at];
-  const left = queue.length - at;
+  const card = cards[at];
+  const left = cards.length - at;
 
   function answer(id: number, status: "approved" | "rejected") {
     setError(null);
@@ -59,7 +73,7 @@ export function ReportTriage({ queue }: { queue: ReportWithAuthor[] }) {
   }
 
   function undo() {
-    const previous = queue[at - 1];
+    const previous = cards[at - 1];
     if (!previous) return;
     setError(null);
     setAt((n) => Math.max(0, n - 1));
@@ -97,12 +111,12 @@ export function ReportTriage({ queue }: { queue: ReportWithAuthor[] }) {
           <Check className="h-6 w-6" strokeWidth={3} />
         </div>
         <h2 className="mt-3 text-[17px] font-extrabold">
-          {queue.length === 0 ? "Nothing waiting." : "That is the lot."}
+          {cards.length === 0 ? "Nothing waiting." : "That is the lot."}
         </h2>
         <p className="mt-1 text-sm font-semibold text-muted-foreground">
-          {queue.length === 0
+          {cards.length === 0
             ? "Reports land here as people send them."
-            : `${queue.length} decided. Ask Claude to collate the approved ones.`}
+            : `${cards.length} decided. Ask Claude to collate the approved ones.`}
         </p>
         {at > 0 && (
           <button

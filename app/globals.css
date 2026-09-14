@@ -464,34 +464,6 @@ html[data-nav-dir="out"]::view-transition-new(root) { z-index: 1; }
 html[data-nav-dir="out"]::view-transition-old(root) { z-index: 2; }
 
 /**
- * The segmented pill slides between its segments.
- *
- * Named per control so two on one page do not share one, and classed so this
- * rule can catch all of them without knowing their names. The browser morphs
- * the box from where it was to where it is, which is the only way to animate
- * that across a navigation - and these segments are links, so every change of
- * one IS a navigation.
- */
-::view-transition-group(.pill) {
-  animation-duration: 380ms;
-  animation-timing-function: var(--spring);
-}
-
-/**
- * Changing a filter is not going anywhere.
- *
- * Same page, different query string: the group-by, a shop filter, a search.
- * The content should settle rather than rise up from below like a new screen,
- * and the pill above it is the thing actually worth watching.
- */
-html[data-nav-dir="none"]::view-transition-old(root) {
-  animation: fade 120ms var(--ease-out) reverse both;
-}
-html[data-nav-dir="none"]::view-transition-new(root) {
-  animation: fade 160ms var(--ease-out) both;
-}
-
-/**
  * The furniture holds still.
  *
  * A header and a tab bar that slide with the content break the one fixed

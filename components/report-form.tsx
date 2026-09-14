@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Bug, Check, Lightbulb, X } from "lucide-react";
 import { submitReport, type FileReportResult } from "@/app/report/actions";
+import { downscale } from "@/lib/downscale";
 
 /**
  * Writing in from inside the app.
@@ -71,19 +72,41 @@ export function ReportForm({ from }: { from: string | null }) {
     [],
   );
 
-  function addPhotos(chosen: FileList | null) {
+  /**
+   * Shrinks each picture before it is held, not at submit time.
+   *
+   * A report with a photo on it used to fail with a 403 and take the words
+   * with it: a Next server action refuses any body over 1MB and a phone
+   * screenshot is several. Doing it here rather than in `send` means the
+   * preview is of what will actually be sent, and the wait happens while
+   * somebody is still typing rather than after they press the button.
+   */
+  const [shrinking, setShrinking] = useState(false);
+
+  async function addPhotos(chosen: FileList | null) {
     if (!chosen) return;
-    const added = Array.from(chosen).map((file) => ({
-      file,
-      url: URL.createObjectURL(file),
-    }));
-    setPhotos((current) => {
-      const next = [...current, ...added];
-      // Anything over the limit never gets shown, so its URL is dead weight.
-      for (const spare of next.slice(4)) URL.revokeObjectURL(spare.url);
-      return next.slice(0, 4);
-    });
     if (picker.current) picker.current.value = "";
+
+    setShrinking(true);
+    try {
+      const added = await Promise.all(
+        Array.from(chosen)
+          .slice(0, 4)
+          .map(async (original) => {
+            const file = await downscale(original);
+            return { file, url: URL.createObjectURL(file) };
+          }),
+      );
+
+      setPhotos((current) => {
+        const next = [...current, ...added];
+        // Anything over the limit never gets shown, so its URL is dead weight.
+        for (const spare of next.slice(4)) URL.revokeObjectURL(spare.url);
+        return next.slice(0, 4);
+      });
+    } finally {
+      setShrinking(false);
+    }
   }
 
   function dropPhoto(at: number) {
@@ -265,10 +288,11 @@ export function ReportForm({ from }: { from: string | null }) {
             {photos.length < 4 && (
               <button
                 type="button"
+                disabled={shrinking}
                 onClick={() => picker.current?.click()}
-                className="flex h-24 w-20 items-center justify-center rounded-[12px] border-2 border-dashed border-border text-xs font-bold text-muted-foreground"
+                className="flex h-24 w-20 items-center justify-center rounded-[12px] border-2 border-dashed border-border text-xs font-bold text-muted-foreground disabled:opacity-50"
               >
-                + Add
+                {shrinking ? "…" : "+ Add"}
               </button>
             )}
           </div>
@@ -299,7 +323,7 @@ export function ReportForm({ from }: { from: string | null }) {
         <button
           type="button"
           onClick={send}
-          disabled={pending || title.trim().length === 0}
+          disabled={pending || shrinking || title.trim().length === 0}
           className="mt-4 min-w-[112px] rounded-[12px] bg-primary px-5 py-3 text-center text-sm font-extrabold text-primary-foreground disabled:opacity-40"
         >
           {pending ? "Sending…" : "Send it"}

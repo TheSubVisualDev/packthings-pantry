@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "motion/react";
+import { useEffect, useState } from "react";
 
 /**
  * One segmented control, for the four places that had invented their own.
@@ -54,6 +56,25 @@ export function Segmented({
    */
   const group = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
+  /**
+   * Where the pill should be, before the server has agreed.
+   *
+   * These segments are links, so the real answer arrives with the next render
+   * - and waiting for it meant the pill sat still for the length of a round
+   * trip and then moved, which reads as the control hesitating rather than
+   * responding. It moves on the tap and the navigation catches up behind it.
+   *
+   * Cleared whenever `active` agrees, so a navigation that fails or is
+   * cancelled leaves the pill where the URL actually says it is rather than
+   * where somebody hoped it would be.
+   */
+  const [tapped, setTapped] = useState<string | null>(null);
+  const showing = tapped ?? active;
+
+  useEffect(() => {
+    setTapped(null);
+  }, [active]);
+
   return (
     <div
       role="group"
@@ -64,47 +85,53 @@ export function Segmented({
     >
       <div className="flex items-center gap-0.5 rounded-full bg-[oklch(0.93_0.02_60)] p-1">
         {options.map((option) => {
-          const on = option.key === active;
+          const on = option.key === showing;
           return (
             <Link
               key={option.key}
               href={option.href}
-              aria-current={on ? "page" : undefined}
+              onClick={() => setTapped(option.key)}
+              // aria-current follows the URL, never the optimistic guess: a
+              // screen reader should not be told you are somewhere you are
+              // still on your way to.
+              aria-current={option.key === active ? "page" : undefined}
               className={`relative flex h-9 snap-start items-center rounded-full px-4 text-sm whitespace-nowrap transition-colors sm:h-8 sm:px-3.5 sm:text-[13px] ${
                 on ? "text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {/*
-                The white pill travels rather than teleporting.
+                The white pill.
 
-                Not Motion's layoutId, which was the obvious answer and the
-                wrong one: these segments are LINKS, so picking one navigates
-                and the whole tree remounts - there is no shared React state
-                for a layout animation to span, and it jumped 24px to 178px
-                with nothing in between when measured.
+                It is painted BEFORE the label and the label is given its own
+                stacking position, rather than the pill being pushed behind
+                with a negative z-index. That version put it behind the group's
+                own background, so it was invisible at rest and only appeared
+                while a transition had lifted it into a layer of its own -
+                which is exactly how it was reported: "only appears during
+                animation, disappears before and after".
 
-                A view-transition name does span it. The browser sees the same
-                named box in the before and after pictures and morphs one into
-                the other, which is exactly the job, and it is the only thing
-                that works across a navigation.
-
-                Behind the label via a negative z-index on the pill rather than
-                a positive one on the text, so a segment with a meta count does
-                not need its own stacking context to stay readable.
+                layoutId, not a view-transition name. Motion interpolates from
+                wherever the pill actually is, so tapping a third segment
+                while it is still travelling redirects it from its current
+                position instead of restarting. View transitions cannot be
+                interrupted - a second one mid-flight is dropped - and being
+                able to change your mind halfway is the whole ask.
               */}
               {on && (
-                <span
+                <motion.span
+                  layoutId={`pill-${group}`}
                   aria-hidden
-                  style={{
-                    viewTransitionName: `pill-${group}`,
-                    viewTransitionClass: "pill",
-                  }}
-                  className="absolute inset-0 -z-10 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                  transition={{ type: "spring", stiffness: 700, damping: 42, mass: 0.6 }}
+                  className="absolute inset-0 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
                 />
               )}
-              {option.label}
+              {/* Above the pill by being positioned at all, which is cheaper
+                  than giving either of them a z-index to argue about. */}
+              <span className="relative">{option.label}</span>
               {option.meta && (
-                <span className="ml-1.5 font-semibold opacity-60">{option.meta}</span>
+                <span className="relative ml-1.5 font-semibold opacity-60">
+                  {option.meta}
+                </span>
               )}
             </Link>
           );

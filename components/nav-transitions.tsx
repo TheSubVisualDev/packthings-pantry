@@ -110,6 +110,21 @@ export function NavTransitions() {
       // Same page, different anchor: that is a scroll, not a navigation.
       if (to.pathname === location.pathname && to.hash) return;
 
+      /**
+       * A filter is not a navigation.
+       *
+       * Same path, different query string: the group-by, a shop filter, a
+       * search. Nothing is being gone to, so there is nothing to animate at
+       * the page level - and a view transition here is actively harmful,
+       * because it freezes the DOM while it swaps and the pill that IS
+       * worth watching gets replaced by a snapshot instead of moving.
+       *
+       * Left to the ordinary navigation, which lets Motion animate the pill
+       * from wherever it currently is - and unlike a view transition, that
+       * can be interrupted halfway and redirected.
+       */
+      if (to.pathname === location.pathname) return;
+
       if (
         !document.startViewTransition ||
         window.matchMedia("(prefers-reduced-motion: reduce)").matches

@@ -12,6 +12,20 @@ const nextConfig: NextConfig = {
   // Minor version disclosure, flagged in the phase 1 pen test.
   poweredByHeader: false,
 
+  experimental: {
+    /**
+     * Headroom, not the fix.
+     *
+     * A server action refuses any body over 1MB by default, which is what was
+     * turning a bug report with a screenshot on it into a 403 that ate the
+     * words as well as the picture. Photos are shrunk in the browser now -
+     * lib/downscale.ts - so they arrive around 300KB; this is the margin for
+     * four of them at once plus the form, and for the day somebody attaches
+     * something the canvas refuses to re-encode and it goes up untouched.
+     */
+    serverActions: { bodySizeLimit: "8mb" },
+  },
+
   images: {
     // Photos live in Vercel Blob, which serves them from a per-store subdomain.
     remotePatterns: [
