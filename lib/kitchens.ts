@@ -22,6 +22,8 @@ export interface Kitchen {
   id: number;
   name: string;
   owner_id: number;
+  /** How many this kitchen usually cooks for, from onboarding. */
+  default_servings: number | null;
   created_at: string | null;
 }
 

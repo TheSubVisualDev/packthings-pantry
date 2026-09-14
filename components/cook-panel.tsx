@@ -225,9 +225,15 @@ export function CookPanel({
   steps,
   hasKitchen,
   inCookbook,
+  lastServings,
 }: {
   recipeId: number;
   baseServings: number;
+  /**
+   * How many it was cooked for last time here, or what this kitchen usually
+   * cooks for. Null when neither is known.
+   */
+  lastServings: number | null;
   rating: number | null;
   lines: CookLine[];
   steps: CookStep[];
@@ -242,7 +248,19 @@ export function CookPanel({
    */
   inCookbook: boolean;
 }) {
-  const [servings, setServings] = useState(baseServings);
+  /**
+   * How many to cook for, starting from what happened last time.
+   *
+   * A recipe's base servings is a fact about the recipe; how many people live
+   * here is a fact about the kitchen, and it does not change between visits.
+   * Setting it to four every time and watching it come back as two on the next
+   * visit is the app forgetting something it already wrote down - cook_events
+   * has recorded the number on every cook since phase 1.
+   *
+   * Reset still goes to the recipe's own number, because that is what Reset
+   * means and it is the only way back to the quantities as written.
+   */
+  const [servings, setServings] = useState(lastServings ?? baseServings);
   const [result, setResult] = useState<CookResult | null>(null);
   const [undone, setUndone] = useState<UndoResult | null>(null);
   const [deadline, setDeadline] = useState(0);

@@ -99,7 +99,7 @@ export default async function ClaudePage() {
             <ul className="space-y-1.5">
               {[
                 "What can I make tonight with what's in the pantry?",
-                "I've got tofu going off on Thursday. Ideas?",
+                "I've got tofu expiring on Thursday. Ideas?",
                 "Write me a recipe for doenjang-jjigae and add it to my pantry.",
                 "What have I got in the fridge?",
               ].map((prompt) => (
@@ -120,7 +120,7 @@ export default async function ClaudePage() {
             <li>
               <strong className="font-bold text-foreground">See</strong> your
               stock — quantities, tags, where things live, what&apos;s
-              going off.
+              expiring soon.
             </li>
             <li>
               <strong className="font-bold text-foreground">Read</strong> your

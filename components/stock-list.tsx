@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Check, X } from "lucide-react";
 import { BulkBar } from "@/components/bulk-bar";
 import { RowAdjust } from "@/components/row-adjust";
-import { describeStock, labelSaysOpen } from "@/lib/containers";
+import { describeStock, inStock, labelSaysOpen } from "@/lib/containers";
 import type { TagInUse } from "@/lib/tags";
 import type { Item } from "@/lib/types";
 
@@ -30,12 +31,22 @@ export function StockList({
   places,
   tags,
   canEdit,
+  runOut = [],
   groupControl,
 }: {
   groups: [string, Item[]][];
   places: string[];
   tags: TagInUse[];
   canEdit: boolean;
+  /**
+   * Things at zero that nobody has asked to keep in stock.
+   *
+   * Off the shelf, because a row reading "Tiger Bloomer 0g" is a shelf
+   * claiming to hold nothing - but behind a count rather than gone, because an
+   * item that vanishes the moment you finish it is one you cannot find again
+   * to say you have bought more.
+   */
+  runOut?: Item[];
   /**
    * The group-by switch, rendered by the page because it is a set of links.
    *
@@ -200,13 +211,23 @@ export function StockList({
                     {/* Its own column, right-aligned and tabular, so amounts
                         line up down the edge and can be compared without
                         reading the names again. */}
-                    <span
-                      className={`shrink-0 text-right font-mono text-[13px] font-bold tabular-nums ${
-                        picked ? "" : "text-quantity"
-                      }`}
-                    >
-                      {describeStock(item)}
-                    </span>
+                    {/* Something you have said to keep in stock, at zero. The
+                        one case where an item's absence is the news, so it
+                        stays on the shelf and says so rather than printing a
+                        quiet "0g" that reads like a rounding error. */}
+                    {!inStock(item) ? (
+                      <span className="shrink-0 rounded-full bg-[oklch(0.94_0.05_35)] px-2.5 py-1 text-[11px] font-bold whitespace-nowrap text-destructive">
+                        none left
+                      </span>
+                    ) : (
+                      <span
+                        className={`shrink-0 text-right font-mono text-[13px] font-bold tabular-nums ${
+                          picked ? "" : "text-quantity"
+                        }`}
+                      >
+                        {describeStock(item)}
+                      </span>
+                    )}
                   </>
                 );
 
@@ -267,6 +288,29 @@ export function StockList({
           </section>
         ))}
       </div>
+
+      {/* The way back. Not a shelf - these are not on it - but a list of
+          things this kitchen knows about and currently has none of. */}
+      {runOut.length > 0 && !selecting && (
+        <details className="mt-4 print:hidden">
+          <summary className="cursor-pointer text-sm font-bold text-muted-foreground">
+            {runOut.length} run out
+          </summary>
+          <ul className="mt-2 overflow-hidden rounded-[16px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+            {runOut.map((item) => (
+              <li key={item.id}>
+                <Link
+                  href={`/pantry/item/${item.id}`}
+                  className="flex min-h-11 w-full items-center gap-3 border-b border-border px-3.5 text-left text-sm font-semibold text-muted-foreground last:border-b-0 hover:bg-chip"
+                >
+                  <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                  <span className="shrink-0 text-xs font-bold">none left</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {selecting && selected.size > 0 && (
         <BulkBar

@@ -5,13 +5,14 @@ import { Segmented } from "@/components/ui/segmented";
 import { EstimateButton } from "@/components/estimate-button";
 import { StockList } from "@/components/stock-list";
 import { TonightStrip } from "@/components/tonight-strip";
-import { GoingOff } from "@/components/going-off";
+import { ExpiringSoon } from "@/components/expiring-soon";
 import { EmptyShelves } from "@/components/empty-shelves";
 import { getItems, getTonightFacts } from "@/lib/queries";
 import { rankTonight } from "@/lib/tonight";
 import { getTrip } from "@/lib/trip";
 import { TripStrip } from "@/components/trip-strip";
 import { UNPLACED } from "@/lib/locations";
+import { inStock } from "@/lib/containers";
 import { getLocations } from "@/lib/kitchens";
 import { macroGroup } from "@/lib/nutrition";
 import { getTags } from "@/lib/tags";
@@ -144,17 +145,41 @@ export default async function PantryPage({
 
   const tagNames = new Map(tags.map((tag) => [tag.id, tag.name]));
 
-  const groups = group(items, groupBy, places, tagNames);
+  /**
+   * What has run out, kept off the shelf.
+   *
+   * A row reading "Tiger Bloomer 0g" is a shelf claiming to hold nothing,
+   * which is how it was reported - it looks like a bug even when it is not.
+   *
+   * Two exceptions, and they are the point. Something you have said to keep in
+   * stock STAYS on the list when it hits zero, marked, because that is the one
+   * case where its absence is the news. And everything else goes into a count
+   * at the bottom rather than into the void: an item that vanishes the moment
+   * you finish it is one you cannot find again to say you have bought more.
+   *
+   * inStock, not `quantity > 0`. quantity is the OPEN container, and testing
+   * it directly is the bug AGENTS.md keeps a count of - this would have been
+   * the sixth, hiding anything whose open jar was empty with three sealed ones
+   * behind it.
+   */
+  const onShelf = items.filter(
+    (item) => inStock(item) || item.restock_target !== null,
+  );
+  const runOut = items.filter(
+    (item) => !inStock(item) && item.restock_target === null,
+  );
+
+  const groups = group(onShelf, groupBy, places, tagNames);
 
   return (
     <>
       <SiteHeader
         active="stock"
-        meta={`${items.length} items · ${tags.length} ${tags.length === 1 ? "tag" : "tags"}`}
+        meta={`${onShelf.length} items · ${tags.length} ${tags.length === 1 ? "tag" : "tags"}`}
       />
 
       {/* Board 1b, Luna's pick. The six stacked controls are gone: the
-          suggestion is one row, what is going off is a band, and the group-by
+          suggestion is one row, what is expiring soon is a band, and the group-by
           sits on the same line as Select. Everything below is the stock,
           which is what the screen is called. */}
       <main className="mx-auto w-full max-w-[900px] px-5 pt-4 pb-32 sm:px-8 sm:pt-6">
@@ -179,7 +204,7 @@ export default async function PantryPage({
         )}
 
         <div className="print:hidden">
-          <GoingOff rescues={rescues} />
+          <ExpiringSoon rescues={rescues} />
         </div>
 
         {/* A stocktake is a printed list you carry to the cupboard and mark
@@ -201,6 +226,7 @@ export default async function PantryPage({
               places={places}
               tags={tags}
               canEdit={kitchen.role !== "viewer"}
+              runOut={runOut}
               groupControl={<GroupToggle active={groupBy} />}
             />
 

@@ -16,7 +16,7 @@ import type { Rescue } from "@/lib/queries";
  * the most worth seeing - and they are exactly what a suggestion panel is
  * structurally incapable of surfacing.
  *
- * It does NOT say so per item any more. Four things going off, each followed
+ * It does NOT say so per item any more. Four things expiring soon, each followed
  * by its own line of "nothing in your cookbook uses this yet", was four
  * repetitions of one fact taking up the top quarter of the stock page - and
  * the fact is about the cookbook rather than about the tomatoes. Said once,

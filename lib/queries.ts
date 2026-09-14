@@ -564,7 +564,7 @@ export interface Rescue {
  *
  * The deadline is whichever comes first of the date on the packet and
  * `opened_at + shelf_life_days`, which getExpiring already works out - so this
- * is a ranking problem rather than a second definition of "going off", and
+ * is a ranking problem rather than a second definition of "expiring", and
  * there is no way for the two to disagree.
  */
 export async function getRescues(

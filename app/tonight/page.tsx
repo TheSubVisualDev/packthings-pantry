@@ -93,7 +93,7 @@ export default async function TonightPage({
           </Link>
         </div>
         <p className="mb-5 text-sm font-semibold text-muted-foreground">
-          Ranked on what is going off, what you have, and what you had recently.
+          Ranked on what expires soonest, what you have, and what you had recently.
         </p>
 
         <RecipeFilters

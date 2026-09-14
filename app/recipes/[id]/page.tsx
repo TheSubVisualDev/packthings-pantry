@@ -365,6 +365,9 @@ export default async function RecipePage({
           steps={steps}
           hasKitchen={kitchen !== null}
           inCookbook={inCookbook}
+          /* Last time here, then what this kitchen usually cooks for, then the
+             recipe's own number. Each is a better guess than the one after. */
+          lastServings={history[0]?.servings ?? kitchen?.default_servings ?? null}
         />
 
         {/* Adopting comes before cooking, because adopting is where the app is

@@ -295,7 +295,7 @@ export async function fillTheGaps(start: string): Promise<PlanResult> {
     ok: true,
     message: ranDry
       ? `${days} — that is every recipe in the cookbook once. Add more and the rest of the week fills too.`
-      : `${days}, using up what is going off first.`,
+      : `${days}, using up what expires soonest first.`,
   };
 }
 

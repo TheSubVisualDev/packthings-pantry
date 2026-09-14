@@ -17,7 +17,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Pantry",
     short_name: "Pantry",
-    description: "What is on the shelves, what is going off, and what to cook.",
+    description: "What is on the shelves, what is expiring soon, and what to cook.",
     start_url: "/pantry",
     scope: "/",
     display: "standalone",

@@ -7,6 +7,7 @@ import {
   updateItem,
   type ItemResult,
 } from "@/app/pantry/actions";
+import { ItemMenu } from "@/components/item-menu";
 import { daysUntil, parseStamp } from "@/lib/dates";
 import type { Item } from "@/lib/types";
 
@@ -28,7 +29,7 @@ export function ItemDetail({
    * How much there is, rendered between the deadline and the paperwork.
    *
    * Passed in rather than imported because it is a server-rendered panel of
-   * its own, and because the order is the point: what is going off, then how
+   * its own, and because the order is the point: what is expiring, then how
    * much is left, then the fields you almost never change.
    */
   shelf?: React.ReactNode;
@@ -58,6 +59,55 @@ export function ItemDetail({
 
   return (
     <div className="space-y-3">
+      {/*
+        Delete, at the top, behind the menu every other page keeps it behind.
+        
+        It was a grey underlined link at the bottom of three hundred lines,
+        past the shelf, the packaging, the dates and the paperwork - which is
+        indistinguishable from not existing, and was duly reported as missing.
+        A thing you do to an item belongs with the item's name, not after
+        everything you do with it.
+      */}
+      {canEdit && (
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="min-w-0 flex-1 text-[22px] font-extrabold tracking-[-0.02em] break-words">
+            {item.name}
+          </h1>
+          <ItemMenu name={item.name} onDelete={() => setConfirming(true)} />
+        </div>
+      )}
+
+      {/* Asked here rather than inside the menu: a sheet that closes to reveal
+          the question it asked is a sheet that loses the answer. */}
+      {confirming && (
+        <div className="rounded-[20px] bg-[oklch(0.96_0.03_40)] p-5">
+          <p className="text-sm font-bold text-destructive">
+            Delete {item.name}? Recipes that call for it keep the line and
+            simply stop being linked to stock.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                startTransition(async () => {
+                  await deleteItem(item.id);
+                })
+              }
+              className="rounded-[12px] bg-destructive px-4 py-2.5 text-sm font-extrabold text-white disabled:opacity-60"
+            >
+              {busy ? "Deleting…" : "Delete it"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="rounded-[12px] px-4 py-2.5 text-sm font-bold"
+            >
+              Keep it
+            </button>
+          </div>
+        </div>
+      )}
       <section className={CARD}>
         <div className="flex items-baseline justify-between gap-3">
           <h1 className="text-[24px] font-extrabold tracking-[-0.02em] break-words">
@@ -256,48 +306,6 @@ export function ItemDetail({
             counts go quietly wrong.
           </p>
         </form>
-      )}
-
-      {canEdit && (
-        <section className={CARD}>
-          {!confirming ? (
-            <button
-              type="button"
-              onClick={() => setConfirming(true)}
-              className="text-sm font-semibold text-muted-foreground underline underline-offset-2 hover:text-destructive"
-            >
-              Delete {item.name}
-            </button>
-          ) : (
-            <div>
-              <p className="text-sm font-bold text-destructive">
-                Delete {item.name}? Recipes that call for it keep the line and
-                simply stop being linked to stock.
-              </p>
-              <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    startTransition(async () => {
-                      await deleteItem(item.id);
-                    })
-                  }
-                  className="rounded-[12px] bg-destructive px-4 py-2.5 text-sm font-extrabold text-white disabled:opacity-60"
-                >
-                  {busy ? "Deleting…" : "Delete it"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirming(false)}
-                  className="rounded-[12px] px-4 py-2.5 text-sm font-bold"
-                >
-                  Keep it
-                </button>
-              </div>
-            </div>
-          )}
-        </section>
       )}
     </div>
   );

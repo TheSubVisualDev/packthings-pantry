@@ -70,7 +70,7 @@ export default async function ItemPage({
           {/*
             The order is the answer to why you opened this page.
 
-            What is going off, then how much is left, then the fields. The
+            What is expiring soon, then how much is left, then the fields. The
             shelf panel used to sit below the edit form, so the page opened on
             a name field and a date picker and you scrolled past both to find
             out how much soy sauce there was.
