@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { BookOpenText, Check, List, ShoppingBasket } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { Sheet } from "@/components/ui/sheet";
 import {
   cookRecipe,
@@ -261,6 +262,8 @@ export function CookPanel({
    * Reset still goes to the recipe's own number, because that is what Reset
    * means and it is the only way back to the quantities as written.
    */
+  const reduceMotion = useReducedMotion();
+
   const [servings, setServings] = useState(lastServings ?? baseServings);
   const [result, setResult] = useState<CookResult | null>(null);
   const [undone, setUndone] = useState<UndoResult | null>(null);
@@ -752,7 +755,25 @@ export function CookPanel({
 
 
       {result && (
-        <section
+        /**
+         * The one unambiguously good moment in the app, animated like it.
+         *
+         * Everything else here is bookkeeping - stock went down, a date moved
+         * - but this is a meal that got made, and it arrived as a receipt: a
+         * static card headed "Cooked - 6 of 9 lines decremented". The motion
+         * vocabulary in globals.css was built for exactly this and nothing was
+         * spending it on the moment worth spending it on.
+         *
+         * Only on success. A failed cook springing cheerfully into view would
+         * be worse than the flat card it replaced, so the entrance is skipped
+         * and the tick is not drawn at all.
+         */
+        <motion.section
+          initial={
+            result.ok && !reduceMotion ? { opacity: 0, y: 14, scale: 0.97 } : false
+          }
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ type: "spring", stiffness: 420, damping: 28 }}
           className={`rounded-[20px] p-5 ${result.ok ? "bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]" : "bg-[oklch(0.96_0.03_40)]"}`}
         >
           {!result.ok ? (
@@ -778,10 +799,34 @@ export function CookPanel({
             </>
           ) : (
             <>
-              <h3 className="text-sm font-extrabold">
-                Cooked &mdash; {result.applied.length} of{" "}
-                {result.applied.length + result.flagged.length} lines decremented
-              </h3>
+              {/* The tick lands a beat after the card, which is what makes it
+                  read as a result rather than as decoration that arrived with
+                  the furniture. */}
+              <div className="flex items-center gap-2.5">
+                <motion.span
+                  initial={reduceMotion ? false : { scale: 0, rotate: -25 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 600,
+                    damping: 17,
+                    delay: reduceMotion ? 0 : 0.09,
+                  }}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+                >
+                  <Check className="h-4.5 w-4.5" strokeWidth={3.5} aria-hidden />
+                </motion.span>
+                <h3 className="text-[17px] font-extrabold tracking-[-0.01em]">
+                  {result.flagged.length === 0
+                    ? `Cooked for ${servings}.`
+                    : "Cooked."}
+                </h3>
+              </div>
+              <p className="mt-1.5 text-sm font-semibold text-muted-foreground">
+                {result.applied.length} of{" "}
+                {result.applied.length + result.flagged.length} lines came off
+                your shelves.
+              </p>
               {result.applied.length > 0 && (
                 <ul className="mt-2 space-y-1 text-sm font-semibold text-muted-foreground">
                   {result.applied.map((line) => (
@@ -860,7 +905,7 @@ export function CookPanel({
               )}
             </>
           )}
-        </section>
+        </motion.section>
       )}
 
       <section className="print:hidden">
