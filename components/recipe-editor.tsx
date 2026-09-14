@@ -207,7 +207,29 @@ export function RecipeEditor({
       cook_minutes: draft.cook_minutes ? Number(draft.cook_minutes) : undefined,
       source: draft.source || undefined,
       notes: draft.notes || undefined,
-      ingredients: draft.ingredients.map((line) => {
+      /**
+       * A row nobody filled in is an empty row, not a mistake.
+       *
+       * Every row went to the server verbatim, including the blank one you get
+       * from pressing "add an ingredient" and then thinking better of it. The
+       * schema rejected it, and the rejection arrived as
+       * `ingredients[3].item_name: Missing item_name.` printed on the details
+       * stage - which does not show ingredients at all, and offered no way back
+       * to row four. The paste reader already drops blank lines without
+       * comment; this is the same courtesy for a form.
+       *
+       * Only rows that are entirely untouched. A row with an amount typed into
+       * it and no name yet is somebody midway through, and that IS worth
+       * stopping for.
+       */
+      ingredients: draft.ingredients
+        .filter(
+          (line) =>
+            line.item_name.trim() !== "" ||
+            line.quantity.trim() !== "" ||
+            line.note.trim() !== "",
+        )
+        .map((line) => {
         const typed = readQuantity(line.quantity);
         const unmeasured = line.unit === UNMEASURED;
 
@@ -233,12 +255,27 @@ export function RecipeEditor({
           section: line.section || undefined,
         };
       }),
-      steps: draft.steps.map((step) => ({
-        body: step.body,
-        minutes: step.minutes ? Number(step.minutes) : undefined,
-        section: step.section || undefined,
-        uses: step.uses,
-      })),
+      /**
+       * The same for steps, and here it was a dead end rather than a nuisance.
+       *
+       * A new recipe opens with one empty step, so "write the ingredients down
+       * now and the method later" - which is how half of them get written -
+       * failed on `steps[0].body: Step has no text`, about a box the person had
+       * never touched. There was no way to save at all without typing
+       * something into it.
+       *
+       * A step is only its body; minutes or a section with no instruction
+       * attached is not a step somebody started, it is leftovers from one they
+       * removed.
+       */
+      steps: draft.steps
+        .filter((step) => step.body.trim() !== "")
+        .map((step) => ({
+          body: step.body,
+          minutes: step.minutes ? Number(step.minutes) : undefined,
+          section: step.section || undefined,
+          uses: step.uses,
+        })),
     };
 
     startTransition(async () => {
@@ -999,15 +1036,28 @@ export function RecipeEditor({
         )}
       </div>
 
-      {/* An edit is often one field on the last screen, and walking through
-          two screens to reach it is worse than the tall page this replaced. */}
-      {!last && recipeId && (
+      {/*
+        The way past the stages, for both halves of the job.
+
+        An edit is often one field on the last screen, and walking two screens
+        to reach it is worse than the tall page this replaced. This was gated
+        on `recipeId` for that reason - which meant it appeared when editing
+        and never when writing, and writing is where it is wanted just as
+        badly: naming the thing before you make it is how most people start,
+        and you had to page through every ingredient and every step before you
+        could type a title.
+
+        The wording changes because the sentence does. Editing, you are leaving
+        the stages behind; authoring, you are going ahead to a screen you have
+        not reached yet and will come back from.
+      */}
+      {!last && (
         <button
           type="button"
           onClick={() => setStage(STAGES.length - 1)}
           className="mt-2 w-full text-sm font-bold text-muted-foreground underline underline-offset-2"
         >
-          Skip to the details
+          {recipeId ? "Skip to the details" : "Name it first"}
         </button>
       )}
 

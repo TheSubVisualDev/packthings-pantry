@@ -10,12 +10,7 @@ import { RemixButton } from "@/components/remix-button";
 import { CookbookButton } from "@/components/cookbook-button";
 import { isInCookbook } from "@/lib/cookbook";
 import { RecipeTags } from "@/components/recipe-tags";
-import {
-  derivedTags,
-  getRecipeTags,
-  getTagsByRecipe,
-  suggestTags,
-} from "@/lib/recipe-tags";
+import { derivedTags, getTagsByRecipe, suggestTags } from "@/lib/recipe-tags";
 import { Lineage } from "@/components/lineage";
 import { CookHistory } from "@/components/cook-history";
 import { RecipeNutrition } from "@/components/recipe-nutrition";
@@ -80,7 +75,6 @@ export default async function RecipePage({
     tagsByItem,
     kitchenTags,
     recipeTagsByRecipe,
-    myRecipeTags,
   ] =
     await Promise.all([
     recipe.author_id ? getUser(recipe.author_id) : null,
@@ -96,7 +90,6 @@ export default async function RecipePage({
     getTagsByItem(kitchen?.id ?? null),
     getTags(kitchen?.id ?? null),
     getTagsByRecipe([recipeId]),
-    getRecipeTags(context.user.id),
   ]);
 
   const forkedAuthor =
@@ -344,10 +337,23 @@ export default async function RecipePage({
           recipeId={recipe.id}
           tags={recipeTagsByRecipe.get(recipe.id) ?? []}
           derived={derivedTags(recipe, recipe.ingredients, recipe.steps)}
-          suggestions={[
-            ...suggestTags(recipe.ingredients, recipe.steps),
-            ...myRecipeTags.map((tag) => tag.name),
-          ]}
+          /**
+           * Suggestions have to be about THIS recipe.
+           *
+           * Every tag the reader had ever used was appended here
+           * unconditionally, so a soup and a tofu stir-fry were both offered
+           * "Baking" and "Frying" - not because either involved baking or
+           * frying, but because those were the two most-used tags in the
+           * account, echoed back. lib/recipe-tags.ts says in its own comments
+           * that every one of these should be checkable against the row, and
+           * half of them could not be checked against anything.
+           *
+           * What is left is what suggestTags derived by reading the
+           * ingredients and the method. Applying a tag you already use is
+           * still possible - that is what the tag picker is for - but it is a
+           * thing you choose, not a thing the app claims to have noticed.
+           */
+          suggestions={suggestTags(recipe.ingredients, recipe.steps)}
           canEdit={isAuthor}
         />
         </div>
