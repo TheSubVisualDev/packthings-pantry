@@ -86,6 +86,11 @@ const ADDED_COLUMNS = [
   // recipe, and this is a fact about the household.
   { table: "kitchens", column: "default_servings", definition: "INTEGER" },
 
+  // The London date somebody was last nudged on, so a second call on the same
+  // day sends nothing. A cron that retries - and they do - would otherwise
+  // buzz the same pocket twice for the same week.
+  { table: "users", column: "last_nudged_on", definition: "TEXT" },
+
   // Recipes became documents rather than lists: a blurb, timings, a source.
   { table: "recipes", column: "description", definition: "TEXT" },
   { table: "recipes", column: "prep_minutes", definition: "INTEGER" },

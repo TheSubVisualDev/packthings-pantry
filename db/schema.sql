@@ -267,6 +267,9 @@ CREATE TABLE IF NOT EXISTS users (
   api_token     TEXT UNIQUE,
   -- When they finished being shown round. Null means they have not been.
   onboarded_at  TIMESTAMP,
+  -- The London date of the last weekly nudge, as 'YYYY-MM-DD'. What stops a
+  -- retried cron sending the same reminder twice.
+  last_nudged_on TEXT,
   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -177,6 +177,23 @@ export function londonNow(at: Date = new Date()): { day: number; hour: number } 
   return { day: Math.max(0, days.indexOf(weekday)), hour: hour % 24 };
 }
 
+/**
+ * Today's date in London as 'YYYY-MM-DD'.
+ *
+ * The same reasoning as londonNow: the server is in Frankfurt, so its own
+ * date rolls over an hour early and "already nudged today" would be wrong for
+ * an hour every night. en-CA because it is the locale that formats a date the
+ * way it should be stored.
+ */
+export function londonDate(at: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(at);
+}
+
 export interface DueReminder {
   user_id: number;
   handle: string;
@@ -205,10 +222,22 @@ export async function dueToday(at: Date = new Date()): Promise<DueReminder[]> {
     sql: `SELECT DISTINCT u.id AS user_id, u.handle
           FROM users u
           JOIN push_subscriptions p ON p.user_id = u.id AND p.failed_at IS NULL
-          WHERE u.reminder_day = ?`,
-    args: [day],
+          WHERE u.reminder_day = ?
+            -- Already nudged today. A cron that retries - and they do - would
+            -- otherwise buzz the same pocket twice about the same week, and
+            -- so would anybody poking the endpoint to see whether it works.
+            AND (u.last_nudged_on IS NULL OR u.last_nudged_on <> ?)`,
+    args: [day, londonDate(at)],
   });
   return plainRows<DueReminder>(result);
+}
+
+/** Records that today's nudge went out, so it does not go out again. */
+export async function markNudged(userId: number, at: Date = new Date()): Promise<void> {
+  await getDb().execute({
+    sql: "UPDATE users SET last_nudged_on = ? WHERE id = ?",
+    args: [londonDate(at), userId],
+  });
 }
 
 /** Someone's reminder setting, or null for off. */

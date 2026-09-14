@@ -19,7 +19,7 @@
 // notifications outright - so the "Send one now" button in settings exists
 // precisely because this file cannot do that job.
 
-import { londonNow } from "../lib/push.ts";
+import { londonDate, londonNow } from "../lib/push.ts";
 
 let failures = 0;
 function check(what, got, expected) {
@@ -128,6 +128,41 @@ check("all 168 hours of a week occur", seen.size, 168);
 // Said explicitly, because "24:00" is exactly what en-GB hour12:false returns
 // for midnight if the modulo is ever dropped.
 check("midnight is hour 0", londonNow(at("2026-06-14T23:00:00Z")).hour, 0);
+
+/* --- the date the once-a-day guard compares against --- */
+
+// Same reasoning as londonNow, and the same trap: the server's own date rolls
+// over an hour early all summer, so "already nudged today" would be wrong for
+// an hour every night and the guard would let a second one through.
+check("a winter date", londonDate(at("2026-01-11T18:00:00Z")), "2026-01-11");
+check("a summer evening", londonDate(at("2026-07-12T17:00:00Z")), "2026-07-12");
+
+// 23:30 UTC on a summer Saturday is already Sunday in London.
+check("late Saturday UTC", londonDate(at("2026-07-11T23:30:00Z")), "2026-07-12");
+// And in winter it is not.
+check("late Saturday in winter", londonDate(at("2026-01-10T23:30:00Z")), "2026-01-10");
+
+// en-CA rather than en-GB: en-GB would give "11/01/2026", which sorts wrong,
+// compares wrong, and is not what the column says it holds.
+check(
+  "the shape the column expects",
+  /^\d{4}-\d{2}-\d{2}$/.test(londonDate(at("2026-03-29T01:30:00Z"))),
+  true,
+);
+
+// The date and the day have to agree, or the guard blocks the wrong people.
+let disagreed = [];
+let tick = at("2026-01-01T00:00:00Z");
+for (let i = 0; i < 24 * 400; i += 1) {
+  const { day } = londonNow(tick);
+  const iso = londonDate(tick);
+  // Parsed back at noon, the way lib/plan does, so the two readings of the
+  // same instant must name the same weekday.
+  const [y, m, d] = iso.split("-").map(Number);
+  if (new Date(y, m - 1, d, 12).getDay() !== day) disagreed.push(iso);
+  tick = new Date(tick.getTime() + 3600 * 1000);
+}
+check("date and day never disagree", disagreed, []);
 
 if (failures > 0) {
   console.error(`\n${failures} failed`);

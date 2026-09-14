@@ -6,7 +6,7 @@ import {
   configuredPassword,
   sessionUserId,
 } from "@/lib/auth";
-import { getUserByApiToken } from "@/lib/users";
+import { getUser as getUserById, getUserByApiToken } from "@/lib/users";
 
 /**
  * Gate on every request: a signed session cookie, HTTP Basic credentials, or a
@@ -83,10 +83,32 @@ export default async function proxy(request: NextRequest) {
   const isPublic = path === "/login" || path.startsWith("/invite/");
 
   if (isPublic) {
-    // Already signed in and looking at the login form - nothing to do here.
-    // An invite link still opens, so someone can accept one from a device that
-    // is already signed in as somebody else.
+    // An invite link always opens, so somebody can accept one from a device
+    // already signed in as somebody else.
     if (!authenticated || path.startsWith("/invite/")) return NextResponse.next();
+
+    /**
+     * A well-signed cookie for an account that no longer exists.
+     *
+     * The signature is valid, so this gate says authenticated and bounces
+     * /login to /pantry - and /pantry looks the user up, finds nobody, and
+     * sends them back to /login. That loop is unrecoverable without clearing
+     * cookies by hand, and it is exactly what happens to somebody whose
+     * account is deleted while they are signed in.
+     *
+     * So the one page where being wrong about this is unrecoverable pays for
+     * a lookup. It is the login screen: rarely hit, never in a loop, and the
+     * cost is one query against a page that otherwise does nothing. Every
+     * other route keeps the cheap check.
+     */
+    const userId = sessionUserId(request.cookies.get(SESSION_COOKIE)?.value);
+    if (userId !== null && !(await getUserById(userId))) {
+      const stale = NextResponse.next();
+      // Cleared on the way past, or the next page they open loops again.
+      stale.cookies.delete(SESSION_COOKIE);
+      return stale;
+    }
+
     return NextResponse.redirect(new URL("/pantry", request.url));
   }
 

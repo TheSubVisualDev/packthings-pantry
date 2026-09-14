@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { getDb, plainRows } from "@/lib/db";
-import { dueToday, londonNow, nudge, pushConfigured } from "@/lib/push";
+import {
+  dueToday,
+  londonDate,
+  londonNow,
+  markNudged,
+  nudge,
+  pushConfigured,
+} from "@/lib/push";
 import { addDays, getPlanned, isoDate, weekStart } from "@/lib/plan";
 
 export const dynamic = "force-dynamic";
@@ -37,10 +44,31 @@ export async function GET(request: Request) {
     return NextResponse.json({ skipped: "no VAPID keys configured" });
   }
 
+  /**
+   * ?dry=1 answers the same question without waking anybody.
+   *
+   * Added because the obvious way to check this endpoint is alive is to call
+   * it, and calling it sent real notifications to real phones - which I did,
+   * three times, to somebody who had not asked to be told anything. A health
+   * check that has side effects is not a health check.
+   */
+  const dry = new URL(request.url).searchParams.get("dry") === "1";
+
   const now = londonNow();
   const due = await dueToday();
   if (due.length === 0) {
-    return NextResponse.json({ ...now, due: 0, sent: 0 });
+    return NextResponse.json({ ...now, date: londonDate(), due: 0, sent: 0, dry });
+  }
+
+  if (dry) {
+    return NextResponse.json({
+      ...now,
+      date: londonDate(),
+      dry: true,
+      due: due.length,
+      would: due.map((person) => person.handle),
+      sent: 0,
+    });
   }
 
   /**
@@ -103,7 +131,23 @@ export async function GET(request: Request) {
     const result = await nudge(person.user_id, message);
     sent += result.sent;
     retired += result.retired;
+
+    /**
+     * Stamped when something actually went out.
+     *
+     * Not when it was merely attempted: a run where every device turned out to
+     * be dead should be allowed to try again once the person re-subscribes,
+     * rather than marking the week done on their behalf.
+     */
+    if (result.sent > 0) await markNudged(person.user_id);
   }
 
-  return NextResponse.json({ ...now, due: due.length, sent, retired, skipped });
+  return NextResponse.json({
+    ...now,
+    date: londonDate(),
+    due: due.length,
+    sent,
+    retired,
+    skipped,
+  });
 }
