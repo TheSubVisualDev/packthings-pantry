@@ -158,7 +158,7 @@ export function WeekPlan({
         </p>
       )}
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+      <div className="stagger grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
         {days.map((day) => {
           const { day: name, number } = shortDay(day.date);
           const isToday = day.date === today;

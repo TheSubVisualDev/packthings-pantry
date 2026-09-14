@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
@@ -103,25 +104,42 @@ export function Sheet({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
-
+  /*
+    No early return any more.
+    
+    AnimatePresence can only animate something out if it is still rendered
+    while it leaves, and `if (!open) return null` removes it before it has the
+    chance. Closing a sheet used to be a cut - the only part of opening one
+    that was not animated, and the half you see more often.
+  */
   return (
-    <div
-      /* The backdrop fades; the panel below it rises. Two different jobs: one
-         is the room going dark, the other is a thing arriving in it. */
-      className="fixed inset-0 z-50 flex animate-[rise_var(--quick)_var(--ease-out)_both] items-end justify-center bg-black/40 sm:items-center sm:p-6"
+    <AnimatePresence>
+      {open && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
       // The backdrop only, never a click that started inside the panel and
       // happened to end here - which is what dragging to select text does.
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div
+      <motion.div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="flex max-h-[88vh] w-full max-w-[520px] animate-[rise_var(--settle)_var(--ease-spring)_both] flex-col rounded-t-[22px] bg-card pb-[env(safe-area-inset-bottom)] shadow-lg sm:max-h-[85vh] sm:rounded-[20px] sm:pb-0"
+        /* Up from the bottom, on a spring, and back down the way it came.
+           Slightly under-damped so it arrives with a settle rather than a
+           stop - that overshoot is the thing that reads as weight. */
+        initial={{ y: "100%", opacity: 0.6 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: "100%", opacity: 0.4 }}
+        transition={{ type: "spring", stiffness: 380, damping: 34, mass: 0.9 }}
+        className="flex max-h-[88vh] w-full max-w-[520px] flex-col rounded-t-[22px] bg-card pb-[env(safe-area-inset-bottom)] shadow-lg sm:max-h-[85vh] sm:rounded-[20px] sm:pb-0"
       >
         {/* Says "this drags up from the bottom" without a word, and gives a
             thumb somewhere safe to land. Phones only: on a centred desktop
@@ -161,7 +179,9 @@ export function Sheet({
         {footer && (
           <div className="border-t border-border p-5 pt-4 pb-6 sm:pb-5">{footer}</div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

@@ -286,7 +286,7 @@ export default async function DiscoverPage({
               is also the only way to see what your own recipe looks like to
               everybody else, which is why they are no longer filtered out.
             */
-            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {rest.map((recipe) => (
                 <li key={recipe.id}>
                   <Link
@@ -352,7 +352,7 @@ export default async function DiscoverPage({
             {/* Each one says why it is suggesting them. A row of faces with
                 follower counts is a popularity chart; what you have in common
                 is the only fact that answers "should I follow this person". */}
-            <ul className="grid gap-2 sm:grid-cols-2">
+            <ul className="stagger grid gap-2 sm:grid-cols-2">
               {similar.map((person) => (
                 <li
                   key={person.id}

@@ -242,7 +242,7 @@ export default async function RecipesPage({
                     ? "Saved off other people"
                     : "Written by you"}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {shown.map((recipe) => (
                 <RecipeBrowseCard
                   key={recipe.id}

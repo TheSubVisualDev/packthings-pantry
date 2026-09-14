@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "motion/react";
 import { Boxes, BookOpen, Compass, Plus, UtensilsCrossed } from "lucide-react";
 
 /**
@@ -71,14 +72,18 @@ export function BottomNav({ onAdd }: { onAdd: () => void }) {
         {/* Raised out of the bar so it reads as an action rather than a fifth
             place to go, and kept dead centre because that is where a thumb
             sits when a phone is held in one hand. */}
-        <button
+        {/* The most-pressed control in the app, so it gets the most obvious
+            give: down hard under the thumb, and a real spring back. */}
+        <motion.button
           type="button"
           onClick={onAdd}
           aria-label="Add"
-          className="relative -top-3 mx-1 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_6px_18px_-6px_rgba(60,44,30,0.6)]"
+          whileTap={{ scale: 0.86 }}
+          transition={{ type: "spring", stiffness: 500, damping: 17 }}
+          className="no-squish relative -top-3 mx-1 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_6px_18px_-6px_rgba(60,44,30,0.6)]"
         >
           <Plus className="h-6 w-6" strokeWidth={3} />
-        </button>
+        </motion.button>
 
         {right.map(({ key, ...section }) => (
           <Tab key={key} {...section} current={active(section.href)} />
@@ -103,11 +108,32 @@ function Tab({
     <Link
       href={href}
       aria-current={current ? "page" : undefined}
-      className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-bold ${
+      className={`relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-bold ${
         current ? "text-primary" : "text-muted-foreground"
       }`}
     >
-      <Icon className="h-5 w-5" strokeWidth={current ? 2.75 : 2.25} />
+      {/*
+        The pill slides between tabs rather than blinking on under the new one.
+
+        layoutId is the whole trick: two elements in different places sharing
+        one id are one object to Motion, so it animates the gap between them.
+        This is the thing CSS cannot do - there is no transition between an
+        element that was removed over there and a different one added here.
+      */}
+      {current && (
+        <motion.span
+          layoutId="nav-here"
+          aria-hidden
+          transition={{ type: "spring", stiffness: 420, damping: 32 }}
+          className="absolute inset-x-3 top-0 h-[3px] rounded-full bg-primary"
+        />
+      )}
+      <motion.span
+        animate={{ scale: current ? 1.1 : 1 }}
+        transition={{ type: "spring", stiffness: 500, damping: 18 }}
+      >
+        <Icon className="h-5 w-5" strokeWidth={current ? 2.75 : 2.25} />
+      </motion.span>
       <span className="truncate">{label}</span>
     </Link>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { AlertTriangle, Check, X } from "lucide-react";
 import { BulkBar } from "@/components/bulk-bar";
@@ -192,7 +193,10 @@ export function StockList({
               )}
             </div>
 
-            <ul className="overflow-hidden rounded-[16px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:rounded-[12px] sm:bg-transparent sm:shadow-none">
+            {/* stagger: each row a beat behind the one above. A shelf that
+                deals itself out reads as a list being filled rather than a
+                screenshot appearing. */}
+            <ul className="stagger overflow-hidden rounded-[16px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)] sm:rounded-[12px] sm:bg-transparent sm:shadow-none">
               {groupItems.map((item) => {
                 const picked = selected.has(item.id);
                 const body = (
@@ -292,9 +296,34 @@ export function StockList({
                       </button>
                     )}
 
-                    {open && !selecting && canEdit && (
-                      <RowAdjust item={item} onClose={() => setAdjusting(null)} />
-                    )}
+                    {/*
+                      Unfolding, not appearing.
+
+                      The stepper used to pop into existence at full height and
+                      shove everything below it down the page - the single
+                      jumpiest thing in the app, on the control people use most.
+                      AnimatePresence keeps it mounted while it leaves, which is
+                      the half CSS cannot do.
+                    */}
+                    <AnimatePresence initial={false}>
+                      {open && !selecting && canEdit && (
+                        <motion.div
+                          key="adjust"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{
+                            type: "spring",
+                            stiffness: 420,
+                            damping: 36,
+                            mass: 0.7,
+                          }}
+                          className="overflow-hidden"
+                        >
+                          <RowAdjust item={item} onClose={() => setAdjusting(null)} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </li>
                 );
               })}
