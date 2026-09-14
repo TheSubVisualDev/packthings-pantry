@@ -322,7 +322,15 @@ export function AddItemForm({
       )}
 
       {/* Stage 1 - what it is, and what it is filed under. */}
-      <div hidden={stage !== 0} className="space-y-4">
+      <div
+        hidden={stage !== 0}
+        // The class, not a key. A key that changed per step would remount
+        // all four stages, and the hidden ones hold uncontrolled inputs -
+        // the dates, the pack size, the chip pickers - which would be
+        // wiped every time somebody pressed Continue. Adding the class as
+        // a stage becomes visible restarts the animation on its own.
+        className={`space-y-4 ${stage === 0 ? "advance" : ""}`}
+      >
       <div>
         <label htmlFor="name" className={LABEL}>
           Name
@@ -396,7 +404,15 @@ export function AddItemForm({
       </div>
 
       {/* Stage 2 - how much, asked of somebody holding the thing. */}
-      <div hidden={stage !== 1} className="space-y-4">
+      <div
+        hidden={stage !== 1}
+        // The class, not a key. A key that changed per step would remount
+        // all four stages, and the hidden ones hold uncontrolled inputs -
+        // the dates, the pack size, the chip pickers - which would be
+        // wiped every time somebody pressed Continue. Adding the class as
+        // a stage becomes visible restarts the animation on its own.
+        className={`space-y-4 ${stage === 1 ? "advance" : ""}`}
+      >
       {/*
         How much, asked the way somebody holding the thing can answer.
 
@@ -520,7 +536,15 @@ export function AddItemForm({
       </div>
 
       {/* Stage 3 - the packaging, which is what a jar is. */}
-      <div hidden={stage !== 2} className="space-y-4">
+      <div
+        hidden={stage !== 2}
+        // The class, not a key. A key that changed per step would remount
+        // all four stages, and the hidden ones hold uncontrolled inputs -
+        // the dates, the pack size, the chip pickers - which would be
+        // wiped every time somebody pressed Continue. Adding the class as
+        // a stage becomes visible restarts the animation on its own.
+        className={`space-y-4 ${stage === 2 ? "advance" : ""}`}
+      >
       <div>
         <label className="flex items-center gap-2.5 text-sm font-bold">
           <input
@@ -593,7 +617,15 @@ export function AddItemForm({
       </div>
 
       {/* Stage 4 - where it lives and when it goes off. All skippable. */}
-      <div hidden={stage !== 3} className="space-y-4">
+      <div
+        hidden={stage !== 3}
+        // The class, not a key. A key that changed per step would remount
+        // all four stages, and the hidden ones hold uncontrolled inputs -
+        // the dates, the pack size, the chip pickers - which would be
+        // wiped every time somebody pressed Continue. Adding the class as
+        // a stage becomes visible restarts the animation on its own.
+        className={`space-y-4 ${stage === 3 ? "advance" : ""}`}
+      >
       {/* These three were one flex row with an unclosed div, so the shelf-life
           block ended up as a third child of the location/expires row and all
           three fought over a phone's width - the location select rendered as
@@ -724,8 +756,22 @@ export function AddItemForm({
           </button>
         )}
 
+        {/*
+          Two buttons, keyed apart, and the keys are load-bearing.
+
+          Without them React sees one <button> in one position and patches the
+          existing DOM node when `last` flips - so the element you just clicked
+          as type="button" has become type="submit" by the time the browser
+          evaluates the click's default action, and the form submits. Pressing
+          Continue into the last stage silently added the item, and then the
+          real button added it again.
+
+          A key forces a new element, so the node that was clicked is thrown
+          away rather than mutated under the click.
+        */}
         {last ? (
           <button
+            key="add"
             type="submit"
             disabled={pending}
             className="h-14 flex-1 rounded-[14px] bg-primary px-4 text-[15px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
@@ -734,6 +780,7 @@ export function AddItemForm({
           </button>
         ) : (
           <button
+            key="next"
             type="button"
             onClick={() => setStage((n) => n + 1)}
             disabled={!canLeave}

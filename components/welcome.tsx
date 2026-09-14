@@ -119,7 +119,7 @@ export function Welcome({
       </div>
 
       {step === "kitchen" && (
-        <section>
+        <section className="advance" key="kitchen">
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
             Hello @{handle}.
           </h1>
@@ -143,7 +143,7 @@ export function Welcome({
       )}
 
       {step === "cook" && (
-        <section>
+        <section className="advance" key="cook">
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
             How do you cook?
           </h1>
@@ -217,7 +217,7 @@ export function Welcome({
       )}
 
       {step === "staples" && (
-        <section>
+        <section className="advance" key="staples">
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
             What have you definitely got?
           </h1>
@@ -264,7 +264,7 @@ export function Welcome({
       )}
 
       {step === "nudge" && (
-        <section>
+        <section className="advance" key="nudge">
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
             Want a nudge?
           </h1>
@@ -279,7 +279,7 @@ export function Welcome({
       )}
 
       {step === "tour" && (
-        <section>
+        <section className="advance" key="tour">
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
             That is everything.
           </h1>

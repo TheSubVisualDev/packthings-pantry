@@ -40,7 +40,9 @@ export function RecipeBrowseCard({
   return (
     <Link
       href={`/recipes/${recipe.id}`}
-      className="flex items-center gap-3 rounded-[18px] bg-card p-3 shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-[0_8px_22px_-10px_rgba(60,44,30,0.45)]"
+      /* card-press, because a card is a button in everything but tag
+         name - and on a phone the press is the only feedback there is. */
+      className="card-press flex items-center gap-3 rounded-[18px] bg-card p-3 shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-[0_8px_22px_-10px_rgba(60,44,30,0.45)]"
     >
       <div
         className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[12px] sm:h-20 sm:w-20"

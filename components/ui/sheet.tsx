@@ -107,7 +107,9 @@ export function Sheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
+      /* The backdrop fades; the panel below it rises. Two different jobs: one
+         is the room going dark, the other is a thing arriving in it. */
+      className="fixed inset-0 z-50 flex animate-[rise_var(--quick)_var(--ease-out)_both] items-end justify-center bg-black/40 sm:items-center sm:p-6"
       // The backdrop only, never a click that started inside the panel and
       // happened to end here - which is what dragging to select text does.
       onMouseDown={(event) => {
@@ -119,7 +121,7 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="flex max-h-[88vh] w-full max-w-[520px] flex-col rounded-t-[22px] bg-card pb-[env(safe-area-inset-bottom)] shadow-lg sm:max-h-[85vh] sm:rounded-[20px] sm:pb-0"
+        className="flex max-h-[88vh] w-full max-w-[520px] animate-[rise_var(--settle)_var(--ease-spring)_both] flex-col rounded-t-[22px] bg-card pb-[env(safe-area-inset-bottom)] shadow-lg sm:max-h-[85vh] sm:rounded-[20px] sm:pb-0"
       >
         {/* Says "this drags up from the bottom" without a word, and gives a
             thumb somewhere safe to land. Phones only: on a centred desktop

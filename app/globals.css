@@ -129,6 +129,133 @@
   display: none;
 }
 
+
+/* ---------------------------------------------------------------------------
+   Motion
+   ---------------------------------------------------------------------------
+
+   One vocabulary, so the app moves the same way everywhere rather than each
+   component inventing a duration. Asked for as "stretch and squish" and "it
+   needs to feel alive", which in practice is two things: everything you touch
+   answers immediately, and nothing appears out of nowhere.
+
+   The curves matter more than the durations. `--ease-spring` overshoots
+   slightly and settles - that is the stretch, and it is what makes a panel
+   feel like an object rather than a fade. `--ease-out` does not overshoot and
+   is for things that should feel decisive rather than playful: a press, a
+   colour change.
+
+   Durations are short on purpose. An interface that takes 400ms to answer is
+   not fluid, it is slow, and the difference is entirely in whether you are
+   waiting for it.
+*/
+:root {
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --tap: 90ms;
+  --quick: 180ms;
+  --settle: 320ms;
+}
+
+/**
+ * The squish.
+ *
+ * Every button gives under the thumb. It is the cheapest thing in here and the
+ * one that does most of the work - a control that does not move when pressed
+ * reads as a picture of a control, and on a phone, where there is no cursor
+ * and no hover, the press IS the feedback.
+ *
+ * Applied to the element rather than asked for per component, because four
+ * hundred buttons cannot be relied upon to remember. `.no-squish` opts out:
+ * the vessel's drag handle and the stepper buttons you hold down both look
+ * wrong pulsing.
+ */
+button:not(.no-squish),
+[role="button"]:not(.no-squish),
+summary {
+  transition:
+    transform var(--tap) var(--ease-out),
+    background-color var(--quick) var(--ease-out),
+    opacity var(--quick) var(--ease-out);
+}
+
+button:not(:disabled):not(.no-squish):active,
+[role="button"]:not(.no-squish):active,
+summary:active {
+  transform: scale(0.96);
+}
+
+/* Links that are laid out as cards get it too - a recipe card is a button in
+   everything but tag name. Inline links do not: text that shrinks when tapped
+   is text that looks broken. */
+a.card-press:active {
+  transform: scale(0.98);
+  transition: transform var(--tap) var(--ease-out);
+}
+
+/**
+ * Arriving.
+ *
+ * For things that were not there a moment ago: a sheet, a panel that opens, a
+ * row added to a list. Rising a few pixels while fading is the difference
+ * between a thing appearing and a thing arriving.
+ */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  animation: rise var(--settle) var(--ease-spring) both;
+}
+
+/* Sideways, for a step replacing the step before it. */
+@keyframes advance {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.advance {
+  animation: advance var(--quick) var(--ease-out) both;
+}
+
+/**
+ * Everything above, off.
+ *
+ * Not a dimmer switch - motion sickness is not a preference about taste, and
+ * somebody who has asked the operating system for less motion has asked for
+ * less motion. The interface still works; it simply stops moving.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  button:active,
+  [role="button"]:active,
+  a.card-press:active,
+  summary:active {
+    transform: none;
+  }
+}
+
 /**
  * The line that sweeps the barcode reticle.
  *
