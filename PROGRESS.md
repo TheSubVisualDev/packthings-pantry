@@ -3,9 +3,39 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 14 Sep 2026 — report #17 done and pushed `e57f880`
-**Doing right now:** working back through the approved reports queue
-**Waiting on you:** nothing blocking.
+**Last updated:** 14 Sep 2026 — reports #17-#21 done, queue empty
+**Doing right now:** nothing
+**Waiting on you:** one command. Deleting the old Vercel deployments got
+blocked by a safety check on my end — the command is at the bottom of this
+file.
+
+### This round · five reports
+
+| | | |
+|---|---|---|
+| #17 | Story-style recipe editor | done `e57f880` |
+| #18 | Recipe not keeping its servings | done `c7a5a40` |
+| #19 | Desktop recipe editor | done `c7a5a40` |
+| #20 | Desktop design pass | done `275dc7a` |
+| #21 | Vercel storage warning | half done `4fbedf0` |
+
+**#17** — three stages: what goes in it → how it is made → what it is called,
+with one instruction per screen. New, editing and pasting all use it. Two
+importer bugs fell out of testing it: a "Serves 6. Takes 40 minutes." line
+became an ingredient, and so did "Sift the flour...".
+
+**#18** — a tray of 16 flapjacks opened as 2 servings. Not a cache: the
+kitchen's "usually cooking for" was overruling what each recipe said about
+itself. It now only applies to recipes you write yourself.
+
+**#19 + #20** — the editor preview is a phone in a frame with the form taking
+the rest of the width; the recipe page is two columns with the method beside
+the ingredients; the week planner shows seven days across. Phones unchanged.
+
+**#21** — dropped source maps from the build: server output went 31MB → 8.9MB,
+so every future deploy costs a third of what it did. The other half is below.
+
+---
 
 ### Report #17 — the recipe editor, a bit at a time · done
 
@@ -180,7 +210,25 @@ fires, across both clock changes).
 
 ---
 
-## The one thing left for you
+## The one thing left for you — old Vercel deployments
+
+Vercel keeps every deployment, and that is most of the 7.5GB. This removes
+every one that is not serving a live domain:
+
+```
+vercel remove packthings-pantry --safe --yes
+```
+
+`--safe` protects anything with an active alias, which is the deployment
+`pantry.packthings.fyi` points at — I checked, it is the current one. It also
+deletes the previous production build, so instant rollback goes; a redeploy
+from git takes about 30 seconds instead.
+
+I tried to run this and my own safety check blocked it as a bulk delete.
+
+---
+
+## Previously, for the nudge
 
 The Sunday nudge needs five variables on Vercel. They're already in your
 `.env.local` — copy them across:
