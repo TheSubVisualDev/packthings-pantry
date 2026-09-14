@@ -19,11 +19,33 @@ export function parseStamp(value: string | null): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** Days from now until a date-only string, negative once it's past. */
+/**
+ * Days from today until a date-only string, negative once it's past.
+ *
+ * Whole days between two calendar days, which is the only thing a use-by date
+ * means. It used to subtract `Date.now()` from that date's midnight and floor
+ * the result - an instant against a midnight, so a fraction, and `Math.floor`
+ * rounds a negative AWAY from zero. Something that went off yesterday
+ * afternoon came back as two days ago, and it was wrong by a day for every
+ * moment that was not exactly midnight, which is all of them.
+ *
+ * It disagreed with the SQL in `getExpiring` too, which truncates toward zero
+ * and so answered one day for the same row. Three screens gave three answers
+ * for one date. The rule lives here now and the SQL sorts with its own copy
+ * without ever being shown - see AGENTS.md.
+ *
+ * Rounded rather than floored because both ends are local midnight: the gap is
+ * a whole number of days except across a clock change, where it is 23 or 25
+ * hours and rounding is what keeps it whole.
+ */
 export function daysUntil(date: string): number {
-  const then = new Date(`${date}T00:00:00`).getTime();
-  if (Number.isNaN(then)) return 0;
-  return Math.floor((then - Date.now()) / 86_400_000);
+  const then = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(then.getTime())) return 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return Math.round((then.getTime() - today.getTime()) / 86_400_000);
 }
 
 /** "12 Mar" - the hour something happened has never mattered here. */

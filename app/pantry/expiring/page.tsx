@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { describeStock } from "@/lib/containers";
+import { daysUntil } from "@/lib/dates";
 import { getRescues } from "@/lib/queries";
 import { currentKitchen } from "@/lib/session";
 
@@ -71,8 +72,13 @@ export default async function ExpiringPage() {
               // Destructive only once it has actually gone. "Tomorrow" is a
               // plan, not a failure, and colouring it red makes the real ones
               // invisible - the same rule the band on the stock page follows.
-              const gone = item.days_left < 0;
-              const today = item.days_left === 0;
+              // days_left comes from SQL and sorts this list; it is never the
+              // number shown. It truncates toward zero where daysUntil rounds
+              // between calendar days, and the two disagreeing is how one item
+              // read "2d ago" here and "3d over" on the stats page.
+              const left = daysUntil(item.use_by);
+              const gone = left < 0;
+              const today = left === 0;
 
               return (
                 <li key={item.id}>
@@ -109,12 +115,12 @@ export default async function ExpiringPage() {
                       }`}
                     >
                       {gone
-                        ? `${Math.abs(item.days_left)}d ago`
+                        ? `${Math.abs(left)}d ago`
                         : today
                           ? "Today"
-                          : item.days_left === 1
+                          : left === 1
                             ? "1 day"
-                            : `${item.days_left} days`}
+                            : `${left} days`}
                     </span>
                     <ChevronRight
                       className="h-4 w-4 shrink-0 text-muted-foreground"

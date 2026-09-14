@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Rescue } from "@/lib/queries";
+import { daysUntil } from "@/lib/dates";
 
 /**
  * What is expiring soon, as a band rather than a panel - board `1a`/`1b`.
@@ -37,8 +38,13 @@ export function ExpiringSoon({ rescues }: { rescues: Rescue[] }) {
         {shown.map(({ item }) => {
           // Destructive only when it has actually gone. "Tomorrow" is a plan,
           // not a failure, and colouring it red makes the real ones invisible.
-          const gone = item.days_left < 0;
-          const today = item.days_left === 0;
+          // The SQL's own days_left sorts this list and is never shown: it
+          // truncates toward zero where daysUntil rounds between calendar
+          // days, and the two disagreeing is why one item read "2d ago" here
+          // and "3d over" on the stats page.
+          const left = daysUntil(item.use_by);
+          const gone = left < 0;
+          const today = left === 0;
 
           return (
             <Link
@@ -57,12 +63,12 @@ export function ExpiringSoon({ rescues }: { rescues: Rescue[] }) {
                 }`}
               >
                 {gone
-                  ? `${Math.abs(item.days_left)}d ago`
+                  ? `${Math.abs(left)}d ago`
                   : today
                     ? "Today"
-                    : item.days_left === 1
+                    : left === 1
                       ? "1 day"
-                      : `${item.days_left} days`}
+                      : `${left} days`}
               </div>
             </Link>
           );

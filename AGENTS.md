@@ -74,6 +74,19 @@ shopping list for ever. `npm run check:amounts`.
 planner's Shop for it. It was a hundred lines inside a server action, and a
 second copy of it is a sixth instance of the bug this file keeps a count of.
 
+**"How many days until this date" is `daysUntil()` in `lib/dates.ts`, and
+nothing else.** There were two of them. `daysUntil` subtracted the current
+INSTANT from the target date's midnight and floored the fraction - and
+`Math.floor` rounds a negative away from zero - so a thing that went off
+yesterday afternoon read as two days ago, wrong by a day for every moment that
+was not exactly midnight. The SQL in `getExpiring` did the same subtraction and
+truncated toward zero, so it answered one. One item, three screens, three
+numbers. The SQL copy still exists and still sorts the query, because ordering
+only needs to be monotonic - but it is never the number shown, and rendering
+`days_left` puts the bug straight back. `npm run check:dates`, which pins the
+clock, because a test that asks the real time passes at midnight and fails at
+teatime.
+
 **Dates in the planner are days, not instants.** "Thursday dinner" is a fact
 about the kitchen's calendar, so `meal_plan.on_date` is 'YYYY-MM-DD' text and
 `fromIso` pins to noon - `new Date("2026-03-29")` parses as UTC, which on the
@@ -115,6 +128,8 @@ still there as the way back.
     npm run check:cascade     the two copies of the container rule agree
     npm run check:amounts     ~, "to taste", and how an amount is said
     npm run check:recipe-text pasted plain text becoming a recipe
+    npm run check:dates       one answer for "how many days until"
+    npm run check:bundle      what a deployment costs Vercel to store
     npm run check:plan        week arithmetic, DST, meal slots
     npm run check:push        when the weekly nudge decides it is due
     npm run check:receipt     receipt parsing and matching
