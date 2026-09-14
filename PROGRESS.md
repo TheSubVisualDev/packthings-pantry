@@ -3,10 +3,33 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 13 Sep 2026 — **everything is done and pushed**
-**Doing right now:** nothing
-**Waiting on you:** five environment variables, so the Sunday nudge works on
-the live site. They're at the bottom of this file. Everything else is live.
+**Last updated:** 14 Sep 2026 — report #17 done and pushed `e57f880`
+**Doing right now:** working back through the approved reports queue
+**Waiting on you:** nothing blocking.
+
+### Report #17 — the recipe editor, a bit at a time · done
+
+The tall editor is three stages now: what goes in it → how it is made → what
+it is called. Inside the method, one instruction per screen with numbered pips
+to jump between them. Forward and back mean the next instruction inside the
+method and the next stage everywhere else.
+
+- Both authoring and editing use it, and so does pasting — both ways in.
+- Pasting lands on **Check it through** rather than **Edit recipe**.
+- Nothing is unmounted, so paging around loses nothing you typed.
+- Reordering a step takes the cursor with it.
+- Editing keeps a "skip to the details" shortcut.
+
+Two importer bugs fell out of testing it:
+
+- `Serves 6. Takes 40 minutes.` became ingredient number one. The headline
+  time is now read and kept — but only off a line that is nothing else.
+- `Sift the flour...` became an ingredient, because the list of verbs a method
+  opens on was written from savoury recipes. Knead, prove, chill and sieve are
+  on it now. Cream and batter deliberately are not: they are also things you
+  buy.
+
+---
 
 ---
 
