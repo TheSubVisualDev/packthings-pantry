@@ -131,9 +131,15 @@ export default async function DiscoverPage({
     getDiscoveries(viewerId, kitchen?.id ?? null, countStocked),
   ]);
 
-  // Anything already in the follow feed is not worth a second card.
+  /**
+   * Anything already in the follow feed is not worth a second card, and
+   * anything of the viewer's own does not belong on a page titled "what
+   * everyone else is cooking" - it was turning up here unphotographed and
+   * out of place, the easiest fix in the whole audit because it is a filter,
+   * not a redesign.
+   */
   const inFeed = new Set(feed.map((recipe) => recipe.id));
-  const rest = ranked.filter((recipe) => !inFeed.has(recipe.id));
+  const rest = ranked.filter((recipe) => !inFeed.has(recipe.id) && !recipe.yours);
 
   return (
     <>
@@ -257,35 +263,29 @@ export default async function DiscoverPage({
           </section>
         )}
 
-        <section>
-          <h2 className={HEADING}>
-            {feed.length > 0 ? "Everything else" : "Worth a look"}
-          </h2>
+        {/*
+          Nothing to show when `rest` is empty is not the same as an empty
+          state - an empty state is offered when the thing it describes is
+          the reason you came. Nobody opened Discover to be told their own
+          cookbook is private, so the section (heading included) simply does
+          not render rather than filling the page with an apology.
+        */}
+        {rest.length > 0 && (
+          <section>
+            <h2 className={HEADING}>
+              {feed.length > 0 ? "Everything else" : "Worth a look"}
+            </h2>
 
-          {rest.length === 0 ? (
-            <div className="rounded-[20px] bg-card p-6 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              <p className="text-sm font-semibold text-muted-foreground">
-                Nothing shared yet. Recipes start private — open one of yours and
-                set it to{" "}
-                <strong className="text-foreground">Everyone here</strong> to put
-                it on this page.
-              </p>
-              <Link
-                href="/recipes"
-                className="mt-4 inline-block rounded-[14px] bg-primary px-5 py-3 text-sm font-extrabold text-primary-foreground"
-              >
-                Your recipes
-              </Link>
-            </div>
-          ) : (
-            /*
+            {/*
               Ranked, with your relationship to each one on it.
-              
+
               Authored, saved and adopted are three different commitments and
               only the last one used to show anywhere. A card that says "yours"
               is also the only way to see what your own recipe looks like to
-              everybody else, which is why they are no longer filtered out.
-            */
+              everybody else, which is why they are no longer filtered out -
+              filtered out of THIS section, where "yours" is the reason it is
+              never any of these cards.
+            */}
             <ul className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {rest.map((recipe) => (
                 <li key={recipe.id}>
@@ -319,21 +319,20 @@ export default async function DiscoverPage({
                         {recipe.total > 0 ? ` · ${recipe.have}/${recipe.total} in stock` : ""}
                       </span>
 
+                      {/* No "yours" badge here - this list is filtered to
+                          exclude your own recipes, so it would never fire. */}
                       <span className="mt-1.5 flex flex-wrap gap-1">
-                        {recipe.yours && <State label="yours" solid />}
                         {recipe.inCookbook && <State label="in your cookbook" solid />}
                         {recipe.saved && !recipe.inCookbook && <State label="saved" />}
-                        {!recipe.yours && recipe.author_handle && (
-                          <State label={`@${recipe.author_handle}`} />
-                        )}
+                        {recipe.author_handle && <State label={`@${recipe.author_handle}`} />}
                       </span>
                     </span>
                   </Link>
                 </li>
               ))}
             </ul>
-          )}
-        </section>
+          </section>
+        )}
 
         {similar.length > 0 && (
           <section className="mt-10">

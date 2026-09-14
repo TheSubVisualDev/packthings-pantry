@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays } from "lucide-react";
+import { Boxes, CalendarDays } from "lucide-react";
 import { redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -9,6 +9,7 @@ import { getRecipeTags, getTagsByRecipe } from "@/lib/recipe-tags";
 import { nearlyThere, rankTonight } from "@/lib/tonight";
 import { RecipeFilters } from "@/components/recipe-filters";
 import { currentKitchen } from "@/lib/session";
+import { hasBeenWelcomed } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,20 @@ export default async function TonightPage({
 }) {
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
-  if (!context.kitchen) redirect("/kitchens?need=stock");
+  /**
+   * The same fork /pantry used to own alone.
+   *
+   * This page is the front door now (phase 6), so a brand new account lands
+   * here first - and without this it skipped straight past /welcome to
+   * /kitchens?need=stock, because that page never had to think about being
+   * the first thing anybody saw. Ported rather than shared, since the two
+   * pages are owned separately.
+   */
+  if (!context.kitchen) {
+    redirect(
+      (await hasBeenWelcomed(context.user.id)) ? "/kitchens?need=stock" : "/welcome",
+    );
+  }
   const { kitchen } = context;
 
   const { tag, within, servings } = await searchParams;
@@ -87,16 +101,30 @@ export default async function TonightPage({
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
             What to cook
           </h1>
-          {/* The two halves of the same question. This page answers "what
-              tonight, given what is in"; the planner answers "what this week,
-              and what do I need to buy for it". */}
-          <Link
-            href="/plan"
-            className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-chip px-3.5 text-xs font-bold text-muted-foreground"
-          >
-            <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.8} />
-            The week
-          </Link>
+          {/* Landing here now means the person who opened the app to check
+              "have we got milk" is a tap further from the shelf than they
+              used to be. This is the tap back: two pills, not a search box,
+              because the whole answer to "have we got X" is the stock list
+              itself once you're on it. */}
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href="/pantry"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-chip px-3.5 text-xs font-bold text-muted-foreground"
+            >
+              <Boxes className="h-3.5 w-3.5" strokeWidth={2.8} />
+              Stock
+            </Link>
+            {/* The two halves of the same question. This page answers "what
+                tonight, given what is in"; the planner answers "what this
+                week, and what do I need to buy for it". */}
+            <Link
+              href="/plan"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-chip px-3.5 text-xs font-bold text-muted-foreground"
+            >
+              <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.8} />
+              The week
+            </Link>
+          </div>
         </div>
         <p className="mb-5 text-sm font-semibold text-muted-foreground">
           Ranked on what expires soonest, what you have, and what you had recently.

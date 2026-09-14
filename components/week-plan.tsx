@@ -8,6 +8,7 @@ import {
   Settings2,
   ShoppingBasket,
   Sparkles,
+  UtensilsCrossed,
   X,
 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
@@ -90,6 +91,23 @@ export function WeekPlan({
 
   return (
     <div className="space-y-3">
+      {/*
+        A week with nothing in it got good copy and no way to act on it - the
+        page told you to "tap a day" without a single day being reachable
+        from that sentence. This is the actual button, aimed at the one slot
+        that matters most: tonight's.
+      */}
+      {canEdit && planned === 0 && (
+        <button
+          type="button"
+          onClick={() => setPicking({ date: today, slot: 0 })}
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-primary text-sm font-extrabold text-primary-foreground"
+        >
+          <UtensilsCrossed className="h-4 w-4 shrink-0" strokeWidth={2.8} />
+          Plan tonight
+        </button>
+      )}
+
       {/*
         The two things you do to a whole week, rather than to one day of it.
 

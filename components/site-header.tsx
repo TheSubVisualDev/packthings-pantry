@@ -70,8 +70,11 @@ export async function SiteHeader({
     >
       <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-9 sm:py-5">
         <div className="flex min-w-0 items-center gap-2.5 sm:gap-7">
+          {/* The logo is Home, and Home is /tonight now - what to cook is
+              the question this app answers first; the shelves are a place
+              you go to on purpose, from the tab bar. */}
           <Link
-            href="/pantry"
+            href="/tonight"
             className="flex shrink-0 items-center gap-2 text-[22px] font-extrabold tracking-[-0.02em]"
           >
             <PantryMark className="h-[26px] w-[23px] text-primary" />

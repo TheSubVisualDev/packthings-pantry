@@ -98,10 +98,10 @@ export function Welcome({
     startWorking(async () => {
       await finishWelcome();
       // refresh as well as push: the kitchen made two steps ago is a cookie
-      // the cached shelf page has not seen, so a plain push can land on an
-      // empty pantry that then bounces straight back here.
+      // /tonight's server render has not seen, so a plain push can land on a
+      // kitchen-less page that then bounces straight back here.
       router.refresh();
-      router.push("/pantry");
+      router.push("/tonight");
     });
   }
 
@@ -144,6 +144,14 @@ export function Welcome({
 
       {step === "cook" && (
         <section className="advance" key="cook">
+          {/* The other four steps open on an input, a grid of chips, a real
+              control, or a checklist - this one used to open on a bare
+              heading, which left the top of the screen looking like an
+              illustration had not loaded rather than a choice not to have
+              one. Same treatment the tour step gives each tab below. */}
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-[18px] bg-primary/10 text-primary">
+            <UtensilsCrossed className="h-8 w-8" strokeWidth={2.2} />
+          </div>
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
             How do you cook?
           </h1>
