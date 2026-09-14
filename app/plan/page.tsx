@@ -142,7 +142,7 @@ export default async function PlanPage({
         meta={planned > 0 ? `${planned} planned` : undefined}
       />
 
-      <main className="mx-auto w-full max-w-[720px] px-5 py-7 pb-32 sm:px-9">
+      <main className="mx-auto w-full max-w-[720px] px-5 py-7 pb-32 sm:px-9 xl:max-w-[1280px]">
         <Link
           href="/tonight"
           className="text-sm font-semibold text-muted-foreground hover:text-foreground print:hidden"

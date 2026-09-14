@@ -158,7 +158,18 @@ export function WeekPlan({
         </p>
       )}
 
-      <div className="stagger grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+      {/**
+       * A week you have to scroll is the one thing a week view must not be.
+       *
+       * Seven days stacked down a 720px column was the phone layout standing
+       * in a 1440px window, and it meant Sunday was off the bottom of the
+       * screen while deciding what to eat on Thursday - which is the whole
+       * question the page exists to answer.
+       *
+       * So: one column on a phone, two on a tablet, and seven across on a
+       * proper screen, which is the shape a week has everywhere else.
+       */}
+      <div className="stagger grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-7 xl:items-start">
         {days.map((day) => {
           const { day: name, number } = shortDay(day.date);
           const isToday = day.date === today;
@@ -191,14 +202,16 @@ export function WeekPlan({
                 )}
               </div>
 
-              <ul className="lg:flex lg:divide-x lg:divide-border">
+              {/* Slots run across the day at lg, where a day is a full-width
+                  row. At xl a day is a narrow column, so they stack again. */}
+              <ul className="lg:flex lg:divide-x lg:divide-border xl:block xl:divide-x-0">
                 {slots.map((slotName, slot) => {
                   const meal = day.meals[slot] ?? null;
 
                   return (
                     <li
                       key={slot}
-                      className="border-b border-border last:border-b-0 lg:flex-1 lg:border-b-0"
+                      className="border-b border-border last:border-b-0 lg:flex-1 lg:border-b-0 xl:border-b xl:last:border-b-0"
                     >
                       {meal ? (
                         <div

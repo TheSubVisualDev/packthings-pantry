@@ -204,7 +204,10 @@ export default async function RecipePage({
     <>
       <SiteHeader active="recipes" />
 
-      <div className="mx-auto w-full max-w-[760px] px-5 pt-6 pb-32 sm:px-9 sm:py-8">
+      {/* 760 was a phone's column standing in the middle of a monitor. The
+          hero and the heading stay readable because they cap themselves; the
+          cook panel below is what actually wanted the room. */}
+      <div className="mx-auto w-full max-w-[760px] px-5 pt-6 pb-32 sm:px-9 sm:py-8 lg:max-w-[1180px]">
         {/*
           One header whether or not there is a photo.
 

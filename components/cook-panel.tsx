@@ -389,7 +389,25 @@ export function CookPanel({
   }
 
   return (
-    <div className="space-y-5">
+    /**
+     * One column on a phone, two on a desktop: what it needs, then what you do.
+     *
+     * Reported as the desktop site not being up to spec - and this page was the
+     * worst of it, a 690px strip down the middle of a 1440px window with the
+     * method three screens below the ingredients it uses. On a phone that order
+     * is right and there is no alternative. On a monitor it wastes half the
+     * glass to reproduce a constraint the screen does not have.
+     *
+     * The cut is where the page already divides: everything about whether you
+     * can cook this - servings, ingredients, what you are short of, the cook
+     * button - on the left and sticky, so it stays put while you read. The
+     * method, and what you thought of it afterwards, on the right.
+     *
+     * Printing ignores all of it: print:block puts the two back in one column,
+     * because a recipe on paper is read top to bottom.
+     */
+    <div className="space-y-5 lg:grid lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)] lg:items-start lg:gap-9 lg:space-y-0 print:block">
+      <div className="space-y-5 lg:sticky lg:top-24 print:space-y-5">
       <section className="print:hidden">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-label">
           Cooking for
@@ -669,6 +687,9 @@ export function CookPanel({
         </ul>
       </Sheet>
 
+      </div>
+
+      <div className="space-y-5">
       {/*
         Two ways to cook it, and the method is behind them.
 
@@ -688,11 +709,14 @@ export function CookPanel({
               <BookOpenText className="h-4 w-4" strokeWidth={2.75} />
               Step-by-step
             </Link>
+            {/* The toggle is a phone control. On a desktop the method is
+                already open in the column beside the ingredients, so a button
+                offering to show it would be lying. */}
             <button
               type="button"
               aria-expanded={reading}
               onClick={() => setReading((value) => !value)}
-              className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] bg-chip px-4 text-[15px] font-extrabold hover:bg-border"
+              className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] bg-chip px-4 text-[15px] font-extrabold hover:bg-border lg:hidden"
             >
               <List className="h-4 w-4" strokeWidth={2.75} />
               {reading ? "Hide the list" : "Read as list"}
@@ -706,8 +730,17 @@ export function CookPanel({
             somebody has pressed "Read as list" is a method that comes out of
             the printer as a blank half-page. `hidden print:block` is the one
             place in this app where display is decided twice, and it earns it.
+
+            Desktop is the second reason, and it is decided the same way rather
+            than by defaulting the state open - which would need to know the
+            viewport during render, and guessing it is how you get a hydration
+            mismatch on the one page people print.
           */}
-          <div className={reading ? "mt-4" : "hidden print:mt-4 print:block"}>
+          <div
+            className={
+              reading ? "mt-4" : "hidden lg:mt-4 lg:block print:mt-4 print:block"
+            }
+          >
             <RecipeMethod steps={steps} labels={labels} />
           </div>
         </section>
@@ -856,6 +889,7 @@ export function CookPanel({
           </span>
         </div>
       </section>
+      </div>
     </div>
   );
 }

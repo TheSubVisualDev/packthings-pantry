@@ -72,6 +72,12 @@ export default async function TonightPage({
 
   const filtered = wantedTag !== null || wantedWithin !== null;
 
+  // Built once and placed twice: the phone folds it away, the desktop does not,
+  // and the list itself should not know which.
+  const otherIdeas = rest.map((suggestion) => (
+    <SuggestionRow key={suggestion.id} suggestion={suggestion} />
+  ));
+
   return (
     <>
       <SiteHeader active="tonight" meta={`${ranked.length} to choose from`} />
@@ -123,17 +129,33 @@ export default async function TonightPage({
             <TonightCard suggestion={best} servings={forServings} />
             {nearly && <NearlyCard suggestion={nearly} servings={forServings} />}
 
+            {/*
+              Folded on a phone, open on a desktop.
+
+              The screen is the scarce thing on a handset and one suggestion is
+              the point, so the alternatives fold away. On a monitor they sat
+              behind a tap with an empty half-window underneath - hiding
+              something to save room that was not short.
+
+              Written as two wrappers around one list rather than by forcing
+              the details open, because a closed <details> hides its contents
+              whatever is done to the summary, and CSS cannot set an attribute.
+            */}
             {rest.length > 0 && (
-              <details className="group">
-                <summary className="cursor-pointer list-none rounded-[14px] bg-chip px-4 py-3 text-center text-sm font-bold hover:bg-border">
-                  Other ideas ({rest.length})
-                </summary>
-                <div className="mt-3 space-y-2">
-                  {rest.map((suggestion) => (
-                    <SuggestionRow key={suggestion.id} suggestion={suggestion} />
-                  ))}
+              <>
+                <details className="group lg:hidden">
+                  <summary className="cursor-pointer list-none rounded-[14px] bg-chip px-4 py-3 text-center text-sm font-bold hover:bg-border">
+                    Other ideas ({rest.length})
+                  </summary>
+                  <div className="mt-3 space-y-2">{otherIdeas}</div>
+                </details>
+                <div className="hidden lg:block">
+                  <span className="text-xs font-bold tracking-[0.08em] text-label uppercase">
+                    Other ideas
+                  </span>
+                  <div className="mt-2 space-y-2">{otherIdeas}</div>
                 </div>
-              </details>
+              </>
             )}
           </div>
         )}
