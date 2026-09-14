@@ -4,11 +4,9 @@ import { SiteHeader } from "@/components/site-header";
 import { Segmented } from "@/components/ui/segmented";
 import { EstimateButton } from "@/components/estimate-button";
 import { StockList } from "@/components/stock-list";
-import { TonightStrip } from "@/components/tonight-strip";
 import { ExpiringSoon } from "@/components/expiring-soon";
 import { EmptyShelves } from "@/components/empty-shelves";
-import { getItems, getTonightFacts } from "@/lib/queries";
-import { rankTonight } from "@/lib/tonight";
+import { getItems } from "@/lib/queries";
 import { getTrip } from "@/lib/trip";
 import { TripStrip } from "@/components/trip-strip";
 import { UNPLACED } from "@/lib/locations";
@@ -127,21 +125,13 @@ export default async function PantryPage({
   }
   const { kitchen } = context;
 
-  const [items, facts, places, rescues, tags, trip] = await Promise.all([
+  const [items, places, rescues, tags, trip] = await Promise.all([
     getItems(kitchen.id),
-    getTonightFacts(kitchen.id, context.user.id),
     getLocations(kitchen.id),
     getRescues(kitchen.id, context.user.id),
     getTags(kitchen.id),
     getTrip(kitchen.id),
   ]);
-
-  /**
-   * The winner only. The stock page shows one row of suggestion (board 1b)
-   * and the rest of the ranking lives on /tonight, which is a whole screen
-   * for the question rather than a panel above the answer to a different one.
-   */
-  const [best] = rankTonight(facts);
 
   const tagNames = new Map(tags.map((tag) => [tag.id, tag.name]));
 
@@ -178,29 +168,16 @@ export default async function PantryPage({
         meta={`${onShelf.length} items · ${tags.length} ${tags.length === 1 ? "tag" : "tags"}`}
       />
 
-      {/* Board 1b, Luna's pick. The six stacked controls are gone: the
-          suggestion is one row, what is expiring soon is a band, and the group-by
-          sits on the same line as Select. Everything below is the stock,
-          which is what the screen is called. */}
+      {/* Board 1b, Luna's pick, revised again for phase 6: the Tonight
+          suggestion moved out entirely - /tonight is the front door now, so
+          repeating its answer here is the app talking over itself. A trip in
+          progress still gets a row, because "what am I shopping for" is a
+          fact about the stock page in a way a raw suggestion is not. */}
       <main className="mx-auto w-full max-w-[900px] px-5 pt-4 pb-32 sm:px-8 sm:pt-6">
-        {/*
-          One row, and the trip wins it.
-
-          A suggestion and a trip are answers to the same question - what is
-          happening about dinner - and only one of them is true at a time.
-          Once you are shopping for something, another idea on top of it is
-          the app talking over you.
-        */}
-        {trip ? (
+        {trip && (
           <div className="mb-3 print:hidden">
             <TripStrip trip={trip} />
           </div>
-        ) : (
-          best && (
-            <div className="mb-3 print:hidden">
-              <TonightStrip suggestion={best} />
-            </div>
-          )
         )}
 
         <div className="print:hidden">

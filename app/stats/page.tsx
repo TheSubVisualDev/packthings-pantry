@@ -51,8 +51,18 @@ export default async function StatsPage() {
       <SiteHeader active="stock" />
 
       <main className="mx-auto w-full max-w-[720px] px-5 py-7 pb-32 sm:px-9">
+        {/*
+          Fixed text, not `kitchen.name`.
+
+          The tab title has always said "Your kitchen"; the heading used to
+          say whichever name the kitchen was given, which is "Home" for an
+          empty one and something else entirely once it has been renamed -
+          so the same route called itself two different things depending on
+          what somebody had typed into a settings field months earlier. The
+          kitchen's own name is already on screen in the header up top.
+        */}
         <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
-          {kitchen.name}
+          Your kitchen
         </h1>
         <p className="mt-1 mb-6 text-sm font-semibold text-muted-foreground">
           {totals.cooks > 0
