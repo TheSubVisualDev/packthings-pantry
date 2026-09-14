@@ -284,73 +284,9 @@ export function ShoppingList({
         </div>
       )}
 
-      <form action={submit} className="flex flex-wrap gap-2 print:hidden">
-        {/* Offers what the kitchen already calls things, so a line matches the
-            stock row it means rather than becoming a second name for it. Still
-            free text: half of what goes on a shopping list is something you
-            have never bought before. */}
-        <div className="min-w-36 flex-1">
-          {/* A picker with nothing in it is a dropdown arrow that opens on an
-              empty box - which is what a list with no kitchen behind it got.
-              There are no stock names to offer, so it is just a field. */}
-          {profiles.length === 0 ? (
-            <input
-              key={seq}
-              autoFocus={seq > 0}
-              id="shopping-name"
-              name="name"
-              placeholder="What do you need?"
-              aria-label="What to buy"
-              onChange={(event) => setDraft(event.target.value)}
-              className={`${SMALL} w-full`}
-            />
-          ) : (
-            <SoftSelect
-              key={seq}
-              autoFocus={seq > 0}
-              id="shopping-name"
-              name="name"
-              options={profiles.map((profile) => profile.name)}
-              onValueChange={setDraft}
-              className={`${SMALL} w-full pr-9`}
-            />
-          )}
-        </div>
-        <input
-          name="quantity"
-          type="number"
-          min="0"
-          step="any"
-          inputMode="decimal"
-          placeholder="Qty"
-          aria-label="How much (optional)"
-          className={`${SMALL} w-20 text-center`}
-        />
-        <select
-          name="unit"
-          value={unit}
-          onChange={(event) => setUnitOverride(event.target.value)}
-          aria-label="Unit"
-          className={`${SMALL} w-24`}
-        >
-          {ENTRY_UNITS.map((unit) => (
-            <option key={unit} value={unit}>
-              {unit}
-            </option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          disabled={pending}
-          className="shrink-0 rounded-[12px] bg-primary px-5 py-2.5 text-sm font-extrabold text-primary-foreground disabled:opacity-60"
-        >
-          Add
-        </button>
-      </form>
-
-      {(state.error || tickError) && (
+      {tickError && (
         <p role="alert" className="text-sm font-bold text-destructive">
-          {state.error ?? tickError}
+          {tickError}
         </p>
       )}
 
@@ -401,10 +337,11 @@ export function ShoppingList({
         <p className="rounded-[20px] bg-card p-6 text-sm font-semibold text-muted-foreground shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
           {/* The second sentence is about comparing a recipe to shelves, which
               a list with no kitchen behind it cannot do. Promising it there
-              would be the empty state describing a different app. */}
+              would be the empty state describing a different app. Both point
+              down at the add form now that the list sits above it. */}
           {profiles.length === 0
-            ? "Nothing on the list yet. Type what you need above."
-            : "Nothing on the list. Cooking something you’re short of will offer to add what’s missing."}
+            ? "Nothing on the list yet. Add what you need below."
+            : "Nothing on the list. Add what you need below, or cook something you’re short of and it’ll offer to add what’s missing."}
         </p>
       ) : (
         <div className="space-y-4">
@@ -498,6 +435,92 @@ export function ShoppingList({
           Clear the {done.length} ticked off
         </button>
       )}
+
+      {/*
+        The add form, below the list rather than above it - a shop is where
+        you read the list, and where you occasionally remember one more
+        thing. Its own card and a full-width button, matching every other
+        primary action in the app, where this used to be an unlabelled row
+        with a small button stuck on the end of it.
+      */}
+      <section className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)] print:hidden">
+        <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-label">
+          Add to the list
+        </h2>
+        <form action={submit} className="mt-3 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {/* Offers what the kitchen already calls things, so a line matches
+                the stock row it means rather than becoming a second name for
+                it. Still free text: half of what goes on a shopping list is
+                something you have never bought before. */}
+            <div className="min-w-36 flex-1">
+              {/* A picker with nothing in it is a dropdown arrow that opens on
+                  an empty box - which is what a list with no kitchen behind
+                  it got. There are no stock names to offer, so it is just a
+                  field. */}
+              {profiles.length === 0 ? (
+                <input
+                  key={seq}
+                  autoFocus={seq > 0}
+                  id="shopping-name"
+                  name="name"
+                  placeholder="What do you need?"
+                  aria-label="What to buy"
+                  onChange={(event) => setDraft(event.target.value)}
+                  className={`${SMALL} w-full`}
+                />
+              ) : (
+                <SoftSelect
+                  key={seq}
+                  autoFocus={seq > 0}
+                  id="shopping-name"
+                  name="name"
+                  options={profiles.map((profile) => profile.name)}
+                  onValueChange={setDraft}
+                  className={`${SMALL} w-full pr-9`}
+                />
+              )}
+            </div>
+            <input
+              name="quantity"
+              type="number"
+              min="0"
+              step="any"
+              inputMode="decimal"
+              placeholder="Qty"
+              aria-label="How much (optional)"
+              className={`${SMALL} w-20 text-center`}
+            />
+            <select
+              name="unit"
+              value={unit}
+              onChange={(event) => setUnitOverride(event.target.value)}
+              aria-label="Unit"
+              className={`${SMALL} w-24`}
+            >
+              {ENTRY_UNITS.map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {state.error && (
+            <p role="alert" className="text-sm font-bold text-destructive">
+              {state.error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={pending}
+            className="min-h-12 w-full rounded-[14px] bg-primary text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
+          >
+            {pending ? "Adding…" : "Add"}
+          </button>
+        </form>
+      </section>
     </div>
   );
 }
