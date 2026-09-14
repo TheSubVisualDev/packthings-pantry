@@ -534,6 +534,98 @@ const inside = readRecipeText(INSIDE);
 check("a duration inside a step is not the total", inside.document.cook_minutes, undefined);
 check("and the step survives", inside.document.steps.length, 3);
 
+/* --- what the 14 Sep audit found, so it cannot come back --- */
+
+// A prep line was claiming the cooking slot, because readTotalMinutes had a
+// bare "time" in its word list and matched "Prep time: 15 minutes". The real
+// "Cook time: 35 mins" underneath was then discarded as a duplicate. Shipped
+// in the same commit that added this file's headline-time cases, none of which
+// had both a prep line and a cook line in them.
+const BOTH = readRecipeText(
+  "Test Stew\n\nPrep time: 15 minutes\nCook time: 35 mins\n\n200g beef\n\nSimmer the beef.",
+);
+check("prep and cook are read separately", BOTH.document.prep_minutes, 15);
+check("and the cook line wins its own slot", BOTH.document.cook_minutes, 35);
+
+// A headline time must not outrank a specific line that has not been read yet.
+const LATE = readRecipeText(
+  "Test\n\nTotal: 50 minutes\nCook time: 35 mins\n\n200g beef\n\nSimmer it.",
+);
+check("a later cook time beats an earlier total", LATE.document.cook_minutes, 35);
+
+// A numbered method, hard-wrapped, which is what copying off a blog gives you.
+// Every physical line used to become its own instruction, so eight steps came
+// out as eleven, cut mid-word.
+const WRAPPED = readRecipeText(`Chicken Thing
+
+200g chicken
+1 onion
+
+1. Heat the oil in a large pot over medium-high heat. Season the
+chicken and brown it on all sides, about 5 minutes.
+2. Remove the chicken and set aside. Add the onion and cook until
+softened, around 8 minutes.
+3. Return the chicken to the pot and simmer for 20 minutes.`);
+check("a wrapped numbered method keeps its count", WRAPPED.document.steps.length, 3);
+check(
+  "and its sentences are whole",
+  WRAPPED.document.steps[0].body.endsWith("about 5 minutes."),
+  true,
+);
+
+// An unnumbered method has had its steps chosen by whoever wrote it.
+const PLAIN = readRecipeText(
+  "T\n\n200g beef\n\nBrown the beef.\nAdd the onion.\nSimmer for an hour.",
+);
+check("an unnumbered method is left alone", PLAIN.document.steps.length, 3);
+
+// A headnote wrapped over several lines was arriving as a description cut off
+// mid-sentence plus the other half of that sentence in "notes", which is the
+// field labelled what happened last time you made it.
+const BLURB = readRecipeText(`Weeknight Chicken
+
+I make this at least twice a month - it's the kind of thing you can throw
+together after work with stuff that's basically always in the cupboard.
+My mother-in-law swears by adding a bay leaf.
+
+200g chicken
+1 onion
+
+Brown the chicken, then add the onion.`);
+check("a wrapped headnote stays in one piece", BLURB.document.description.endsWith("bay leaf."), true);
+check("and none of it leaks into notes", BLURB.document.notes, undefined);
+check("and none of it is read as food", BLURB.document.ingredients.length, 2);
+check("brown the X is a step", BLURB.document.steps.length, 1);
+
+// ...but brown is still a colour on an ingredient line.
+const BROWN = readRecipeText(
+  "Sugar Test\n\n200g brown sugar\n100g brown rice\n1 brown onion\n\nMix it all.",
+);
+check("brown sugar is still shopping", BROWN.document.ingredients.length, 3);
+
+// Size and portion words were being taken as the name, so the shelf was
+// searched for "Inch piece of ginger". A live recipe already holds
+// "Teaspoon of cinnamon" from this.
+for (const [line, name] of [
+  ["1-inch piece of ginger, grated", "Ginger"],
+  ["1 teaspoon of cinnamon", "Cinnamon"],
+  ["2 cloves of garlic, minced", "Garlic"],
+  ["a pinch of salt", "Salt"],
+  ["1 knob of butter", "Butter"],
+  ["400g tin of chopped tomatoes", "Chopped tomatoes"],
+  ["1 bunch of parsley", "Parsley"],
+  ["2 sticks celery", "Celery"],
+  ["1 slice of bread", "Bread"],
+]) {
+  const read = readRecipeText(`T\n\n${line}\n\nMix it.`);
+  check(`name from "${line}"`, read.document.ingredients[0].item_name, name);
+}
+
+// A measure word with nothing after it is a bad name, but it is the one the
+// writer chose. Inventing a better one out of nothing is worse.
+const BARE_MEASURE = readRecipeText("T\n\nPiece\n\nMix it.");
+check("a bare measure word is kept", BARE_MEASURE.document.ingredients[0].item_name, "Piece");
+
 if (failures > 0) {
   console.error(`\n${failures} failed`);
   process.exit(1);

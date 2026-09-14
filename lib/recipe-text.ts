@@ -235,8 +235,24 @@ const ALWAYS_TWO: [RegExp, string[]][] = [
  * Tidies the name a line was left with: drops connective words the quantity
  * left behind, strips punctuation, and gives it a capital.
  */
+/**
+ * How the amount was said, when it was said as words rather than a number.
+ *
+ * "1-inch piece of ginger" left the quantity reader with "inch piece of
+ * ginger" and that became the name - so the shelf was searched for Inch piece
+ * of ginger, and the real jar of ginger next to it never matched. The same
+ * shape put "Teaspoon of cinnamon" into a live recipe, unmeasured, where it
+ * will never come off stock.
+ *
+ * Only ever stripped when something follows it. "Piece" on its own is a
+ * useless name but it is the one the writer chose, and inventing a better one
+ * from nothing is worse than keeping a bad one.
+ */
+const MEASURE_PHRASE =
+  /^(?:\d+\s*[-\s]?)?(?:inch|inches|cm|centimetre|centimeter|tsp|teaspoons?|tbsp|tablespoons?|cups?|pinch(?:es)?|handfuls?|knobs?|cloves?|sprigs?|bunch(?:es)?|sticks?|slices?|pieces?|chunks?|strips?|cans?|tins?|jars?|packs?|packets?|punnets?|bags?|bottles?)\s+(?:of\s+)?(?=\S)/i;
+
 function tidyName(text: string): string {
-  const cleaned = text
+  let cleaned = text
     .trim()
     // After the connective is dropped, not before: the string arrives with the
     // space the quantity left on it, and "of" behind a space is not "^of".
@@ -246,6 +262,15 @@ function tidyName(text: string): string {
     .replace(/[\s,.;:]+$/, "")
     .replace(/\s{2,}/g, " ")
     .trim();
+
+  // Repeated, because "1-inch piece of ginger" is two of them stacked: the
+  // size, then the portion word.
+  for (let pass = 0; pass < 2; pass += 1) {
+    const stripped = cleaned.replace(MEASURE_PHRASE, "").trim();
+    if (!stripped || stripped === cleaned) break;
+    cleaned = stripped.replace(/^(of|the)\s+/i, "").trim();
+  }
+
   if (!cleaned) return cleaned;
   return cleaned[0].toUpperCase() + cleaned.slice(1);
 }
@@ -524,9 +549,15 @@ function looksLikeStep(line: string): boolean {
  * are also things you buy, and "Cream cheese" on a line of its own would stop
  * being an ingredient - which is a worse failure than a step misread as one,
  * because a missing ingredient is missing from the shopping list too.
+ *
+ * "Brown" and "cream" get in only as "brown the" and "cream the". Both open
+ * instructions constantly - "Brown the chicken", "Cream the butter and sugar"
+ * - and both are also shopping: brown sugar, brown rice, brown onions, single
+ * cream. The article is what separates them, and requiring it costs nothing,
+ * because nobody writes an ingredient as "brown the".
  */
 const STEP_VERB =
-  /^(heat|add|stir|pour|mix|combine|bring|season|serve|cook|fry|bake|place|put|remove|cut|chop|slice|drain|whisk|beat|fold|simmer|boil|roast|grill|preheat|melt|leave|set|repeat|transfer|reduce|cover|garnish|sprinkle|spoon|return|blend|blitz|rinse|wash|peel|allow|meanwhile|once|when|while|finally|next|then|sift|sieve|tip|knead|prove|rest|chill|freeze|thaw|defrost|marinate|steam|poach|sear|braise|strain|skim|taste|adjust|top|finish|assemble|layer|roll|spread|arrange|scatter|dot|brush|line|grease|turn|flip|lower|raise|increase|discard|reserve|check|continue|stand|warm|cool|crush|grate|zest|squeeze|divide|shape|form|pinch|press|toss|coat|dust|drizzle|fill|stuff|wrap|seal|slide|lift|scrape|deglaze|thicken|whip|rub|dip|plate|switch|use|start|begin)\b/i;
+  /^(heat|add|stir|pour|mix|combine|bring|season|serve|cook|fry|bake|place|put|remove|cut|chop|slice|drain|whisk|beat|fold|simmer|boil|roast|grill|preheat|melt|leave|set|repeat|transfer|reduce|cover|garnish|sprinkle|spoon|return|blend|blitz|rinse|wash|peel|allow|meanwhile|once|when|while|finally|next|then|sift|sieve|tip|knead|prove|rest|chill|freeze|thaw|defrost|marinate|steam|poach|sear|braise|strain|skim|taste|adjust|top|finish|assemble|layer|roll|spread|arrange|scatter|dot|brush|line|grease|turn|flip|lower|raise|increase|discard|reserve|check|continue|stand|warm|cool|crush|grate|zest|squeeze|divide|shape|form|pinch|press|toss|coat|dust|drizzle|fill|stuff|wrap|seal|slide|lift|scrape|deglaze|thicken|whip|rub|dip|plate|switch|use|start|begin|brown(?=\s+the\b)|cream(?=\s+the\b))\b/i;
 
 /** "Serves 4", "Makes 12", "Feeds 6", "For 2 people". */
 function readServings(line: string): number | null {
@@ -591,6 +622,19 @@ function readMinutes(line: string, which: "prep" | "cook"): number | null {
  * the recipe's total is how a two-hour stew comes out at half an hour.
  */
 function readTotalMinutes(line: string): number | null {
+  /**
+   * A line that names prep or cooking is not a headline time.
+   *
+   * "Prep time: 15 minutes" was being read as the recipe's total, because the
+   * word list below had a bare `time` in it - so the prep line claimed the
+   * cooking slot, and the real "Cook time: 35 mins" two lines later was thrown
+   * away as a duplicate. Saved as prep 15, cook 15.
+   *
+   * readMinutes already owns both of those phrasings. This only wants the
+   * lines it does not.
+   */
+  if (/\b(prep(aration)?|cook(ing)?|bak(e|ing))\b/i.test(line)) return null;
+
   const word = String.raw`takes|ready\s+in|total(?:\s*time)?|time`;
   const loose = String.raw`(?:about\s+|around\s+|roughly\s+)?`;
   const patterns = [
@@ -692,6 +736,8 @@ export function readRecipeText(text: string): ReadResult {
   let servings: number | null = null;
   let prep: number | null = null;
   let cook: number | null = null;
+  /** A headline time, held back until every line has been read. See below. */
+  let total: number | null = null;
   let description: string | null = null;
   const extraNotes: string[] = [];
 
@@ -765,14 +811,20 @@ export function readRecipeText(text: string): ReadResult {
       ).trim().length === 0;
 
     /**
-     * A headline time is the cooking time, but only off a line that is nothing
-     * else.
+     * A headline time is remembered, not spent.
      *
-     * "This takes about 20 minutes" in the middle of a method is a step, and
-     * taking its duration as the whole recipe's would be wrong more often
-     * than right.
+     * It used to be written straight into `cook` the moment it was seen, which
+     * made the first line to mention a duration win outright - so a recipe
+     * whose header read "Total: 50 minutes" before "Cook time: 35 mins" kept
+     * the 50 and discarded the specific figure underneath it. A guess must not
+     * outrank a fact that has not been read yet, so this waits until every
+     * line has had its say and is applied after the loop.
+     *
+     * Only off a line that is nothing else: "this takes about 20 minutes" in
+     * the middle of a method is a step, and taking its duration as the whole
+     * recipe's would be wrong more often than right.
      */
-    if (onlyMetadata && cook === null && foundTotal !== null) cook = foundTotal;
+    if (onlyMetadata && total === null && foundTotal !== null) total = foundTotal;
 
     if (onlyMetadata) continue;
 
@@ -841,12 +893,51 @@ export function readRecipeText(text: string): ReadResult {
       continue;
     }
 
-    // Prose, before anything has been listed. The blurb if there is not one
-    // yet, and otherwise something to keep rather than to mistake for food.
-    if (!stated && ingredientLines.length === 0 && looksLikeStep(line)) {
-      if (description === null) description = line;
-      else extraNotes.push(line);
-      continue;
+    /**
+     * Prose before anything has been listed is the blurb - all of it.
+     *
+     * This used to keep the first line and push every line after it into
+     * notes, which is the field labelled "what happened last time you made
+     * it". A headnote wrapped across four lines therefore arrived as a
+     * description cut off mid-sentence and a note holding the other half of
+     * the same sentence, with nothing said about it.
+     *
+     * The reason it could not tell a continuation from a new thought is that
+     * blank lines are stripped when the text is split, so by here the
+     * paragraph breaks are gone. Rather than guess at them, this takes the
+     * honest position: nothing above the ingredients is a note about cooking
+     * it, so it is all the blurb, joined back into one piece. Notes come from
+     * an explicit Notes heading, which is handled above.
+     */
+    if (!stated && ingredientLines.length === 0) {
+      /**
+       * Once a blurb has started, it keeps going until the food does.
+       *
+       * `looksLikeStep` opens it, and that test wants twelve words or a
+       * cooking verb - which the FIRST line of a wrapped headnote has and the
+       * rest of it does not. Relying on it alone sent the continuations to be
+       * read as ingredients, which is how a recipe ends up calling for
+       * "together after work with stuff that's basically always in the
+       * cupboard".
+       *
+       * So a second test, and only while a blurb is already open, so a recipe
+       * without one is untouched: a line that begins in lower case is
+       * obviously the line above continuing, and a line that closes a sentence
+       * with no quantity in it is the next sentence of the same headnote.
+       * Neither can catch "Black pepper", which ends no sentence, or "2 eggs",
+       * which carries a number.
+       */
+      const continues =
+        description !== null &&
+        (/^[a-z]/.test(line) ||
+          (/[.!?]["')\]]?$/.test(line) &&
+            !readNumber(line) &&
+            line.split(/\s+/).length >= 4));
+
+      if (looksLikeStep(line) || continues) {
+        description = description === null ? line : `${description} ${line}`;
+        continue;
+      }
     }
 
     ingredientLines.push({ text: line, section });
@@ -888,6 +979,51 @@ export function readRecipeText(text: string): ReadResult {
   }
 
   /**
+   * A numbered step that wrapped is still one step.
+   *
+   * Copying a method off a blog or out of a PDF gives you the numbers AND the
+   * wrapping: "1. Heat the oil in a large pot over medium-high heat. Season
+   * the" on one line and "chicken and brown it on all sides." on the next.
+   * Every physical line arrived here as its own instruction, so an eight-step
+   * method came out as eleven, cut mid-word - the reader was counting lines
+   * where the writer had counted numbers.
+   *
+   * So a line that does not start with a number, in a method where other lines
+   * do, is the previous one continuing. Only when the numbering is actually
+   * there: a method written as plain unnumbered lines has had its steps
+   * decided by its author, and joining those would be the opposite mistake.
+   */
+  const NUMBERED = /^(step\s*)?\d+\s*[.):\-]\s+/i;
+  const numberedCount = stepLines.filter((line) => NUMBERED.test(line.text)).length;
+
+  const joined: typeof stepLines =
+    numberedCount < 2
+      ? stepLines
+      : stepLines.reduce<typeof stepLines>((out, line) => {
+          const previous = out.at(-1);
+          const continues =
+            previous !== undefined &&
+            !NUMBERED.test(line.text) &&
+            // A section heading between two steps ends the one above it.
+            previous.section === line.section &&
+            NUMBERED.test(previous.text);
+
+          if (!continues) {
+            out.push(line);
+            return out;
+          }
+
+          // A word broken across the wrap keeps its halves together; anything
+          // else gets the space the line break was standing in for.
+          const glue = /\w-$/.test(previous.text) ? "" : " ";
+          out[out.length - 1] = {
+            ...previous,
+            text: previous.text.replace(/-$/, "") + glue + line.text,
+          };
+          return out;
+        }, []);
+
+  /**
    * One line per instruction, however the method was written.
    *
    * A numbered list arrives as one line each and is left alone; a paragraph
@@ -896,9 +1032,9 @@ export function readRecipeText(text: string): ReadResult {
    * their method into lines has said where the steps are and should not be
    * second-guessed.
    */
-  const asParagraphs = stepLines.length <= 2;
+  const asParagraphs = joined.length <= 2;
 
-  const steps = stepLines.flatMap(({ text: stepText, section: stepSection }) => {
+  const steps = joined.flatMap(({ text: stepText, section: stepSection }) => {
     const body = stepText.replace(/^(step\s*)?\d+\s*[.):\-]\s*/i, "").trim();
     const bodies = asParagraphs ? intoSteps(body) : [body];
     return bodies.map((each) => ({
@@ -911,6 +1047,11 @@ export function readRecipeText(text: string): ReadResult {
     servings = 4;
     notes.push("No serving count found — assumed 4. Change it below if not.");
   }
+
+  // Now that every line has been read, and only if nothing more specific
+  // claimed the slot. A headline time is the whole recipe rather than the
+  // cooking alone, so it is the weakest thing that can fill this in.
+  if (cook === null && total !== null) cook = total;
 
   const document: Record<string, unknown> = {
     name: name ?? "Untitled recipe",

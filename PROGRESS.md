@@ -3,11 +3,32 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 14 Sep 2026 — reports #17-#21 done, queue empty
-**Doing right now:** nothing
+**Last updated:** 14 Sep 2026 — reports #17-#21 done, site audit running
+**Doing right now:** two independent auditors are walking the app, one on the
+recipe half and one on the kitchen half. Neither was told what I had already
+found, or which code is recent — my own first pass found nothing wrong with
+anything I had just written, which is the sort of result that should not be
+trusted.
 **Waiting on you:** one command. Deleting the old Vercel deployments got
 blocked by a safety check on my end — the command is at the bottom of this
 file.
+
+### Queued · do after the audit findings are actioned
+
+**Shopping page restructure.** Agreed with Luna, sketch approved, not started.
+
+1. Order becomes list → add form → Running Low, and it stays that way whether
+   or not the list is empty. Predictable was chosen over helpful: reordering
+   the page under somebody depending on how full their list is costs more than
+   the scroll it saves. The empty state must then point *down* at the form —
+   it currently says "type what you need above"
+   (`components/shopping-list.tsx:406`).
+2. Header stops saying `0 to buy` above five shortfalls. `0 on the list`
+   separates the two facts (`app/pantry/list/page.tsx:57`).
+3. The add form gets a heading and a full-width Add, like every other primary
+   action in the app (`components/shopping-list.tsx:287`).
+4. Running Low rows stop wrapping to two lines only when the shop name happens
+   to be long.
 
 ### This round · five reports
 
