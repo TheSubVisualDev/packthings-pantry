@@ -18,10 +18,16 @@ export const metadata: Metadata = {
 
 export default async function EditRecipePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ review?: string }>;
 }) {
   const recipeId = Number((await params).id);
+  // Pasting lands here rather than on the finished recipe, and arriving in a
+  // three-stage form with no explanation reads as having been put somewhere by
+  // mistake. This is what says otherwise.
+  const review = (await searchParams).review === "paste";
   if (!Number.isInteger(recipeId)) notFound();
 
   const context = await currentKitchen();
@@ -53,9 +59,19 @@ export default async function EditRecipePage({
         >
           &larr; {recipe.name}
         </Link>
-        <h1 className="mt-2 mb-6 text-[26px] font-extrabold tracking-[-0.02em]">
-          Edit recipe
+        <h1
+          className={`mt-2 text-[26px] font-extrabold tracking-[-0.02em] ${
+            review ? "" : "mb-6"
+          }`}
+        >
+          {review ? "Check it through" : "Edit recipe"}
         </h1>
+        {review && (
+          <p className="mt-1 mb-6 text-[15px] leading-relaxed font-medium text-muted-foreground">
+            Read from what you pasted, and saved as it stands. Walk the three
+            screens and correct anything that came out wrong.
+          </p>
+        )}
 
         <RecipeEditor
           initial={draftFromRecipe(recipe)}

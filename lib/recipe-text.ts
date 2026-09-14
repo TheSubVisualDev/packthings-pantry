@@ -507,10 +507,26 @@ function looksLikeStep(line: string): boolean {
   const words = line.trim().split(/\s+/).length;
   if (readNumber(line) && words < 12) return false;
   if (words >= 12) return true;
-  return /^(heat|add|stir|pour|mix|combine|bring|season|serve|cook|fry|bake|place|put|remove|cut|chop|slice|drain|whisk|beat|fold|simmer|boil|roast|grill|preheat|melt|leave|set|repeat|transfer|reduce|cover|garnish|sprinkle|spoon|return|blend|blitz|rinse|wash|peel|allow|meanwhile|once|when|while|finally|next|then)\b/i.test(
-    line.trim(),
-  );
+  return STEP_VERB.test(line.trim());
 }
+
+/**
+ * The verbs a method opens on.
+ *
+ * Kept as a list rather than made clever, and extended when something turns up
+ * missing: "Sift the flour and baking powder together" was read as an
+ * ingredient called Sift the flour and baking powder together, because sift
+ * was not on it. Baking verbs were the gap - the original list was written
+ * from savoury recipes and has fry, simmer and roast but not knead, prove or
+ * chill.
+ *
+ * "Cream" and "batter" are deliberately NOT on it. They are verbs, but they
+ * are also things you buy, and "Cream cheese" on a line of its own would stop
+ * being an ingredient - which is a worse failure than a step misread as one,
+ * because a missing ingredient is missing from the shopping list too.
+ */
+const STEP_VERB =
+  /^(heat|add|stir|pour|mix|combine|bring|season|serve|cook|fry|bake|place|put|remove|cut|chop|slice|drain|whisk|beat|fold|simmer|boil|roast|grill|preheat|melt|leave|set|repeat|transfer|reduce|cover|garnish|sprinkle|spoon|return|blend|blitz|rinse|wash|peel|allow|meanwhile|once|when|while|finally|next|then|sift|sieve|tip|knead|prove|rest|chill|freeze|thaw|defrost|marinate|steam|poach|sear|braise|strain|skim|taste|adjust|top|finish|assemble|layer|roll|spread|arrange|scatter|dot|brush|line|grease|turn|flip|lower|raise|increase|discard|reserve|check|continue|stand|warm|cool|crush|grate|zest|squeeze|divide|shape|form|pinch|press|toss|coat|dust|drizzle|fill|stuff|wrap|seal|slide|lift|scrape|deglaze|thicken|whip|rub|dip|plate|switch|use|start|begin)\b/i;
 
 /** "Serves 4", "Makes 12", "Feeds 6", "For 2 people". */
 function readServings(line: string): number | null {
@@ -560,6 +576,42 @@ function readMinutes(line: string, which: "prep" | "cook"): number | null {
   return null;
 }
 
+
+/**
+ * "Takes 40 minutes", "Ready in 1 hr 15", "Total time: 25 mins".
+ *
+ * The headline time, which is how most handwritten recipes give one - they
+ * say how long the thing takes, not how long the oven is on. Read apart from
+ * prep and cook because it is neither: it is both added together, and the
+ * only honest place to put it is the cooking time when nothing else claims
+ * one.
+ *
+ * Anchored on those words rather than on "N minutes", because half the
+ * sentences in a method carry a duration and reading "bake for 30 minutes" as
+ * the recipe's total is how a two-hour stew comes out at half an hour.
+ */
+function readTotalMinutes(line: string): number | null {
+  const word = String.raw`takes|ready\s+in|total(?:\s*time)?|time`;
+  const loose = String.raw`(?:about\s+|around\s+|roughly\s+)?`;
+  const patterns = [
+    new RegExp(
+      String.raw`\b(?:${word})\s*[:\-]?\s*${loose}(\d+)\s*(?:hours?|hrs?|h)\b\s*(\d+)?`,
+      "i",
+    ),
+    new RegExp(
+      String.raw`\b(?:${word})\s*[:\-]?\s*${loose}(\d+)\s*(?:minutes?|mins?)\b`,
+      "i",
+    ),
+    /\b(\d+)\s*(?:minutes?|mins?)\s*(?:in\s+)?total\b/i,
+  ];
+  for (const [index, pattern] of patterns.entries()) {
+    const found = line.match(pattern);
+    if (!found) continue;
+    const value = index === 0 ? Number(found[1]) * 60 + Number(found[2] ?? 0) : Number(found[1]);
+    if (Number.isFinite(value) && value > 0 && value <= 6000) return Math.round(value);
+  }
+  return null;
+}
 
 /**
  * A method written as one paragraph, cut into steps.
@@ -695,6 +747,7 @@ export function readRecipeText(text: string): ReadResult {
     const foundServings = readServings(line);
     const foundPrep = readMinutes(line, "prep");
     const foundCook = readMinutes(line, "cook");
+    const foundTotal = readTotalMinutes(line);
     if (servings === null && foundServings !== null) servings = foundServings;
     if (prep === null && foundPrep !== null) prep = foundPrep;
     if (cook === null && foundCook !== null) cook = foundCook;
@@ -702,11 +755,25 @@ export function readRecipeText(text: string): ReadResult {
     // A line that was ONLY metadata has now been read and should not also
     // become an ingredient called "Serves 4".
     const onlyMetadata =
-      (foundServings !== null || foundPrep !== null || foundCook !== null) &&
+      (foundServings !== null ||
+        foundPrep !== null ||
+        foundCook !== null ||
+        foundTotal !== null) &&
       line.replace(
-        /\b(serves?|makes|feeds|yields?|portions?|for|prep(aration)?|cook(ing)?|bak(e|ing)|time|total|about|hours?|hrs?|minutes?|mins?|people|servings?)\b|\d+|[:\-–—,.()|]/gi,
+        /\b(serves?|makes|feeds|yields?|portions?|for|prep(aration)?|cook(ing)?|bak(e|ing)|takes?|ready|in|active|time|total|about|around|roughly|approx(imately)?|hours?|hrs?|minutes?|mins?|people|persons?|servings?)\b|\d+|[:\-–—,.()|·•]/gi,
         "",
       ).trim().length === 0;
+
+    /**
+     * A headline time is the cooking time, but only off a line that is nothing
+     * else.
+     *
+     * "This takes about 20 minutes" in the middle of a method is a step, and
+     * taking its duration as the whole recipe's would be wrong more often
+     * than right.
+     */
+    if (onlyMetadata && cook === null && foundTotal !== null) cook = foundTotal;
+
     if (onlyMetadata) continue;
 
     if (name === null && where === null) {

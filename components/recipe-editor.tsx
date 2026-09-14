@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { ChevronLeft } from "lucide-react";
 import { PhotoPicker } from "@/components/photo-picker";
 import { RecipePreview } from "@/components/recipe-preview";
 import { SoftSelect } from "@/components/soft-select";
@@ -140,6 +141,29 @@ export function RecipeEditor({
   const [result, setResult] = useState<SaveRecipeResult | null>(null);
 
   /**
+   * Which of the three questions is on screen.
+   *
+   * Asked in the order somebody writing a recipe down actually has it: what
+   * goes in, then what you do, then what to call it. The page used to be all
+   * of it at once - a form tall enough that the Save button was a scroll away
+   * from the name field, and the first thing anybody met was a photo picker
+   * for a recipe that did not exist yet.
+   *
+   * Hidden rather than unmounted, so every field keeps what was typed and
+   * moving back and forth loses nothing.
+   */
+  const [stage, setStage] = useState(0);
+
+  /**
+   * Which instruction is on screen, within the method.
+   *
+   * One at a time, because that is the shape a method has when you are writing
+   * it - you finish a step and then think of the next one - and because a
+   * column of twelve identical textareas is the thing this rework is for.
+   */
+  const [stepAt, setStepAt] = useState(0);
+
+  /**
    * The warnings split by whether they are anybody's fault.
    *
    * "Not in this kitchen yet" is a fact about the cupboard; a unit that
@@ -228,6 +252,67 @@ export function RecipeEditor({
     .map((line) => line.item_name.trim())
     .filter(Boolean);
 
+  const STAGES = [
+    { title: "What goes in it?", hint: "Everything the recipe needs, in the order you use it." },
+    { title: "How is it made?", hint: "One instruction per screen." },
+    { title: "What is it called?", hint: "The name is the only part that is required." },
+  ];
+
+  const last = stage === STAGES.length - 1;
+  /** A recipe with nothing in it is not a recipe; nothing else is compulsory. */
+  const canLeave =
+    stage === 0
+      ? draft.ingredients.some((line) => line.item_name.trim() !== "")
+      : true;
+
+  /**
+   * The instruction on screen, clamped rather than stored clamped.
+   *
+   * Removing the last step leaves stepAt pointing past the end, and an index
+   * no card matches is a stage with nothing in it. Deriving it means the
+   * invariant cannot be broken by whichever of the four things that change
+   * `steps` forgets to fix the cursor - which is the same shape as the bug
+   * that made triage skip a card.
+   */
+  const stepCount = draft.steps.length;
+  const stepShowing = Math.min(stepAt, Math.max(0, stepCount - 1));
+  const moreSteps = stage === 1 && stepShowing < stepCount - 1;
+
+  /**
+   * Forward and back mean the next INSTRUCTION inside the method, and the next
+   * stage everywhere else.
+   *
+   * One pair of controls rather than two: a screen with a page-next and a
+   * stage-next on it makes you read both before pressing either.
+   */
+  function goBack() {
+    if (stage === 1 && stepShowing > 0) setStepAt(stepShowing - 1);
+    else setStage((n) => n - 1);
+  }
+
+  function goNext() {
+    if (moreSteps) setStepAt(stepShowing + 1);
+    else setStage((n) => n + 1);
+  }
+
+  /** A new instruction, and you are taken to it - it is why you pressed. */
+  function addStep() {
+    setDraft((c) => ({
+      ...c,
+      steps: [
+        ...c.steps,
+        {
+          key: makeKey(),
+          body: "",
+          minutes: "",
+          section: c.steps.at(-1)?.section ?? "",
+          uses: [],
+        },
+      ],
+    }));
+    setStepAt(stepCount);
+  }
+
   return (
     <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-8">
       {/* Spans both columns: one bar over the pair, so Save is in the same
@@ -251,22 +336,18 @@ export function RecipeEditor({
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={pending}
-          /*
-            A fixed width, because this bar is blurred.
-
-            "Save changes" becoming "Saving…" resized the button, and resizing
-            an element that sits on a backdrop-blur left the old frame painted
-            behind the new one on iOS - two overlapping buttons, one clipped.
-            Nothing reflows now, so there is nothing to ghost.
-          */
-          className="min-w-[132px] shrink-0 rounded-[14px] bg-primary px-5 py-2.5 text-center text-sm font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
-        >
-          {pending ? "Saving…" : recipeId ? "Save changes" : "Create recipe"}
-        </button>
+        {/* Three segments rather than a Save button. Saving belongs at the
+            end of the thing, not permanently in the corner of it. */}
+        <div className="flex flex-1 justify-end gap-1">
+          {STAGES.map((each, index) => (
+            <span
+              key={each.title}
+              className={`h-1 w-8 rounded-full ${
+                index < stage ? "bg-primary" : index === stage ? "bg-ink" : "bg-border"
+              }`}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Preview left, fields right. */}
@@ -278,107 +359,16 @@ export function RecipeEditor({
       </div>
 
       <div className={`${pane === "edit" ? "block" : "hidden"} space-y-6 lg:block`}>
-      <section className="space-y-4">
-        {recipeId && photos ? (
-          <div>
-            <span className={LABEL}>Photo</span>
-            <PhotoPicker
-              recipeId={recipeId}
-              kind="hero"
-              current={photos.hero}
-              label="+ Add a photo"
-              aspect="aspect-[2/1]"
-            />
-          </div>
-        ) : (
-          <p className="rounded-[14px] bg-chip px-4 py-3 text-sm font-semibold text-muted-foreground">
-            Save the recipe first and you can add photos to it and to each step.
+      {/* Stage 1 - what goes in it. */}
+      <div hidden={stage !== 0} className="space-y-6">
+        <div>
+          <h2 className="text-[22px] font-extrabold tracking-[-0.02em]">
+            {STAGES[0].title}
+          </h2>
+          <p className="text-sm font-semibold text-muted-foreground">
+            {STAGES[0].hint}
           </p>
-        )}
-
-        <div>
-          <label htmlFor="name" className={LABEL}>
-            Name
-          </label>
-          <input
-            id="name"
-            value={draft.name}
-            onChange={(event) => field("name", event.target.value)}
-            className={FIELD}
-          />
         </div>
-
-        <div>
-          <label htmlFor="description" className={LABEL}>
-            Description
-          </label>
-          <textarea
-            id="description"
-            rows={2}
-            value={draft.description}
-            onChange={(event) => field("description", event.target.value)}
-            className={`${FIELD} resize-y leading-relaxed`}
-          />
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label htmlFor="base_servings" className={LABEL}>
-              Serves
-            </label>
-            <input
-              id="base_servings"
-              type="number"
-              min="1"
-              inputMode="numeric"
-              value={draft.base_servings}
-              onChange={(event) => field("base_servings", event.target.value)}
-              className={FIELD}
-            />
-          </div>
-          <div>
-            <label htmlFor="prep_minutes" className={LABEL}>
-              Prep min
-            </label>
-            <input
-              id="prep_minutes"
-              type="number"
-              min="1"
-              inputMode="numeric"
-              value={draft.prep_minutes}
-              onChange={(event) => field("prep_minutes", event.target.value)}
-              className={FIELD}
-            />
-          </div>
-          <div>
-            <label htmlFor="cook_minutes" className={LABEL}>
-              Cook min
-            </label>
-            <input
-              id="cook_minutes"
-              type="number"
-              min="1"
-              inputMode="numeric"
-              value={draft.cook_minutes}
-              onChange={(event) => field("cook_minutes", event.target.value)}
-              className={FIELD}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="source" className={LABEL}>
-            Source
-          </label>
-          <input
-            id="source"
-            value={draft.source}
-            placeholder="A link, a book, a person"
-            onChange={(event) => field("source", event.target.value)}
-            className={FIELD}
-          />
-        </div>
-      </section>
 
       <section>
         <div className="mb-3 flex items-center justify-between">
@@ -625,29 +615,77 @@ export function RecipeEditor({
         </button>
       </section>
 
+      </div>
+
+      {/* Stage 2 - the method, one instruction at a time. */}
+      <div hidden={stage !== 1} className="space-y-6">
+        <div>
+          <h2 className="text-[22px] font-extrabold tracking-[-0.02em]">
+            {STAGES[1].title}
+          </h2>
+          <p className="text-sm font-semibold text-muted-foreground">
+            {STAGES[1].hint}
+          </p>
+        </div>
+
       <section>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-label">
             Method
           </h2>
-          <span className="text-xs font-semibold text-muted-foreground">
-            {draft.steps.length}
+          <span className="text-xs font-semibold text-muted-foreground tabular-nums">
+            {stepCount === 0 ? "None yet" : `${stepShowing + 1} of ${stepCount}`}
           </span>
         </div>
 
-        <div className="space-y-3">
+        {/* Every instruction, as somewhere to jump to. A method you are part
+            way through writing is one you want to reread the middle of, and
+            paging back four times to do it is why nobody does. */}
+        {stepCount > 1 && (
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {draft.steps.map((step, index) => (
+              <button
+                key={step.key}
+                type="button"
+                aria-label={`Go to step ${index + 1}`}
+                aria-current={index === stepShowing}
+                onClick={() => setStepAt(index)}
+                className={`h-7 min-w-7 rounded-full px-2 text-xs font-extrabold tabular-nums ${
+                  index === stepShowing
+                    ? "bg-ink text-background"
+                    : step.body.trim()
+                      ? "bg-chip text-muted-foreground"
+                      : "border border-dashed border-border text-muted-foreground/60"
+                }`}
+              >
+                {index + 1}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Hidden, never unmounted: a step you paged away from keeps what was
+            typed into it, including the half-finished sentence. */}
+        <div>
           {draft.steps.map((step, index) => (
-            <div key={step.key} className={CARD}>
+            <div key={step.key} hidden={index !== stepShowing} className={CARD}>
               <div className="mb-2.5 flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-muted-foreground">
                   Step {index + 1}
                 </span>
                 <div className="flex items-center gap-1">
+                  {/* The cursor goes with the step. Reordering without it
+                      swaps the card under you and reads as the text changing
+                      by itself, which is much worse than the reorder is
+                      useful. */}
                   <button
                     type="button"
                     aria-label="Move up"
                     disabled={index === 0}
-                    onClick={() => setDraft((c) => ({ ...c, steps: move(c.steps, index, -1) }))}
+                    onClick={() => {
+                      setDraft((c) => ({ ...c, steps: move(c.steps, index, -1) }));
+                      setStepAt(index - 1);
+                    }}
                     className={GHOST}
                   >
                     ↑
@@ -656,7 +694,10 @@ export function RecipeEditor({
                     type="button"
                     aria-label="Move down"
                     disabled={index === draft.steps.length - 1}
-                    onClick={() => setDraft((c) => ({ ...c, steps: move(c.steps, index, 1) }))}
+                    onClick={() => {
+                      setDraft((c) => ({ ...c, steps: move(c.steps, index, 1) }));
+                      setStepAt(index + 1);
+                    }}
                     className={GHOST}
                   >
                     ↓
@@ -755,25 +796,126 @@ export function RecipeEditor({
 
         <button
           type="button"
-          onClick={() =>
-            setDraft((c) => ({
-              ...c,
-              steps: [
-                ...c.steps,
-                {
-                  key: makeKey(),
-                  body: "",
-                  minutes: "",
-                  section: c.steps.at(-1)?.section ?? "",
-                  uses: [],
-                },
-              ],
-            }))
-          }
+          onClick={addStep}
           className="mt-3 w-full rounded-[14px] border border-dashed border-border py-3 text-sm font-bold text-muted-foreground hover:border-primary hover:text-foreground"
         >
-          + Add a step
+          {stepCount === 0 ? "+ Add the first step" : "+ Add another step"}
         </button>
+      </section>
+
+      </div>
+
+      {/* Stage 3 - what it is called, and everything about it. */}
+      <div hidden={stage !== 2} className="space-y-6">
+        <div>
+          <h2 className="text-[22px] font-extrabold tracking-[-0.02em]">
+            {STAGES[2].title}
+          </h2>
+          <p className="text-sm font-semibold text-muted-foreground">
+            {STAGES[2].hint}
+          </p>
+        </div>
+
+      <section className="space-y-4">
+        {recipeId && photos ? (
+          <div>
+            <span className={LABEL}>Photo</span>
+            <PhotoPicker
+              recipeId={recipeId}
+              kind="hero"
+              current={photos.hero}
+              label="+ Add a photo"
+              aspect="aspect-[2/1]"
+            />
+          </div>
+        ) : (
+          <p className="rounded-[14px] bg-chip px-4 py-3 text-sm font-semibold text-muted-foreground">
+            Save the recipe first and you can add photos to it and to each step.
+          </p>
+        )}
+
+        <div>
+          <label htmlFor="name" className={LABEL}>
+            Name
+          </label>
+          <input
+            id="name"
+            value={draft.name}
+            onChange={(event) => field("name", event.target.value)}
+            className={FIELD}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="description" className={LABEL}>
+            Description
+          </label>
+          <textarea
+            id="description"
+            rows={2}
+            value={draft.description}
+            onChange={(event) => field("description", event.target.value)}
+            className={`${FIELD} resize-y leading-relaxed`}
+          />
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label htmlFor="base_servings" className={LABEL}>
+              Serves
+            </label>
+            <input
+              id="base_servings"
+              type="number"
+              min="1"
+              inputMode="numeric"
+              value={draft.base_servings}
+              onChange={(event) => field("base_servings", event.target.value)}
+              className={FIELD}
+            />
+          </div>
+          <div>
+            <label htmlFor="prep_minutes" className={LABEL}>
+              Prep min
+            </label>
+            <input
+              id="prep_minutes"
+              type="number"
+              min="1"
+              inputMode="numeric"
+              value={draft.prep_minutes}
+              onChange={(event) => field("prep_minutes", event.target.value)}
+              className={FIELD}
+            />
+          </div>
+          <div>
+            <label htmlFor="cook_minutes" className={LABEL}>
+              Cook min
+            </label>
+            <input
+              id="cook_minutes"
+              type="number"
+              min="1"
+              inputMode="numeric"
+              value={draft.cook_minutes}
+              onChange={(event) => field("cook_minutes", event.target.value)}
+              className={FIELD}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="source" className={LABEL}>
+            Source
+          </label>
+          <input
+            id="source"
+            value={draft.source}
+            placeholder="A link, a book, a person"
+            onChange={(event) => field("source", event.target.value)}
+            className={FIELD}
+          />
+        </div>
       </section>
 
       <section>
@@ -789,6 +931,66 @@ export function RecipeEditor({
           className={`${FIELD} resize-y leading-relaxed`}
         />
       </section>
+
+      </div>
+
+      {/*
+        Forward, back, and saving at the end.
+
+        Keyed apart because they are two buttons in one position and React
+        reuses the DOM node between them - the add-item form learned that the
+        hard way, where a type flipping from button to submit mid-click
+        submitted the form on the way into the last stage.
+      */}
+      <div className="mt-6 flex items-center gap-3">
+        {stage > 0 && (
+          <button
+            key="back"
+            type="button"
+            onClick={goBack}
+            aria-label={
+              stage === 1 && stepShowing > 0 ? "Back one instruction" : "Back a stage"
+            }
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-chip text-muted-foreground"
+          >
+            <ChevronLeft className="h-5 w-5" strokeWidth={3} />
+          </button>
+        )}
+
+        {last ? (
+          <button
+            key="save"
+            type="button"
+            onClick={onSave}
+            disabled={pending}
+            className="h-14 flex-1 rounded-[14px] bg-primary px-4 text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
+          >
+            {pending ? "Saving…" : recipeId ? "Save changes" : "Create recipe"}
+          </button>
+        ) : (
+          <button
+            key="next"
+            type="button"
+            onClick={goNext}
+            disabled={!canLeave}
+            className="h-14 flex-1 rounded-[14px] bg-primary px-4 text-[15px] font-extrabold text-primary-foreground disabled:opacity-40"
+          >
+            {moreSteps ? "Next step" : stage === 1 ? "Done with the method" : "Continue"}
+          </button>
+        )}
+      </div>
+
+      {/* An edit is often one field on the last screen, and walking through
+          two screens to reach it is worse than the tall page this replaced. */}
+      {!last && recipeId && (
+        <button
+          type="button"
+          onClick={() => setStage(STAGES.length - 1)}
+          className="mt-2 w-full text-sm font-bold text-muted-foreground underline underline-offset-2"
+        >
+          Skip to the details
+        </button>
+      )}
 
       {result && result.problems.length > 0 && (
         <div role="alert" className="rounded-[20px] bg-[oklch(0.96_0.03_40)] p-5">

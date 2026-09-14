@@ -69,7 +69,7 @@ export function PasteRecipe({ briefing }: { briefing: string }) {
     startSaving(async () => {
       const saved = await saveRecipeDocument(document);
       if (saved.ok && saved.id) {
-        router.push(`/recipes/${saved.id}/edit`);
+        router.push(`/recipes/${saved.id}/edit?review=paste`);
         return;
       }
       setResult(saved);
@@ -99,7 +99,11 @@ export function PasteRecipe({ briefing }: { briefing: string }) {
 
       const saved = await saveRecipeDocument(document);
       if (saved.ok && saved.id) {
-        router.push(`/recipes/${saved.id}`);
+        // The same landing as the text path. JSON used to go straight to the
+        // finished recipe on the grounds that it was written to the shape, but
+        // it is still something somebody else wrote and the first thing anyone
+        // does with it is check the amounts.
+        router.push(`/recipes/${saved.id}/edit?review=paste`);
         return;
       }
       setResult(saved);

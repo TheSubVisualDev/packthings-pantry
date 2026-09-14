@@ -486,6 +486,54 @@ check(
   "Beat the eggs. Season them well.",
 );
 
+/* --- the headline time, which most handwritten recipes give instead of two --- */
+
+// "Serves 6. Takes 40 minutes." came out of the importer as ingredient number
+// one, called "Serves 6. Takes 40 minutes.", with the time thrown away: the
+// residue test did not know the word "takes", so the line read as part
+// metadata and part something else, and something else means ingredient.
+const HEADLINE = `Throwaway Test Loaf
+
+Serves 6. Takes 40 minutes.
+
+200g plain flour
+2 tsp baking powder
+
+Sift the flour and baking powder together.`;
+
+const headline = readRecipeText(HEADLINE);
+check("headline: servings read", headline.document.base_servings, 6);
+check("headline: the time is kept", headline.document.cook_minutes, 40);
+check("headline: and is not an ingredient", headline.document.ingredients.length, 2);
+check(
+  "headline: the first ingredient is an ingredient",
+  headline.document.ingredients[0].item_name,
+  "Plain flour",
+);
+
+for (const [line, minutes] of [
+  ["Ready in 1 hr 15", 75],
+  ["Total time: 25 mins", 25],
+  ["Takes about 90 minutes", 90],
+  ["45 minutes in total", 45],
+]) {
+  const read = readRecipeText(`Test\n\n${line}\n\n200g flour\n\nMix it.`);
+  check(`headline: "${line}"`, read.document.cook_minutes, minutes);
+  check(`headline: "${line}" left no ingredient`, read.document.ingredients.length, 1);
+}
+
+// A duration inside an instruction is not the recipe's total. A stew that
+// says "bake for 30 minutes" halfway through takes longer than half an hour.
+const INSIDE = `Test
+
+200g flour
+
+Mix it. This takes about 20 minutes.
+Bake for 30 minutes.`;
+const inside = readRecipeText(INSIDE);
+check("a duration inside a step is not the total", inside.document.cook_minutes, undefined);
+check("and the step survives", inside.document.steps.length, 3);
+
 if (failures > 0) {
   console.error(`\n${failures} failed`);
   process.exit(1);
