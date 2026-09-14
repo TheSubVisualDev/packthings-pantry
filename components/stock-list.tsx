@@ -6,6 +6,9 @@ import { useState } from "react";
 import { AlertTriangle, Check, X } from "lucide-react";
 import { BulkBar } from "@/components/bulk-bar";
 import { RowAdjust } from "@/components/row-adjust";
+import { SwipeRow } from "@/components/swipe-row";
+import { adjustItem } from "@/app/pantry/actions";
+import { totalOnHand } from "@/lib/containers";
 import { describeStock, inStock, labelSaysOpen } from "@/lib/containers";
 import type { TagInUse } from "@/lib/tags";
 import type { Item } from "@/lib/types";
@@ -285,15 +288,31 @@ export function StockList({
                     ) : (
                       /* A tap adjusts rather than navigates. Opening the item
                          is one chip inside, because changing how much there is
-                         happens ten times for every time you want its dates. */
-                      <button
-                        type="button"
-                        aria-expanded={open}
-                        onClick={() => setAdjusting(open ? null : item.id)}
-                        className={`${shape} ${open ? "bg-chip/60" : "hover:bg-chip"}`}
+                         happens ten times for every time you want its dates.
+                         A swipe left is the shortcut past the stepper for the
+                         one answer that needs no number: it is gone. */
+                      <SwipeRow
+                        enabled={canEdit && !open && inStock(item)}
+                        label={item.name}
+                        onUsedUp={() => {
+                          const total = totalOnHand(item);
+                          // `totalOnHand`, never `quantity` - that is the open
+                          // container alone, and taking it would leave the
+                          // sealed packs behind on a row the person has just
+                          // said is empty. AGENTS.md counts the bugs.
+                          if (total === null || total <= 0) return;
+                          void adjustItem(item.id, -total);
+                        }}
                       >
-                        {body}
-                      </button>
+                        <button
+                          type="button"
+                          aria-expanded={open}
+                          onClick={() => setAdjusting(open ? null : item.id)}
+                          className={`${shape} ${open ? "bg-chip/60" : "hover:bg-chip"}`}
+                        >
+                          {body}
+                        </button>
+                      </SwipeRow>
                     )}
 
                     {/*
