@@ -106,6 +106,15 @@
   }
   html {
     @apply font-sans;
+    /*
+      The same paper as the body, and not decoration.
+
+      A view transition lifts the page into a snapshot and animates it over
+      whatever is underneath - which was <html>, which had no background, which
+      is white. Every navigation flashed white through the crossfade. The body
+      keeps its own so nothing else changes.
+    */
+    @apply bg-background;
   }
 }
 
@@ -361,21 +370,42 @@ li > button:not(:disabled):active {
  * as on a laptop. Far enough to say which way, short enough that nobody is
  * tracking a shape across the screen.
  */
+/*
+  Sliding only - no opacity anywhere in here.
+
+  Both layers used to fade at once, which meant a stretch in the middle where
+  neither was opaque and the page behind showed through both. Two things move
+  past each other now and one of them is always solid, which is also how it
+  works with actual paper.
+*/
 @keyframes slide-from-right {
-  from { opacity: 0; transform: translateX(7vw); }
-  to { opacity: 1; transform: translateX(0); }
+  from { transform: translateX(7vw); }
+  to { transform: translateX(0); }
 }
 @keyframes slide-to-left {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(-7vw); }
+  from { transform: translateX(0); }
+  to { transform: translateX(-7vw); }
 }
 @keyframes slide-from-left {
-  from { opacity: 0; transform: translateX(-7vw); }
-  to { opacity: 1; transform: translateX(0); }
+  from { transform: translateX(-7vw); }
+  to { transform: translateX(0); }
 }
 @keyframes slide-to-right {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(7vw); }
+  from { transform: translateX(0); }
+  to { transform: translateX(7vw); }
+}
+
+/* No blending between the two snapshots: the new page covers the old rather
+   than mixing with it, which is the other half of why white showed through. */
+html[data-nav-dir] ::view-transition-old(root),
+html[data-nav-dir] ::view-transition-new(root) {
+  mix-blend-mode: normal;
+}
+html[data-nav-dir]::view-transition-new(root) {
+  z-index: 2;
+}
+html[data-nav-dir]::view-transition-old(root) {
+  z-index: 1;
 }
 
 html[data-nav-dir="forward"]::view-transition-old(root) {

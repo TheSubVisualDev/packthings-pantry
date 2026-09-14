@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import type { ComponentProps } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, type ComponentProps } from "react";
 
 /**
  * A link between sections that slides instead of cutting.
@@ -31,6 +31,28 @@ function indexOf(path: string): number {
 
 export function useSlideNav() {
   const router = useRouter();
+  const pathname = usePathname();
+
+  /**
+   * The half of the transition that is still waiting for the page to arrive.
+   *
+   * startViewTransition takes the "before" picture, runs the callback, and
+   * takes the "after" picture when whatever the callback returned settles.
+   * router.push returns undefined, so it settled immediately and the "after"
+   * picture was of the page that had not changed yet - the browser animated
+   * one frame to itself, and the real navigation then happened outside the
+   * transition entirely. That is the flash, the settle, and the second flash,
+   * in that order.
+   *
+   * So the callback returns a promise that is resolved by the effect below,
+   * when the route has actually changed.
+   */
+  const arrived = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    arrived.current?.();
+    arrived.current = null;
+  }, [pathname]);
 
   return (href: string, from: string) => {
     const going = indexOf(href);
@@ -64,7 +86,29 @@ export function useSlideNav() {
     }
 
     document.documentElement.dataset.navDir = direction;
-    const transition = document.startViewTransition(navigate);
+
+    const transition = document.startViewTransition(
+      () =>
+        new Promise<void>((resolve) => {
+          arrived.current = resolve;
+          navigate();
+
+          /**
+           * A page that never arrives must not freeze the one you can see.
+           *
+           * Everything is held still while the callback is pending - that is
+           * how the API works - so a slow route with no ceiling on it is a
+           * frozen app. Past this the transition finishes with whatever has
+           * rendered, which is the ordinary un-animated navigation and no
+           * worse than not having tried.
+           */
+          setTimeout(() => {
+            if (!arrived.current) return;
+            arrived.current = null;
+            resolve();
+          }, 600);
+        }),
+    );
 
     // Cleared once it has finished, or the next navigation inherits a
     // direction it did not ask for.
