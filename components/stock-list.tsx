@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Check, X } from "lucide-react";
+import { AlertTriangle, Check, X } from "lucide-react";
 import { BulkBar } from "@/components/bulk-bar";
 import { RowAdjust } from "@/components/row-adjust";
 import { describeStock, inStock, labelSaysOpen } from "@/lib/containers";
@@ -216,7 +216,8 @@ export function StockList({
                         stays on the shelf and says so rather than printing a
                         quiet "0g" that reads like a rounding error. */}
                     {!inStock(item) ? (
-                      <span className="shrink-0 rounded-full bg-[oklch(0.94_0.05_35)] px-2.5 py-1 text-[11px] font-bold whitespace-nowrap text-destructive">
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-[oklch(0.94_0.05_35)] px-2.5 py-1 text-[11px] font-bold whitespace-nowrap text-destructive">
+                        <AlertTriangle className="h-3 w-3" strokeWidth={3} aria-hidden />
                         none left
                       </span>
                     ) : (
@@ -234,8 +235,21 @@ export function StockList({
                 // 44px of row, which is the thumb floor, and a hairline rather
                 // than a gap between them - a divider reads as one list where
                 // gaps read as a pile of separate things.
-                const shape =
-                  "flex min-h-11 w-full items-center gap-3 border-b border-border px-3.5 text-left text-sm font-semibold transition-colors last:border-b-0 sm:min-h-9";
+                /**
+                 * Something you asked to keep in stock, and there is none.
+                 *
+                 * The one case where an item's absence is the news rather than
+                 * a tidiness problem, so it stays on the shelf and says so
+                 * loudly - a red edge and a wash down the whole row, not just
+                 * a chip on the end that scans as another quantity.
+                 */
+                const wanted = !inStock(item) && item.restock_target !== null;
+
+                const shape = `flex min-h-11 w-full items-center gap-3 border-b border-border px-3.5 text-left text-sm font-semibold transition-colors last:border-b-0 sm:min-h-9 ${
+                  wanted
+                    ? "border-l-[3px] border-l-destructive bg-[oklch(0.97_0.02_35)] pl-3"
+                    : ""
+                }`;
 
                 const open = adjusting === item.id;
 
