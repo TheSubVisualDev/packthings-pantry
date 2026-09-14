@@ -164,6 +164,15 @@ export function RecipeEditor({
   const [stepAt, setStepAt] = useState(0);
 
   /**
+   * Which ingredient rows have their optional fields showing.
+   *
+   * Only ever opened by hand - a row whose note or section already holds
+   * something is derived as open below rather than seeded in here, so loading
+   * an existing recipe cannot leave a filled-in field hidden behind a fold.
+   */
+  const [openExtras, setOpenExtras] = useState<Set<string>>(() => new Set());
+
+  /**
    * The warnings split by whether they are anybody's fault.
    *
    * "Not in this kitchen yet" is a fact about the cupboard; a unit that
@@ -437,7 +446,16 @@ export function RecipeEditor({
         </div>
 
         <div className="space-y-3">
-          {draft.ingredients.map((line, index) => (
+          {draft.ingredients.map((line, index) => {
+            // Open because somebody opened it, or because there is already
+            // something in there to see.
+            const extrasOpen =
+              openExtras.has(line.key) ||
+              line.note.trim() !== "" ||
+              line.section.trim() !== "" ||
+              line.optional;
+
+            return (
             <div key={line.key} className={CARD}>
               <div className="mb-2.5 flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-muted-foreground">
@@ -558,15 +576,6 @@ export function RecipeEditor({
                 </p>
               )}
 
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <input
-                  aria-label="Preparation note"
-                  placeholder={line.unit === UNMEASURED ? "to taste" : "finely chopped"}
-                  value={line.note}
-                  onChange={(event) => patchIngredient(index, { note: event.target.value })}
-                  className={`${SMALL} min-w-36 flex-1`}
-                />
-
               {/* A tin is a container, not an amount. Saying how much is in one
                   lets the line work against a pantry that weighs the contents
                   as well as one that counts tins. */}
@@ -612,26 +621,67 @@ export function RecipeEditor({
                 </div>
               )}
 
-                <input
-                  aria-label="Section"
-                  placeholder="Section"
-                  value={line.section}
-                  onChange={(event) => patchIngredient(index, { section: event.target.value })}
-                  className={`${SMALL} min-w-28 flex-1`}
-                  list="known-sections"
-                />
-                <label className="flex shrink-0 items-center gap-1.5 text-sm font-semibold">
+              {/*
+                The three fields most lines never need.
+
+                Every row showed six controls for what is usually "2 eggs", so
+                the one field anybody was going to fill in sat in a crowd of
+                five they were not. Folded away, and folded back open the
+                moment any of them holds something - editing a recipe must
+                never look like it has lost what you typed.
+
+                The note gets the full width when it is open, which is also
+                the clipping fix: it shared a wrapping row before, so "pressed
+                and cubed" rendered as "pressed and cube" with nothing to say
+                there was more.
+              */}
+              {extrasOpen ? (
+                <div className="mt-2 space-y-2">
                   <input
-                    type="checkbox"
-                    checked={line.optional}
-                    onChange={(event) => patchIngredient(index, { optional: event.target.checked })}
-                    className="h-4 w-4"
+                    aria-label="Preparation note"
+                    placeholder={line.unit === UNMEASURED ? "to taste" : "finely chopped"}
+                    value={line.note}
+                    onChange={(event) => patchIngredient(index, { note: event.target.value })}
+                    className={`${SMALL} w-full`}
                   />
-                  Optional
-                </label>
-              </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      aria-label="Section"
+                      placeholder="Section"
+                      value={line.section}
+                      onChange={(event) =>
+                        patchIngredient(index, { section: event.target.value })
+                      }
+                      className={`${SMALL} min-w-28 flex-1`}
+                      list="known-sections"
+                    />
+                    <label className="flex shrink-0 items-center gap-1.5 text-sm font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={line.optional}
+                        onChange={(event) =>
+                          patchIngredient(index, { optional: event.target.checked })
+                        }
+                        className="h-4 w-4"
+                      />
+                      Optional
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenExtras((current) => new Set(current).add(line.key))
+                  }
+                  className="mt-2 text-xs font-bold text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                >
+                  + Note, section, optional
+                </button>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <datalist id="known-sections">

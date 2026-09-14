@@ -45,7 +45,21 @@ export function FilterChips({
     <div
       role="group"
       aria-label={label}
-      className={`-mx-5 flex snap-x items-center gap-1.5 overflow-x-auto px-5 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden ${className}`}
+      /**
+       * The row has always scrolled; nothing ever said so.
+       *
+       * On a phone the chips run off the edge and the last one is cut through
+       * the middle of a word - "under 30 min · und" - which reads as text that
+       * did not fit rather than as a row you can push. The scrollbar is hidden
+       * on purpose (it sits over the chips on a touch device), so the fade is
+       * what is left to say it.
+       *
+       * Only below sm, where it actually scrolls - above that the row wraps
+       * and there is nothing to hint at. The fade is 28px against the 20px of
+       * trailing padding the row already carries, so when everything fits it
+       * lands on empty background and cannot dim a chip nobody is cutting off.
+       */
+      className={`-mx-5 flex snap-x items-center gap-1.5 overflow-x-auto px-5 [mask-image:linear-gradient(to_right,black_calc(100%-28px),transparent)] [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 sm:[mask-image:none] [&::-webkit-scrollbar]:hidden ${className}`}
     >
       {chips.map((chip) => (
         <Link
