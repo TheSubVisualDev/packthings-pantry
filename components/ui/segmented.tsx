@@ -87,7 +87,16 @@ export function Segmented({
       aria-label={label}
       // `-mx-1 px-1` so the focus ring of the first and last segments is not
       // clipped by the scroll container they live in.
-      className="-mx-1 flex max-w-full snap-x items-center gap-0.5 overflow-x-auto rounded-full px-1 font-bold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      /*
+        The CONTROL waits for the page, not the pill inside it.
+
+        A page transition is a picture of the old page over the new one, and a
+        white lozenge fading up through both is the sort of thing you cannot
+        un-see. Delaying the whole control keeps it off that, and costs the
+        pill nothing: changing a filter is not a navigation, so the group is
+        never remounted for it and this never replays mid-move.
+      */
+      className="segmented -mx-1 flex max-w-full snap-x items-center gap-0.5 overflow-x-auto rounded-full px-1 font-bold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       <div className="flex items-center gap-0.5 rounded-full bg-[oklch(0.93_0.02_60)] p-1">
         {options.map((option) => {
@@ -128,26 +137,23 @@ export function Segmented({
                   layoutId={`pill-${group}`}
                   aria-hidden
                   /*
-                    Arrives late and leaves instantly.
+                    No entrance of its own, ever.
 
-                    A page transition is a picture of the old page over a
-                    picture of the new one, and the pill was fading up through
-                    both of them - a white lozenge appearing over a slide that
-                    had not finished, which is the sort of thing you cannot
-                    un-see. It waits for the page to be still, and on the way
-                    out it is simply gone.
-
-                    Only the opacity is delayed. The layout spring that moves
-                    it between segments is untouched and still starts on the
-                    tap, because that one is a response and must not wait for
-                    anything.
+                    A layoutId pill moving between segments is not one element
+                    sliding - it unmounts from the segment it was on and mounts
+                    on the one it is going to, and Motion animates the gap. So
+                    an `initial` opacity applies to the ARRIVING one, and a
+                    fade-in delayed to keep it off a page transition also made
+                    it vanish for the length of every segment change. Which is
+                    the one thing it is there to do.
+                    
+                    `initial={false}` means it starts where it is told and only
+                    ever moves. The page-entrance problem it was trying to
+                    solve belongs to the whole control, and is handled on the
+                    group below.
                   */
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{
-                    layout: { type: "spring", stiffness: 700, damping: 42, mass: 0.6 },
-                    opacity: { duration: 0.12, delay: 0.08 },
-                  }}
+                  initial={false}
+                  transition={{ type: "spring", stiffness: 700, damping: 42, mass: 0.6 }}
                   className="absolute inset-0 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
                 />
               )}
