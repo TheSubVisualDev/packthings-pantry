@@ -49,7 +49,12 @@ export async function SiteHeader({
       app looks like it starts an inch down the screen. Zero in a browser,
       where the inset is zero.
     */
-    <header className="border-b border-border bg-surface-raised pt-[env(safe-area-inset-top)] print:hidden">
+    <header
+      // Named so the page can slide underneath it without it sliding too - see
+      // the view-transition rules in globals.css.
+      data-site-header
+      className="border-b border-border bg-surface-raised pt-[env(safe-area-inset-top)] print:hidden"
+    >
       <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-9 sm:py-5">
         <div className="flex min-w-0 items-center gap-2.5 sm:gap-7">
           <Link
@@ -66,6 +71,10 @@ export async function SiteHeader({
             <Segmented
               label="Sections"
               active={active}
+              // Sections, not filters: these go somewhere, so they slide.
+              // Which section we are on, which is all the slide needs to know
+              // which way along the bar it is going.
+              slideFrom={tabs.find((tab) => tab.key === active)?.href}
               options={tabs.map((tab) => ({
                 key: tab.key,
                 label: tab.label,

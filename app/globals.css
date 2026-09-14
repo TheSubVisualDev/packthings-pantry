@@ -322,16 +322,19 @@ li > button:not(:disabled):active {
 /**
  * Between pages.
  *
- * A crossfade on the whole document, which the browser does for free once
- * something opts in. Cheap, and it removes the hard cut that made every
- * navigation feel like a page load.
+ * `@view-transition { navigation: auto }` was here and did nothing at all: it
+ * only applies to cross-document navigation, and every route change in this
+ * app is client-side. components/slide-link.tsx calls startViewTransition by
+ * hand instead, and writes the direction onto <html> before the snapshot -
+ * which is why these rules key off a data attribute rather than a transition
+ * type.
+ *
+ * The default, for anything that is not a move along the tab bar: the new page
+ * rises, the old one fades under it. Going deeper into the app has no left or
+ * right, and inventing one makes the whole thing lurch sideways at random.
  */
-@view-transition {
-  navigation: auto;
-}
-
 ::view-transition-old(root) {
-  animation: fade var(--quick) var(--ease-out) reverse both;
+  animation: fade 140ms var(--ease-out) reverse both;
 }
 ::view-transition-new(root) {
   animation: rise var(--settle) var(--spring) both;
@@ -344,6 +347,77 @@ li > button:not(:disabled):active {
   to {
     opacity: 1;
   }
+}
+
+/**
+ * Along the bar.
+ *
+ * Moving right along the tabs sends the old page left and brings the new one
+ * in from the right; moving left does the reverse. Horizontal direction
+ * encoding position is a convention old enough that breaking it feels wrong
+ * without anybody being able to say why.
+ *
+ * 7% of the viewport rather than a fixed 60px, so it reads the same on a phone
+ * as on a laptop. Far enough to say which way, short enough that nobody is
+ * tracking a shape across the screen.
+ */
+@keyframes slide-from-right {
+  from { opacity: 0; transform: translateX(7vw); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes slide-to-left {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(-7vw); }
+}
+@keyframes slide-from-left {
+  from { opacity: 0; transform: translateX(-7vw); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes slide-to-right {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(7vw); }
+}
+
+html[data-nav-dir="forward"]::view-transition-old(root) {
+  animation: slide-to-left 220ms var(--ease-out) both;
+}
+html[data-nav-dir="forward"]::view-transition-new(root) {
+  animation: slide-from-right 360ms var(--spring) both;
+}
+html[data-nav-dir="back"]::view-transition-old(root) {
+  animation: slide-to-right 220ms var(--ease-out) both;
+}
+html[data-nav-dir="back"]::view-transition-new(root) {
+  animation: slide-from-left 360ms var(--spring) both;
+}
+
+/**
+ * The furniture holds still.
+ *
+ * A header and a tab bar that slide with the content break the one fixed
+ * reference somebody has for understanding that the PAGE moved rather than the
+ * whole screen - and a tab bar that slides off while you are still touching it
+ * is worse than no animation at all. Naming them takes them out of the root
+ * snapshot and gives each its own, which is then told not to animate.
+ */
+[data-nav] {
+  view-transition-name: bottom-nav;
+}
+[data-site-header] {
+  view-transition-name: site-header;
+}
+
+::view-transition-group(bottom-nav),
+::view-transition-group(site-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(bottom-nav),
+::view-transition-new(bottom-nav),
+::view-transition-old(site-header),
+::view-transition-new(site-header) {
+  animation: none;
+  mix-blend-mode: normal;
 }
 
 /**

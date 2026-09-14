@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
+import { SlideLink } from "@/components/slide-link";
 import { Boxes, BookOpen, Compass, Plus, UtensilsCrossed } from "lucide-react";
 
 /**
@@ -66,7 +66,7 @@ export function BottomNav({ onAdd }: { onAdd: () => void }) {
     >
       <div className="flex items-stretch justify-around">
         {left.map(({ key, ...section }) => (
-          <Tab key={key} {...section} current={active(section.href)} />
+          <Tab key={key} {...section} current={active(section.href)} from={pathname} />
         ))}
 
         {/* Raised out of the bar so it reads as an action rather than a fifth
@@ -86,7 +86,7 @@ export function BottomNav({ onAdd }: { onAdd: () => void }) {
         </motion.button>
 
         {right.map(({ key, ...section }) => (
-          <Tab key={key} {...section} current={active(section.href)} />
+          <Tab key={key} {...section} current={active(section.href)} from={pathname} />
         ))}
       </div>
     </nav>
@@ -98,15 +98,19 @@ function Tab({
   href,
   Icon,
   current,
+  from,
 }: {
   label: string;
   href: string;
   Icon: typeof Boxes;
   current: boolean;
+  /** Where we are, so the slide knows which way along the bar it is going. */
+  from: string;
 }) {
   return (
-    <Link
+    <SlideLink
       href={href}
+      from={from}
       aria-current={current ? "page" : undefined}
       className={`relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-bold ${
         current ? "text-primary" : "text-muted-foreground"
@@ -135,6 +139,6 @@ function Tab({
         <Icon className="h-5 w-5" strokeWidth={current ? 2.75 : 2.25} />
       </motion.span>
       <span className="truncate">{label}</span>
-    </Link>
+    </SlideLink>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SlideLink } from "@/components/slide-link";
 
 /**
  * One segmented control, for the four places that had invented their own.
@@ -32,15 +33,36 @@ export interface SegmentedOption {
   meta?: string;
 }
 
+/** Slides when these are sections; an ordinary link when they are filters. */
+function Tab({
+  slideFrom,
+  href,
+  ...rest
+}: React.ComponentProps<typeof Link> & { href: string; slideFrom?: string }) {
+  if (slideFrom) return <SlideLink href={href} from={slideFrom} {...rest} />;
+  return <Link href={href} {...rest} />;
+}
+
 export function Segmented({
   options,
   active,
   label,
+  slideFrom,
 }: {
   options: readonly SegmentedOption[];
   active: string;
   /** What the group is for, since a row of nouns does not say so on its own. */
   label: string;
+  /**
+   * The current path, when these segments are SECTIONS rather than filters.
+   *
+   * Opt-in because this control is four controls: the header's nav, the stock
+   * page's group-by, the shop filter and the recipe filters. Only the first is
+   * going somewhere - sliding the page sideways because somebody grouped their
+   * shelf by tag instead of place would be motion describing something that
+   * did not happen.
+   */
+  slideFrom?: string;
 }) {
   return (
     <div
@@ -54,9 +76,10 @@ export function Segmented({
         {options.map((option) => {
           const on = option.key === active;
           return (
-            <Link
+            <Tab
               key={option.key}
               href={option.href}
+              slideFrom={slideFrom}
               aria-current={on ? "page" : undefined}
               className={`flex h-9 snap-start items-center rounded-full px-4 text-sm whitespace-nowrap transition-colors sm:h-8 sm:px-3.5 sm:text-[13px] ${
                 on
@@ -68,7 +91,7 @@ export function Segmented({
               {option.meta && (
                 <span className="ml-1.5 font-semibold opacity-60">{option.meta}</span>
               )}
-            </Link>
+            </Tab>
           );
         })}
       </div>
