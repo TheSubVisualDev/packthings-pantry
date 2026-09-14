@@ -16,6 +16,7 @@ import {
 import { scaleQuantity } from "@/lib/units";
 import { getLinks } from "@/lib/cookbook";
 import { indexStock } from "@/lib/pantry-match";
+import { suggestionsForShop } from "./restock-filter";
 
 export interface ListResult {
   ok: boolean;
@@ -211,12 +212,19 @@ export async function addShortfall(
  * All of them at once rather than one button per row: the whole reason to set a
  * target is not having to decide again every week. Each line carries the pack
  * size, so "2" reads as two bottles rather than a bare number.
+ *
+ * Takes the same shop filter the panel is showing, so "Add all N" adds the N
+ * it just showed - not every suggestion in the kitchen regardless of which
+ * shop you're standing in.
  */
-export async function addRestock(): Promise<ListResult> {
+export async function addRestock(filter?: string | null): Promise<ListResult> {
   const access = await requireKitchenRole("editor");
   if (!access.ok) return { ok: false, error: access.error };
 
-  const suggestions = await getRestockSuggestions(access.kitchen.id);
+  const suggestions = suggestionsForShop(
+    await getRestockSuggestions(access.kitchen.id),
+    filter ?? null,
+  );
   if (suggestions.length === 0) {
     return { ok: false, error: "Nothing is below its target." };
   }

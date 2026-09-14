@@ -12,6 +12,7 @@ import { getShops } from "@/lib/shops";
 import { getTrip } from "@/lib/trip";
 import { TripStrip } from "@/components/trip-strip";
 import { PrintButton } from "@/components/print-button";
+import { suggestionsForShop } from "./restock-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -51,10 +52,15 @@ export default async function ShoppingPage({
       ])
     : [await getList({ owner: context.user.id }, null), [], [], [], null];
   const todo = lines.filter((line) => !line.bought_at).length;
+  // Running Low never got the shop filter getRestockSuggestions doesn't take
+  // one, so it's narrowed here instead - see restock-filter.ts.
+  const restockInShop = suggestionsForShop(restock, filter);
 
   return (
     <>
-      <SiteHeader active="stock" meta={`${todo} to buy`} />
+      {/* "to buy" read as the same count Running Low was offering to add,
+          when it only ever counted what's already on the list. */}
+      <SiteHeader active="stock" meta={`${todo} on the list`} />
 
       <main className="mx-auto w-full max-w-[560px] px-5 py-7 pb-32 sm:px-9">
         <Link
@@ -83,8 +89,15 @@ export default async function ShoppingPage({
         )}
 
         {kitchen && <ShopFilter shops={shops} active={filter} />}
-        {kitchen && <RestockPanel suggestions={restock} />}
+        {/*
+          The list first, then the way to add to it, then the aid for
+          composing that add - fixed in this order whether or not the list
+          is empty. Reordering itself under you (Running Low first once
+          there's nothing to show it against) would cost more than the
+          scroll it saves.
+        */}
         <ShoppingList lines={lines} filter={filter} profiles={profiles} />
+        {kitchen && <RestockPanel suggestions={restockInShop} filter={filter} />}
 
         {!kitchen && (
           <p className="mt-6 rounded-[16px] bg-chip p-4 text-sm font-semibold text-muted-foreground print:hidden">
