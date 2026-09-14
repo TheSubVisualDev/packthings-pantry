@@ -303,9 +303,36 @@ li > button:not(:disabled):active {
  * It stops at ten. Past that the delay is longer than anybody waits, and a
  * shelf of thirty things should not take a second and a half to finish
  * arriving - the rest simply come in with the tenth.
+ *
+ * This used to run the shared `rise` keyframe, which fades from opacity 0
+ * with `animation-fill-mode: both` - so every row below the fold sits at
+ * opacity 0 until its own delayed animation actually gets a frame. On
+ * Nutrition and Place, where a handful of buckets hold everything instead of
+ * one bucket per tag, groups routinely run past the nth-child(10) ceiling,
+ * every row past it shares the same 234ms delay, and on a page doing real
+ * work at first paint - hydration, the client components above the list,
+ * streamed data - that shared delayed start can lose the race and never get
+ * scheduled. The row is then stuck invisible forever: not slow, just gone,
+ * while still holding its full row height, which is the "blank space before
+ * the next heading" bug. Tag grouping never hit it because its groups are
+ * small enough to stay inside the ten un-shared delays.
+ *
+ * The fix is to stop putting opacity in the pre-start state at all. `rise`
+ * became `stagger-rise` below, transform only - a row that never gets its
+ * frame just sits 14px low and 3% small, which is not a bug anybody would
+ * report. Losing the fade is the trade.
  */
 .stagger > * {
-  animation: rise var(--settle) var(--spring) both;
+  animation: stagger-rise var(--settle) var(--spring) both;
+}
+
+@keyframes stagger-rise {
+  from {
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    transform: translateY(0) scale(1);
+  }
 }
 .stagger > *:nth-child(1) { animation-delay: 0ms; }
 .stagger > *:nth-child(2) { animation-delay: 26ms; }
