@@ -142,7 +142,7 @@ export function AddMenu() {
 
   return (
     <>
-      <BottomNav onAdd={show} />
+      <BottomNav onAdd={show} open={open} />
 
       {/* Desktop keeps a corner button: the bottom bar is a phone answer, and
           a wide screen has neither the thumb nor the shortage of room that

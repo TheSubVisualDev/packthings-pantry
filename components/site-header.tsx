@@ -72,9 +72,6 @@ export async function SiteHeader({
               label="Sections"
               active={active}
               // Sections, not filters: these go somewhere, so they slide.
-              // Which section we are on, which is all the slide needs to know
-              // which way along the bar it is going.
-              slideFrom={tabs.find((tab) => tab.key === active)?.href}
               options={tabs.map((tab) => ({
                 key: tab.key,
                 label: tab.label,

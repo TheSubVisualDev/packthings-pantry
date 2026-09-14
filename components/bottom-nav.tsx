@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { SlideLink } from "@/components/slide-link";
+import Link from "next/link";
 import { Boxes, BookOpen, Compass, Plus, UtensilsCrossed } from "lucide-react";
 
 /**
@@ -32,7 +32,14 @@ const SECTIONS = [
   { key: "discover", label: "Discover", href: "/discover", Icon: Compass },
 ] as const;
 
-export function BottomNav({ onAdd }: { onAdd: () => void }) {
+export function BottomNav({
+  onAdd,
+  open = false,
+}: {
+  onAdd: () => void;
+  /** Whether the add sheet is showing, so the button can become its own close. */
+  open?: boolean;
+}) {
   const pathname = usePathname();
 
   // Nothing to navigate before you are in.
@@ -66,7 +73,7 @@ export function BottomNav({ onAdd }: { onAdd: () => void }) {
     >
       <div className="flex items-stretch justify-around">
         {left.map(({ key, ...section }) => (
-          <Tab key={key} {...section} current={active(section.href)} from={pathname} />
+          <Tab key={key} {...section} current={active(section.href)} />
         ))}
 
         {/* Raised out of the bar so it reads as an action rather than a fifth
@@ -79,6 +86,10 @@ export function BottomNav({ onAdd }: { onAdd: () => void }) {
           onClick={onAdd}
           aria-label="Add"
           whileTap={{ scale: 0.86 }}
+          /* A plus turning into a cross, because it is the same button doing
+             the same job in reverse and they are the same two strokes at
+             forty-five degrees. Cheap, and it is the bit people notice. */
+          animate={{ rotate: open ? 135 : 0 }}
           transition={{ type: "spring", stiffness: 500, damping: 17 }}
           className="no-squish relative -top-3 mx-1 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_6px_18px_-6px_rgba(60,44,30,0.6)]"
         >
@@ -86,7 +97,7 @@ export function BottomNav({ onAdd }: { onAdd: () => void }) {
         </motion.button>
 
         {right.map(({ key, ...section }) => (
-          <Tab key={key} {...section} current={active(section.href)} from={pathname} />
+          <Tab key={key} {...section} current={active(section.href)} />
         ))}
       </div>
     </nav>
@@ -98,19 +109,15 @@ function Tab({
   href,
   Icon,
   current,
-  from,
 }: {
   label: string;
   href: string;
   Icon: typeof Boxes;
   current: boolean;
-  /** Where we are, so the slide knows which way along the bar it is going. */
-  from: string;
 }) {
   return (
-    <SlideLink
+    <Link
       href={href}
-      from={from}
       aria-current={current ? "page" : undefined}
       className={`relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-bold ${
         current ? "text-primary" : "text-muted-foreground"
@@ -139,6 +146,6 @@ function Tab({
         <Icon className="h-5 w-5" strokeWidth={current ? 2.75 : 2.25} />
       </motion.span>
       <span className="truncate">{label}</span>
-    </SlideLink>
+    </Link>
   );
 }

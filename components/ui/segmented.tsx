@@ -1,5 +1,6 @@
+"use client";
+
 import Link from "next/link";
-import { SlideLink } from "@/components/slide-link";
 
 /**
  * One segmented control, for the four places that had invented their own.
@@ -33,37 +34,26 @@ export interface SegmentedOption {
   meta?: string;
 }
 
-/** Slides when these are sections; an ordinary link when they are filters. */
-function Tab({
-  slideFrom,
-  href,
-  ...rest
-}: React.ComponentProps<typeof Link> & { href: string; slideFrom?: string }) {
-  if (slideFrom) return <SlideLink href={href} from={slideFrom} {...rest} />;
-  return <Link href={href} {...rest} />;
-}
-
 export function Segmented({
   options,
   active,
   label,
-  slideFrom,
 }: {
   options: readonly SegmentedOption[];
   active: string;
   /** What the group is for, since a row of nouns does not say so on its own. */
   label: string;
-  /**
-   * The current path, when these segments are SECTIONS rather than filters.
-   *
-   * Opt-in because this control is four controls: the header's nav, the stock
-   * page's group-by, the shop filter and the recipe filters. Only the first is
-   * going somewhere - sliding the page sideways because somebody grouped their
-   * shelf by tag instead of place would be motion describing something that
-   * did not happen.
-   */
-  slideFrom?: string;
 }) {
+  /**
+   * Which set of segments this is.
+   *
+   * layoutId is global, so two segmented controls on one page - the stock
+   * page has the group-by and the header has the sections - would share one
+   * pill and fling it across the screen between them. The label is already
+   * unique per control and already required.
+   */
+  const group = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
   return (
     <div
       role="group"
@@ -76,22 +66,47 @@ export function Segmented({
         {options.map((option) => {
           const on = option.key === active;
           return (
-            <Tab
+            <Link
               key={option.key}
               href={option.href}
-              slideFrom={slideFrom}
               aria-current={on ? "page" : undefined}
-              className={`flex h-9 snap-start items-center rounded-full px-4 text-sm whitespace-nowrap transition-colors sm:h-8 sm:px-3.5 sm:text-[13px] ${
-                on
-                  ? "bg-white text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
-                  : "text-muted-foreground hover:text-foreground"
+              className={`relative flex h-9 snap-start items-center rounded-full px-4 text-sm whitespace-nowrap transition-colors sm:h-8 sm:px-3.5 sm:text-[13px] ${
+                on ? "text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
+              {/*
+                The white pill travels rather than teleporting.
+
+                Not Motion's layoutId, which was the obvious answer and the
+                wrong one: these segments are LINKS, so picking one navigates
+                and the whole tree remounts - there is no shared React state
+                for a layout animation to span, and it jumped 24px to 178px
+                with nothing in between when measured.
+
+                A view-transition name does span it. The browser sees the same
+                named box in the before and after pictures and morphs one into
+                the other, which is exactly the job, and it is the only thing
+                that works across a navigation.
+
+                Behind the label via a negative z-index on the pill rather than
+                a positive one on the text, so a segment with a meta count does
+                not need its own stacking context to stay readable.
+              */}
+              {on && (
+                <span
+                  aria-hidden
+                  style={{
+                    viewTransitionName: `pill-${group}`,
+                    viewTransitionClass: "pill",
+                  }}
+                  className="absolute inset-0 -z-10 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                />
+              )}
               {option.label}
               {option.meta && (
                 <span className="ml-1.5 font-semibold opacity-60">{option.meta}</span>
               )}
-            </Tab>
+            </Link>
           );
         })}
       </div>

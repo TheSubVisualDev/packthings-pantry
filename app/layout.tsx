@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { NavTransitions } from "@/components/nav-transitions";
 import { AddMenu } from "@/components/add-menu";
 
 /**
@@ -72,6 +73,9 @@ export default function RootLayout({
       className={`${manrope.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background text-foreground font-[family-name:var(--font-manrope)]">
+        {/* Listens once for every internal link in the app and animates the
+            navigation. Renders nothing. */}
+        <NavTransitions />
         {children}
         <AddMenu />
       </body>

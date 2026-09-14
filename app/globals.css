@@ -422,6 +422,76 @@ html[data-nav-dir="back"]::view-transition-new(root) {
 }
 
 /**
+ * Opening something on top of where you were.
+ *
+ * Not a slide sideways: an item or a recipe is a thing you open FROM the shelf,
+ * so it comes up over it while the page underneath settles back a little, the
+ * way a card lifts off a deck. Going back reverses exactly, which is what makes
+ * the two read as one gesture and its undo rather than two animations.
+ */
+@keyframes lift-in {
+  from { transform: translateY(6vh) scale(0.96); opacity: 0.4; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes settle-back {
+  from { transform: scale(1); }
+  to { transform: scale(0.965); }
+}
+@keyframes lift-out {
+  from { transform: translateY(0) scale(1); opacity: 1; }
+  to { transform: translateY(6vh) scale(0.96); opacity: 0; }
+}
+@keyframes settle-forward {
+  from { transform: scale(0.965); }
+  to { transform: scale(1); }
+}
+
+html[data-nav-dir="in"]::view-transition-old(root) {
+  animation: settle-back 300ms var(--ease-out) both;
+}
+html[data-nav-dir="in"]::view-transition-new(root) {
+  animation: lift-in 420ms var(--spring) both;
+}
+html[data-nav-dir="out"]::view-transition-old(root) {
+  animation: lift-out 260ms var(--ease-out) both;
+}
+html[data-nav-dir="out"]::view-transition-new(root) {
+  animation: settle-forward 380ms var(--spring) both;
+}
+
+/* Going out, the page being revealed is underneath the one leaving. */
+html[data-nav-dir="out"]::view-transition-new(root) { z-index: 1; }
+html[data-nav-dir="out"]::view-transition-old(root) { z-index: 2; }
+
+/**
+ * The segmented pill slides between its segments.
+ *
+ * Named per control so two on one page do not share one, and classed so this
+ * rule can catch all of them without knowing their names. The browser morphs
+ * the box from where it was to where it is, which is the only way to animate
+ * that across a navigation - and these segments are links, so every change of
+ * one IS a navigation.
+ */
+::view-transition-group(.pill) {
+  animation-duration: 380ms;
+  animation-timing-function: var(--spring);
+}
+
+/**
+ * Changing a filter is not going anywhere.
+ *
+ * Same page, different query string: the group-by, a shop filter, a search.
+ * The content should settle rather than rise up from below like a new screen,
+ * and the pill above it is the thing actually worth watching.
+ */
+html[data-nav-dir="none"]::view-transition-old(root) {
+  animation: fade 120ms var(--ease-out) reverse both;
+}
+html[data-nav-dir="none"]::view-transition-new(root) {
+  animation: fade 160ms var(--ease-out) both;
+}
+
+/**
  * The furniture holds still.
  *
  * A header and a tab bar that slide with the content break the one fixed

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AnimatePresence, motion } from "motion/react";
 import { useActionState, useMemo, useState, useTransition } from "react";
 import { SoftSelect } from "@/components/soft-select";
 import { suggestFor, type ItemProfile } from "@/lib/suggest";
@@ -153,25 +154,71 @@ export function ShoppingList({
           Missing it means un-ticking something else, which is worse than
           missing it.
         */}
-        <button
+        <motion.button
           type="button"
           aria-pressed={bought}
           aria-label={bought ? `Un-tick ${line.item_name}` : `Tick off ${line.item_name}`}
           onClick={() => setBought(line, !bought)}
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${
+          /* Overshoots on the way to ticked and not on the way back: getting
+             something into the basket is the good news, and taking it out
+             again is a correction that should not celebrate itself. */
+          animate={{ scale: bought ? [1, 1.25, 1] : 1 }}
+          transition={{ duration: bought ? 0.34 : 0.16, ease: "easeOut" }}
+          className={`no-squish flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${
             bought
               ? "bg-primary text-primary-foreground print:bg-white print:text-black"
               : "border-2 border-border text-transparent"
           } print:border-2 print:border-black`}
         >
-          ✓
-        </button>
+          {/* The stroke draws itself rather than the glyph appearing. */}
+          <AnimatePresence initial={false}>
+            {bought && (
+              <motion.svg
+                key="tick"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={3.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+                exit={{ opacity: 0, scale: 0.6 }}
+              >
+                <motion.path
+                  d="M4 12.5 L9.5 18 L20 7"
+                  initial={{ pathLength: 0 }}
+                  animate={{ pathLength: 1 }}
+                  transition={{ duration: 0.24, ease: "easeOut" }}
+                />
+              </motion.svg>
+            )}
+          </AnimatePresence>
+          <span className="sr-only print:not-sr-only">{bought ? "✓" : ""}</span>
+        </motion.button>
 
-        <span className={`min-w-0 flex-1 py-2 ${bought ? "opacity-50" : ""}`}>
-          <span
-            className={`block text-[15px] font-bold break-words ${bought ? "line-through" : ""}`}
-          >
+        <motion.span
+          className="min-w-0 flex-1 py-2"
+          animate={{ opacity: bought ? 0.5 : 1 }}
+          transition={{ duration: 0.2 }}
+        >
+          {/* The rule is drawn across the words rather than the words simply
+              becoming struck through - it is the same information and it is
+              the difference between a state and an event. */}
+          <span className="relative block text-[15px] font-bold break-words">
             {line.item_name}
+            <AnimatePresence>
+              {bought && (
+                <motion.span
+                  aria-hidden
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  exit={{ scaleX: 0 }}
+                  transition={{ duration: 0.22, ease: "easeOut" }}
+                  style={{ transformOrigin: "left" }}
+                  className="absolute inset-x-0 top-1/2 h-[2px] rounded-full bg-current print:hidden"
+                />
+              )}
+            </AnimatePresence>
           </span>
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             {line.quantity !== null && (
@@ -190,7 +237,7 @@ export function ShoppingList({
               </span>
             )}
           </span>
-        </span>
+        </motion.span>
 
         <button
           type="button"
