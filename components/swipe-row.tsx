@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 /**
  * Swipe a stock row left to say it is gone.
@@ -12,10 +12,11 @@ import { Trash2 } from "lucide-react";
  * almost always a single row, and Select mode earns its place for genuinely
  * bulk work - retagging nine things - rather than for this.
  *
- * Only left, and only this one action. Tapping a row already opens the
- * quantity stepper inline, so the swipe-right some designs use for that would
- * be a second way to do a thing that is already one tap. A gesture that
- * duplicates a tap is a gesture nobody learns.
+ * Both ways, and they are opposites: left says it is gone, right says you
+ * bought more. Right is deliberately NOT a stepper - tapping the row already
+ * opens one of those, and a gesture that duplicates a tap is a gesture nobody
+ * learns. It adds one step of whatever the row is measured in, which is the
+ * single commonest correction and the only one worth doing without looking.
  *
  * The tap still works. This wraps the row rather than replacing it, and Motion
  * only swallows the click when a drag actually happened, so everything that
@@ -25,19 +26,25 @@ import { Trash2 } from "lucide-react";
 export function SwipeRow({
   enabled,
   label,
+  addLabel,
   onUsedUp,
+  onAddOne,
   children,
 }: {
-  /** Off in select mode, for read-only kitchens, and for an empty row. */
+  /** Off in select mode and for read-only kitchens. */
   enabled: boolean;
-  /** What is being used up, for the announcement. */
+  /** What is being changed, for the announcement. */
   label: string;
-  onUsedUp: () => void;
+  /** "+100g", "+1" - what a swipe right will actually do, said on the panel. */
+  addLabel: string;
+  /** Absent when there is nothing to use up, which leaves only the right half. */
+  onUsedUp: (() => void) | null;
+  onAddOne: () => void;
   children: React.ReactNode;
 }) {
   const reduceMotion = useReducedMotion();
   const x = useMotionValue(0);
-  const [committing, setCommitting] = useState(false);
+  const [committing, setCommitting] = useState<"left" | "right" | null>(null);
 
   /**
    * How far is far enough.
@@ -50,21 +57,35 @@ export function SwipeRow({
   const REVEAL = 104;
   const COMMIT = 72;
 
-  // The panel behind only shows once the row has actually started moving, so a
-  // stationary list carries no red edge waiting to be noticed.
-  const panelOpacity = useTransform(x, [-REVEAL, -12, 0], [1, 0.55, 0]);
+  // The panels behind only show once the row has actually started moving, so a
+  // stationary list carries no coloured edges waiting to be noticed.
+  const leftPanel = useTransform(x, [-REVEAL, -12, 0], [1, 0.55, 0]);
+  const rightPanel = useTransform(x, [0, 12, REVEAL], [0, 0.55, 1]);
 
   if (!enabled || reduceMotion) return <>{children}</>;
 
   return (
     <div className="relative overflow-hidden">
+      {/* Right of the row, revealed by dragging left. */}
+      {onUsedUp && (
+        <motion.div
+          aria-hidden
+          style={{ opacity: leftPanel }}
+          className="absolute inset-y-0 right-0 flex w-[104px] items-center justify-center gap-1.5 bg-destructive text-xs font-extrabold text-white"
+        >
+          <Trash2 className="h-4 w-4" strokeWidth={2.75} />
+          Used up
+        </motion.div>
+      )}
+
+      {/* Left of the row, revealed by dragging right. */}
       <motion.div
         aria-hidden
-        style={{ opacity: panelOpacity }}
-        className="absolute inset-y-0 right-0 flex w-[104px] items-center justify-center gap-1.5 bg-destructive text-xs font-extrabold text-white"
+        style={{ opacity: rightPanel }}
+        className="absolute inset-y-0 left-0 flex w-[104px] items-center justify-center gap-1.5 bg-primary text-xs font-extrabold text-primary-foreground"
       >
-        <Trash2 className="h-4 w-4" strokeWidth={2.75} />
-        Used up
+        <Plus className="h-4 w-4" strokeWidth={3} />
+        {addLabel}
       </motion.div>
 
       <motion.div
@@ -75,20 +96,38 @@ export function SwipeRow({
          * scroll. Without this the list fights the gesture and neither wins.
          */
         dragDirectionLock
-        dragConstraints={{ left: -REVEAL, right: 0 }}
-        dragElastic={{ left: 0.05, right: 0 }}
+        dragConstraints={{ left: onUsedUp ? -REVEAL : 0, right: REVEAL }}
+        dragElastic={{ left: onUsedUp ? 0.05 : 0, right: 0.05 }}
         onDragEnd={(_, info) => {
           // Distance OR a decisive flick - a short fast swipe is as deliberate
           // as a long slow one, and only accepting length punishes the people
           // who are quickest with it.
-          const far = info.offset.x < -COMMIT;
-          const flicked = info.velocity.x < -520 && info.offset.x < -32;
-          if (!far && !flicked) return;
+          const left =
+            info.offset.x < -COMMIT ||
+            (info.velocity.x < -520 && info.offset.x < -32);
+          const right =
+            info.offset.x > COMMIT ||
+            (info.velocity.x > 520 && info.offset.x > 32);
 
-          setCommitting(true);
-          onUsedUp();
+          if (left && onUsedUp) {
+            setCommitting("left");
+            onUsedUp();
+            return;
+          }
+          if (right) {
+            /**
+             * Adding snaps back rather than sliding away.
+             *
+             * Using something up takes the row off the shelf, so letting it
+             * leave reads correctly. Adding one leaves the row exactly where
+             * it was with a bigger number on it, and animating it out would
+             * promise a disappearance that never comes.
+             */
+            setCommitting(null);
+            onAddOne();
+          }
         }}
-        animate={committing ? { x: -REVEAL, opacity: 0.4 } : { x: 0 }}
+        animate={committing === "left" ? { x: -REVEAL, opacity: 0.4 } : { x: 0 }}
         transition={{ type: "spring", stiffness: 500, damping: 40 }}
         className="relative touch-pan-y bg-card"
       >
@@ -98,7 +137,7 @@ export function SwipeRow({
       {/* Announced rather than only drawn, because the row itself is what
           changes and a screen reader would otherwise get no news of it. */}
       <span role="status" aria-live="polite" className="sr-only">
-        {committing ? `${label} marked used up` : ""}
+        {committing === "left" ? `${label} marked used up` : ""}
       </span>
     </div>
   );

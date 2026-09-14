@@ -9,6 +9,7 @@ import { RowAdjust } from "@/components/row-adjust";
 import { SwipeRow } from "@/components/swipe-row";
 import { adjustItem } from "@/app/pantry/actions";
 import { totalOnHand } from "@/lib/containers";
+import { ADJUST_STEP } from "@/lib/units";
 import { describeStock, inStock, labelSaysOpen } from "@/lib/containers";
 import type { TagInUse } from "@/lib/tags";
 import type { Item } from "@/lib/types";
@@ -292,17 +293,32 @@ export function StockList({
                          A swipe left is the shortcut past the stepper for the
                          one answer that needs no number: it is gone. */
                       <SwipeRow
-                        enabled={canEdit && !open && inStock(item)}
+                        enabled={canEdit && !open}
                         label={item.name}
-                        onUsedUp={() => {
-                          const total = totalOnHand(item);
-                          // `totalOnHand`, never `quantity` - that is the open
-                          // container alone, and taking it would leave the
-                          // sealed packs behind on a row the person has just
-                          // said is empty. AGENTS.md counts the bugs.
-                          if (total === null || total <= 0) return;
-                          void adjustItem(item.id, -total);
-                        }}
+                        addLabel={
+                          item.dimension === "count"
+                            ? "+1"
+                            : `+${ADJUST_STEP[item.dimension]}${item.canonical_unit}`
+                        }
+                        /* Nothing to use up on a row that is already empty,
+                           which leaves only the half that can do something. */
+                        onUsedUp={
+                          inStock(item)
+                            ? () => {
+                                const total = totalOnHand(item);
+                                // `totalOnHand`, never `quantity` - that is the
+                                // open container alone, and taking it would
+                                // leave the sealed packs behind on a row the
+                                // person has just said is empty. AGENTS.md
+                                // counts the bugs.
+                                if (total === null || total <= 0) return;
+                                void adjustItem(item.id, -total);
+                              }
+                            : null
+                        }
+                        onAddOne={() =>
+                          void adjustItem(item.id, ADJUST_STEP[item.dimension])
+                        }
                       >
                         <button
                           type="button"
