@@ -8,7 +8,7 @@ import { PrintButton } from "@/components/print-button";
 import { RecipeVisibility } from "@/components/recipe-visibility";
 import { RemixButton } from "@/components/remix-button";
 import { CookbookButton } from "@/components/cookbook-button";
-import { isInCookbook } from "@/lib/cookbook";
+import { getLinks, isInCookbook, resolveWithLinks } from "@/lib/cookbook";
 import { RecipeTags } from "@/components/recipe-tags";
 import { derivedTags, getTagsByRecipe, suggestTags } from "@/lib/recipe-tags";
 import { Lineage } from "@/components/lineage";
@@ -26,6 +26,7 @@ import {
   getCookedLog,
 } from "@/lib/queries";
 import { getLineage, getRemixes } from "@/lib/social";
+import { indexStock } from "@/lib/pantry-match";
 import { rankSubstitutes } from "@/lib/substitutes";
 import { getTags, getTagsByItem } from "@/lib/tags";
 import { recipeMacros } from "@/lib/recipe-nutrition";
@@ -75,6 +76,7 @@ export default async function RecipePage({
     tagsByItem,
     kitchenTags,
     recipeTagsByRecipe,
+    links,
   ] =
     await Promise.all([
     recipe.author_id ? getUser(recipe.author_id) : null,
@@ -90,6 +92,7 @@ export default async function RecipePage({
     getTagsByItem(kitchen?.id ?? null),
     getTags(kitchen?.id ?? null),
     getTagsByRecipe([recipeId]),
+    getLinks(kitchen?.id ?? null, recipeId),
   ]);
 
   const forkedAuthor =
@@ -117,12 +120,28 @@ export default async function RecipePage({
 
   // Pass raw stock alongside each line so the panel can re-resolve status as
   // the serving count changes, using the same pure helpers as the server.
+  /**
+   * The same answer the cook button will give, from the same function.
+   *
+   * This page used to decide it alone: trust `recipe_ingredients.item_id` if
+   * set, otherwise an exact lowercase name match. The cook action reads
+   * `cookbook_links` and falls through to the real resolver, which refuses a
+   * low-confidence guess - so the two disagreed, and the page won the argument
+   * it had no business being in. A stale item_id let it print "Low" beside
+   * Sweet Peppers and Brown Onions, and then cooking said they "could not be
+   * worked out from the recipe" and deducted nothing, in small print under the
+   * celebration screen.
+   *
+   * pantry-match.ts says in its own header that four places once decided this
+   * independently and "agreed only by being equally wrong". This was the fifth,
+   * and the only caller that never adopted the fix - queries, shopping and trip
+   * were all already here.
+   */
+  const stockIndex = indexStock(items);
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+
   const lines: CookLine[] = recipe.ingredients.map((line) => {
-    // item_id is the link when it exists; the name is still matched as a
-    // fallback for lines written before the ingredient was ever in stock.
-    const item = line.item_id
-      ? items.find((candidate) => candidate.id === line.item_id)
-      : itemsByName.get(line.item_name.toLowerCase());
+    const item = resolveWithLinks(line, links, stockIndex, itemsById).item ?? undefined;
 
     return {
       id: line.id,
