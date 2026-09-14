@@ -38,7 +38,7 @@ export default async function NewRecipePage() {
           New recipe
         </h1>
         <RecipeEditor
-          initial={emptyDraft()}
+          initial={emptyDraft(kitchen?.default_servings)}
           pantryNames={items.map((item) => item.name)}
           sections={sections}
         />

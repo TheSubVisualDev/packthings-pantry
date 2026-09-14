@@ -314,11 +314,26 @@ export function RecipeEditor({
   }
 
   return (
-    <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-8">
+    /**
+     * The editor takes the room; the preview sits beside it as a phone.
+     *
+     * Two equal columns, both flat on the page background, was reported as
+     * "needs to be a clearer distinction between the preview and the editor"
+     * - and it did read as one continuous surface, with the form's own cards
+     * being the only thing that looked like a boundary. Half the width also
+     * went to the half nobody is typing into.
+     *
+     * So the form is the page and the preview is an object on it, at the
+     * width it will actually be read at. Ordered form-then-preview in the
+     * markup as well as on screen, because that is tab order.
+     */
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_390px] lg:items-start lg:gap-10">
       {/* Spans both columns: one bar over the pair, so Save is in the same
           place whichever pane you're looking at. */}
       <div className="sticky top-0 z-30 -mx-5 mb-5 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-3 backdrop-blur sm:-mx-9 sm:px-9 lg:col-span-2">
-        <div className="flex gap-1 rounded-full bg-chip p-1 text-[13px] font-bold lg:invisible">
+        {/* hidden, not invisible: invisible kept the toggle's width on desktop
+            and pushed the stage name into the middle of an empty bar. */}
+        <div className="flex gap-1 rounded-full bg-chip p-1 text-[13px] font-bold lg:hidden">
           {(["edit", "preview"] as const).map((option) => (
             <button
               key={option}
@@ -336,6 +351,18 @@ export function RecipeEditor({
           ))}
         </div>
 
+        {/* The mobile pane toggle is invisible on desktop, which left this bar
+            holding three small dashes and a lot of nothing. On a wide screen
+            it says where you are instead. */}
+        <span className="hidden text-sm font-bold lg:block">
+          {STAGES[stage].title}
+          {stage === 1 && stepCount > 0 && (
+            <span className="ml-2 font-semibold text-muted-foreground tabular-nums">
+              step {stepShowing + 1} of {stepCount}
+            </span>
+          )}
+        </span>
+
         {/* Three segments rather than a Save button. Saving belongs at the
             end of the thing, not permanently in the corner of it. */}
         <div className="flex flex-1 justify-end gap-1">
@@ -347,14 +374,6 @@ export function RecipeEditor({
               }`}
             />
           ))}
-        </div>
-      </div>
-
-      {/* Preview left, fields right. */}
-      <div className={`${pane === "preview" ? "block" : "hidden"} lg:block`}>
-        <div className="lg:sticky lg:top-20">
-          <span className={`${LABEL} hidden lg:block`}>Preview</span>
-          <RecipePreview draft={draft} photos={photos} />
         </div>
       </div>
 
@@ -1035,6 +1054,32 @@ export function RecipeEditor({
         </p>
       )}
 
+      </div>
+
+      {/*
+        The preview, as a phone.
+
+        Locked to a handset's width and proportions on a desktop, which is what
+        was asked for and is also the honest thing to show: this recipe is read
+        on a phone next to a hob, and a preview stretched to half a 1440px
+        window is a preview of a page nobody sees. The frame does the work the
+        old bare column could not - it says where the editor stops.
+
+        It scrolls inside itself rather than with the page, so the form can be
+        long without the preview running out partway down.
+      */}
+      <div className={`${pane === "preview" ? "block" : "hidden"} lg:block`}>
+        <div className="lg:sticky lg:top-24">
+          <span className={`${LABEL} hidden lg:block`}>Preview</span>
+          <div className="lg:h-[720px] lg:overflow-hidden lg:rounded-[34px] lg:border-[3px] lg:border-ink/85 lg:bg-page lg:p-2 lg:shadow-[0_18px_40px_-12px_rgba(0,0,0,0.25)]">
+            <div className="lg:h-full lg:overflow-y-auto lg:overscroll-contain lg:rounded-[26px] [scrollbar-width:none] lg:[&::-webkit-scrollbar]:hidden">
+              <RecipePreview draft={draft} photos={photos} />
+            </div>
+          </div>
+          <p className="mt-2 hidden text-xs font-semibold text-muted-foreground lg:block">
+            How it reads on a phone.
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -365,9 +365,22 @@ export default async function RecipePage({
           steps={steps}
           hasKitchen={kitchen !== null}
           inCookbook={inCookbook}
-          /* Last time here, then what this kitchen usually cooks for, then the
-             recipe's own number. Each is a better guess than the one after. */
-          lastServings={history[0]?.servings ?? kitchen?.default_servings ?? null}
+          /**
+           * What you last cooked THIS recipe for, and otherwise the recipe's
+           * own number.
+           *
+           * The kitchen's usual serving count used to sit between the two and
+           * it was wrong: a recipe that makes sixteen flapjacks makes sixteen
+           * flapjacks, and a household that cooks for two does not want an
+           * eighth of a tray. Reported as "authored recipe not retaining its
+           * state" - the number had not been forgotten, it was being overruled
+           * on every visit, which looks identical from the outside.
+           *
+           * Last time here is different: it is a fact about this recipe and
+           * this kitchen together, which is the only thing that beats what the
+           * recipe says about itself.
+           */
+          lastServings={history[0]?.servings ?? null}
         />
 
         {/* Adopting comes before cooking, because adopting is where the app is

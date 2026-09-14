@@ -2,12 +2,20 @@ import type { RecipeDraft } from "@/components/recipe-editor";
 import type { RecipeWithIngredients } from "./types";
 import { writeQuantity } from "./units";
 
-/** A recipe opens in the editor with one empty line of each, ready to type into. */
-export function emptyDraft(): RecipeDraft {
+/**
+ * A recipe opens in the editor with one empty line of each, ready to type into.
+ *
+ * `servings` is what onboarding asked for - "usually cooking for" - and this is
+ * the one place it belongs. It used to be applied to every recipe page instead,
+ * where it overruled what the recipe said about itself and made a sixteen-piece
+ * tray of flapjacks open as two. A number YOU are about to type is a sensible
+ * thing to guess at; one somebody else already typed is not.
+ */
+export function emptyDraft(servings?: number | null): RecipeDraft {
   return {
     name: "",
     description: "",
-    base_servings: "4",
+    base_servings: String(servings && servings > 0 ? servings : 4),
     prep_minutes: "",
     cook_minutes: "",
     source: "",
