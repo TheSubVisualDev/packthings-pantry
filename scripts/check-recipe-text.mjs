@@ -364,6 +364,128 @@ check("sectioned: steps", sectioned.document.steps.length, 2);
 const empty = readRecipeText("   \n\n  ");
 check("empty stays empty", empty.document, {});
 
+
+/* --- a real recipe that broke all of this at once --- */
+
+/**
+ * Pasted from a website, and every assumption in here failed on it.
+ *
+ * No headings. A zero-width space used as a spacer, which String.trim does not
+ * remove - so a "blank" line arrived as a line, became an ingredient called
+ * nothing, pushed the blurb into the method, latched the reader into step mode
+ * and turned every ingredient after it into an instruction. "bake for about 40
+ * minutes" was read as a recipe for forty people. "Tablespoon of poppy seeds"
+ * found no unit because the patterns were lower-case only. And the method was
+ * one paragraph, which is one step to anything looking for line breaks.
+ */
+const CAKE = [
+  "LEMON & ALMOND CAKE",
+  "",
+  "\u200B",
+  "",
+  "Baked for the recent Yoga & Creativity day retreat, this moist, zesty cake is perfect with a cup of fresh mint tea. Tastes good made with orange as an alternative to lemon.",
+  "",
+  "\u200B",
+  "",
+  "2 large, un-waxed lemons or a large orange",
+  "",
+  "6 eggs",
+  "450g ground almonds",
+  "",
+  "250g sugar",
+  "",
+  "1 teaspoon of baking powder",
+  "",
+  "Tablespoon of poppy seeds",
+  "",
+  "\u200B",
+  "",
+  "Preheat oven to 180c/350f/gas mark 4. Wash lemons, cover with water and gently boil for one hour. Cool and remove the pips with a fork then blend to a pulp. Beat eggs in a large bowl. Add the remaining ingredients. Mix thoroughly, pour into a lined 20cm spring base cake tin and bake for about 40 minutes or until cooked. Cool in the tin before turning out.",
+].join("\n");
+
+const cake = readRecipeText(CAKE);
+
+check("cake: the title", cake.document.name, "LEMON & ALMOND CAKE");
+
+// The blurb is prose before any ingredient, which cannot be a method step -
+// a method does not begin before the shopping list.
+check(
+  "cake: the blurb is the blurb",
+  String(cake.document.description).startsWith("Baked for the recent"),
+  true,
+);
+
+// "bake for about 40 minutes" is a cooking time standing near the word "for".
+check("cake: not forty servings", cake.document.base_servings, 4);
+check(
+  "cake: and it says it guessed",
+  cake.notes.some((note) => /assumed 4/i.test(note)),
+  true,
+);
+
+// Six written lines, six ingredients, nothing dropped and nothing invented.
+check("cake: ingredient count", cake.document.ingredients.length, 6);
+check("cake: nothing unread", cake.unread, []);
+
+// The comma here is punctuation inside the name, not the start of an
+// instruction: splitting on it leaves only the word "large".
+check("cake: the lemons survive", cake.document.ingredients[0], {
+  item_name: "Un-waxed lemons or a large orange",
+  quantity: 2,
+  unit: "count",
+  note: "large",
+  approx: true,
+});
+
+// A unit at the start of a sentence is capitalised, and means one of them.
+check("cake: a capitalised unit", cake.document.ingredients[5], {
+  item_name: "Poppy seeds",
+  quantity: 1,
+  unit: "tbsp",
+});
+
+check("cake: grams read", cake.document.ingredients[2], {
+  item_name: "Ground almonds",
+  quantity: 450,
+  unit: "g",
+});
+
+// One paragraph, seven instructions.
+check("cake: the method is cut up", cake.document.steps.length, 7);
+check("cake: first step", cake.document.steps[0].body, "Preheat oven to 180c/350f/gas mark 4.");
+check(
+  "cake: last step",
+  cake.document.steps[6].body,
+  "Cool in the tin before turning out.",
+);
+
+// An oven temperature is not a sentence boundary, and neither is a decimal.
+check(
+  "cake: 180c/350f stayed together",
+  cake.document.steps[0].body.includes("350f/gas mark 4"),
+  true,
+);
+
+/* --- a writer who broke their own method into lines is not second-guessed --- */
+
+const NUMBERED = `Quick Eggs
+2 eggs
+1 tbsp butter
+
+Method
+1. Melt the butter.
+2. Beat the eggs. Season them well.
+3. Cook gently, stirring. Serve at once.`;
+
+const numbered = readRecipeText(NUMBERED);
+// Three written steps stay three, even though two of them hold two sentences.
+check("a numbered method is left alone", numbered.document.steps.length, 3);
+check(
+  "including its multi-sentence steps",
+  numbered.document.steps[1].body,
+  "Beat the eggs. Season them well.",
+);
+
 if (failures > 0) {
   console.error(`\n${failures} failed`);
   process.exit(1);

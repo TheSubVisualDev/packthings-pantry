@@ -43,16 +43,25 @@ export interface ReadResult {
  * Longest first when matching, so "tablespoon" is not read as "tbsp" plus
  * junk, and so "fl oz" beats "oz".
  */
+/*
+ * Case-insensitive, all of them.
+ *
+ * These matched lower case only, so a line beginning "Tablespoon of poppy
+ * seeds" - which is how a person writes it when the unit starts the sentence -
+ * found no unit at all and became an ingredient called "Tablespoon of poppy
+ * seeds" with no amount. Capitalisation is a fact about where a word sits in a
+ * sentence, not about what it means.
+ */
 const UNIT_WORDS: [RegExp, string][] = [
-  [/^(kilograms?|kilos?|kgs?)\b/, "kg"],
-  [/^(grams?|grammes?|gms?|g)\b/, "g"],
-  [/^(millilitres?|milliliters?|mls?)\b/, "ml"],
-  [/^(litres?|liters?|ltrs?|l)\b/, "l"],
-  [/^(tablespoons?|tbsps?|tbs|tblsp)\b/, "tbsp"],
-  [/^(teaspoons?|tsps?)\b/, "tsp"],
-  [/^(tins?|cans?)\b/, "tin"],
-  [/^(packets?|packs?|pkts?|bags?|boxes|box)\b/, "pack"],
-  [/^(jars?|pots?|tubs?)\b/, "jar"],
+  [/^(kilograms?|kilos?|kgs?)\b/i, "kg"],
+  [/^(grams?|grammes?|gms?|g)\b/i, "g"],
+  [/^(millilitres?|milliliters?|mls?)\b/i, "ml"],
+  [/^(litres?|liters?|ltrs?|l)\b/i, "l"],
+  [/^(tablespoons?|tbsps?|tbs|tblsp)\b/i, "tbsp"],
+  [/^(teaspoons?|tsps?)\b/i, "tsp"],
+  [/^(tins?|cans?)\b/i, "tin"],
+  [/^(packets?|packs?|pkts?|bags?|boxes|box)\b/i, "pack"],
+  [/^(jars?|pots?|tubs?)\b/i, "jar"],
 ];
 
 /**
@@ -67,13 +76,13 @@ const UNIT_WORDS: [RegExp, string][] = [
  */
 const FOREIGN_UNITS: [RegExp, string, number, string][] = [
   // [pattern, how to say it, multiplier, unit it becomes]
-  [/^(fl\.?\s?oz|fluid ounces?)\b/, "fl oz", 28.4, "ml"],
-  [/^(ounces?|ozs?)\b/, "oz", 28.35, "g"],
-  [/^(pounds?|lbs?)\b/, "lb", 453.6, "g"],
-  [/^(cups?)\b/, "cup", 240, "ml"],
-  [/^(pints?|pts?)\b/, "pint", 568, "ml"],
-  [/^(quarts?|qts?)\b/, "quart", 1137, "ml"],
-  [/^(sticks?) (of )?butter\b/, "stick of butter", 113, "g"],
+  [/^(fl\.?\s?oz|fluid ounces?)\b/i, "fl oz", 28.4, "ml"],
+  [/^(ounces?|ozs?)\b/i, "oz", 28.35, "g"],
+  [/^(pounds?|lbs?)\b/i, "lb", 453.6, "g"],
+  [/^(cups?)\b/i, "cup", 240, "ml"],
+  [/^(pints?|pts?)\b/i, "pint", 568, "ml"],
+  [/^(quarts?|qts?)\b/i, "quart", 1137, "ml"],
+  [/^(sticks?) (of )?butter\b/i, "stick of butter", 113, "g"],
 ];
 
 /* -------------------------------------------------------------------------
@@ -393,11 +402,23 @@ export function readIngredientLine(
   if (quantity !== null && unit === null) unit = "count";
   if (quantity === null) unit = UNMEASURED;
 
-  // Anything after the first comma is preparation, not name.
+  /**
+   * Anything after the first comma is preparation, not name.
+   *
+   * Unless it turns out that the name was after the comma. "2 large,
+   * un-waxed lemons or a large orange" splits into "large" and the rest, and
+   * "large" is a word this file then strips as an estimate - leaving nothing
+   * at all, and the whole line thrown away as unreadable. So the split is
+   * provisional: if what is left in front of the comma turns out to be only
+   * adjectives, the comma was punctuation inside the name and not the start
+   * of an instruction.
+   */
+  const whole = rest;
   const comma = rest.indexOf(",");
+  let afterComma: string | null = null;
   if (comma !== -1) {
     const after = rest.slice(comma + 1).trim();
-    if (after) noteParts.push(after);
+    if (after) afterComma = after;
     rest = rest.slice(0, comma);
   }
 
@@ -420,7 +441,29 @@ export function readIngredientLine(
     rest = rest.replace(LOOSE_WORDS, " ");
   }
 
-  const name = tidyName(rest);
+  let name = tidyName(rest);
+
+  /**
+   * Nothing left in front of the comma: it was not an instruction after all.
+   *
+   * Undo the split and read the line whole, minus the estimating words, which
+   * are still notes wherever they were. Better a long ingredient name that
+   * can be corrected in the editor than a line silently dropped.
+   */
+  if (!name && afterComma) {
+    let retry = whole.replace(LOOSE_WORDS, " ");
+    if (loose && noteParts[0] === loose[0].toLowerCase()) noteParts.shift();
+    // The loose word applies to the amount either way.
+    if (loose) {
+      if (unit !== UNMEASURED) approx = true;
+      noteParts.unshift(loose[0].toLowerCase());
+    }
+    retry = retry.replace(/\s{2,}/g, " ");
+    name = tidyName(retry);
+    afterComma = null;
+  }
+
+  if (afterComma) noteParts.push(afterComma);
   if (!name) return null;
 
   const note = noteParts
@@ -471,10 +514,31 @@ function looksLikeStep(line: string): boolean {
 
 /** "Serves 4", "Makes 12", "Feeds 6", "For 2 people". */
 function readServings(line: string): number | null {
-  const found = line.match(
-    /\b(?:serves?|makes|feeds|yield(?:s)?|portions?(?: for)?|for)\s+(?:about\s+)?(\d+)\b/i,
+  /**
+   * The word has to actually mean servings.
+   *
+   * A bare "for 4" used to count, which read "bake for about 40 minutes" as a
+   * recipe for forty people - and a wrong serving count is worse than none,
+   * because every quantity on the page gets scaled by it. "For" only counts
+   * when something after the number says who it is for.
+   */
+  const explicit = line.match(
+    /\b(?:serves?|makes|feeds|yields?)\s+(?:about\s+|around\s+)?(\d+)\b/i,
   );
+  const withNoun = line.match(
+    /\bfor\s+(?:about\s+|around\s+)?(\d+)\s*(?:people|persons?|servings?|portions?)\b/i,
+  );
+  const bareNoun = line.match(/\b(\d+)\s*(?:servings?|portions?)\b/i);
+
+  const found = explicit ?? withNoun ?? bareNoun;
   if (!found) return null;
+
+  // A number followed by a unit of time is a cooking time that happened to
+  // sit near one of those words.
+  if (new RegExp(String.raw`\b${found[1]}\s*(?:min|hour|hr|sec)`, "i").test(line)) {
+    return null;
+  }
+
   const value = Number(found[1]);
   return Number.isInteger(value) && value > 0 && value <= 100 ? value : null;
 }
@@ -496,6 +560,49 @@ function readMinutes(line: string, which: "prep" | "cook"): number | null {
   return null;
 }
 
+
+/**
+ * A method written as one paragraph, cut into steps.
+ *
+ * Plenty of recipes - handwritten ones especially - put the whole method in a
+ * block: "Preheat the oven. Wash the lemons, cover with water and boil for an
+ * hour. Cool and remove the pips." That is one step to a reader looking for
+ * line breaks and six steps to anybody cooking it, and the difference matters
+ * on the cook screen, where the whole point is one instruction at a time.
+ *
+ * Split at a full stop followed by a capital, which is a sentence boundary and
+ * not a decimal point, an abbreviation, or the "180c/350f" in an oven
+ * temperature. Sentences are then glued back into steps of a workable length:
+ * "Cool." on its own is a step nobody needed a screen for.
+ */
+function intoSteps(paragraph: string): string[] {
+  const sentences = paragraph
+    // Split after . ! or ? when the next thing along is a capital or a digit.
+    // The lookbehind keeps the punctuation on the sentence it belongs to.
+    .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (sentences.length < 2) return [paragraph];
+
+  /**
+   * Short sentences join the one before them.
+   *
+   * "Cool in the tin before turning out." is a step. "Cool." is half of the
+   * sentence in front of it, and putting it on a screen of its own makes the
+   * method look longer and say less.
+   */
+  const MIN_WORDS = 4;
+  const steps: string[] = [];
+  for (const sentence of sentences) {
+    const short = sentence.split(/\s+/).length < MIN_WORDS;
+    if (short && steps.length > 0) steps[steps.length - 1] += ` ${sentence}`;
+    else steps.push(sentence);
+  }
+
+  return steps;
+}
+
 /**
  * Turns a pasted recipe into a document parseRecipeDocument will accept.
  *
@@ -509,9 +616,20 @@ export function readRecipeText(text: string): ReadResult {
   const notes: string[] = [];
   const unread: string[] = [];
 
+  /**
+   * Lines, with the invisible ones thrown away.
+   *
+   * A recipe pasted out of a website or a word processor is full of zero-width
+   * spaces, non-breaking spaces and byte-order marks used as spacers - and
+   * String.trim removes none of them, so a "blank" separator line arrives as a
+   * line with one character on it. One of those became an ingredient called
+   * nothing, which pushed the blurb into the method, which latched the reader
+   * into step mode, which turned every ingredient after it into an
+   * instruction. A whole recipe came apart from one invisible character.
+   */
   const lines = text
     .split(/\r?\n/)
-    .map((line) => line.trim())
+    .map((line) => line.replace(/[\u200B-\u200D\uFEFF\u00A0\u2060]/g, " ").trim())
     .filter(Boolean);
 
   if (lines.length === 0) {
@@ -631,15 +749,36 @@ export function readRecipeText(text: string): ReadResult {
       continue;
     }
 
+    /**
+     * Prose before any ingredient is not the method.
+     *
+     * Without headings the reader guesses from shape, and a blurb under the
+     * title looks exactly like an instruction: long, prose, no leading number.
+     * It used to latch the reader into step mode on the spot, and every
+     * ingredient after it was read as an instruction - the whole recipe, in
+     * order, as a method.
+     *
+     * A method cannot begin before the shopping list. So until something has
+     * been read as an ingredient, a long line is kept as prose rather than
+     * promoted, and it ends up as the blurb or as notes.
+     */
     const isStep = stated
       ? where === "steps"
-      : where === "steps" || looksLikeStep(line);
+      : where === "steps" || (ingredientLines.length > 0 && looksLikeStep(line));
 
     if (isStep) {
       // Without headings, the method starting is the one transition that does
       // stick: a recipe never goes back to listing ingredients afterwards.
       where = "steps";
       stepLines.push({ text: line, section });
+      continue;
+    }
+
+    // Prose, before anything has been listed. The blurb if there is not one
+    // yet, and otherwise something to keep rather than to mistake for food.
+    if (!stated && ingredientLines.length === 0 && looksLikeStep(line)) {
+      if (description === null) description = line;
+      else extraNotes.push(line);
       continue;
     }
 
@@ -681,10 +820,25 @@ export function readRecipeText(text: string): ReadResult {
     ingredients.push({ ...read, ...(lineSection ? { section: lineSection } : {}) });
   }
 
-  const steps = stepLines.map(({ text: stepText, section: stepSection }) => ({
-    body: stepText.replace(/^(step\s*)?\d+\s*[.):\-]\s*/i, "").trim(),
-    ...(stepSection ? { section: stepSection } : {}),
-  }));
+  /**
+   * One line per instruction, however the method was written.
+   *
+   * A numbered list arrives as one line each and is left alone; a paragraph
+   * arrives as one line for the lot and is cut into sentences. Only when the
+   * whole method is one or two lines, because a writer who has already broken
+   * their method into lines has said where the steps are and should not be
+   * second-guessed.
+   */
+  const asParagraphs = stepLines.length <= 2;
+
+  const steps = stepLines.flatMap(({ text: stepText, section: stepSection }) => {
+    const body = stepText.replace(/^(step\s*)?\d+\s*[.):\-]\s*/i, "").trim();
+    const bodies = asParagraphs ? intoSteps(body) : [body];
+    return bodies.map((each) => ({
+      body: each,
+      ...(stepSection ? { section: stepSection } : {}),
+    }));
+  });
 
   if (servings === null) {
     servings = 4;
