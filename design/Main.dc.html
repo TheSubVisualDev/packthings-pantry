@@ -122,31 +122,36 @@
   </div>
 
   <!--
-    Bottom nav, rebalanced for three.
+    Bottom nav: four things, four equal columns.
 
-    With Stock folded away there are three tabs, and a centred FAB between an
-    odd number of them has no good answer: it either sits inside a gap that is
-    not the middle of anything, or it forces a phantom fourth slot. So the FAB
-    takes one end and the three tabs share the other, evenly spaced with room
-    each. It also stays IN the bar rather than riding above it - raising it was
-    how the old layout hid the fact that it had nowhere to sit.
+    Evenly spaced by construction rather than by eye - a grid of four, each
+    child centred in its own column, so the gaps between Tonight, Cookbook,
+    Discover and the button are identical whatever the screen is. The previous
+    version pushed the three tabs together and put the button at the end,
+    which balanced the ends and left the middle uneven.
+
+    The button is bigger than a tab because it is not one: it is the only
+    thing down here that does something rather than going somewhere. And it
+    breaks the top edge of the bar deliberately - overhanging reads as "this
+    sits on top of the app", where sitting flush in a row of four reads as a
+    fourth tab that somebody has coloured in.
   -->
-  <div style="flex-shrink: 0; border-top: 1px solid oklch(0.882 0.023 72); background: oklch(0.985 0.008 60); padding: 9px 18px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px">
-    <div style="display: flex; align-items: center; justify-content: space-between; flex-grow: 1; padding-right: 6px">
-      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
-        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 64px; min-height: 44px; justify-content: center">
-          <svg viewBox="0 0 24 24" style="width: 21px; height: 21px" aria-hidden="true">
-            <path d="{{t.icon}}" fill="none" stroke="{{t.colour}}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"></path>
-          </svg>
-          <div style="font-size: 11px; font-weight: 800; color: {{t.colour}}">{{t.label}}</div>
-        </div>
-      </sc-for>
-    </div>
+  <div style="flex-shrink: 0; border-top: 1px solid oklch(0.882 0.023 72); background: oklch(0.985 0.008 60); padding: 9px 12px 16px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: center; overflow: visible">
+    <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; justify-content: center">
+        <svg viewBox="0 0 24 24" style="width: 21px; height: 21px" aria-hidden="true">
+          <path d="{{t.icon}}" fill="none" stroke="{{t.colour}}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"></path>
+        </svg>
+        <div style="font-size: 11px; font-weight: 800; color: {{t.colour}}">{{t.label}}</div>
+      </div>
+    </sc-for>
 
-    <div style="width: 52px; height: 52px; flex-shrink: 0; border-radius: 999px; background: oklch(0.579 0.143 36); display: flex; align-items: center; justify-content: center; box-shadow: 0 5px 16px -6px oklch(0.579 0.143 36 / 0.75)">
-      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px" aria-hidden="true">
-        <path d="M12 5 v14 M5 12 h14" stroke="oklch(1 0 0)" stroke-width="2.8" stroke-linecap="round"></path>
-      </svg>
+    <div style="display: flex; align-items: center; justify-content: center">
+      <div style="width: 62px; height: 62px; margin-top: -26px; border-radius: 999px; background: oklch(0.579 0.143 36); display: flex; align-items: center; justify-content: center; border: 4px solid oklch(0.985 0.008 60); box-shadow: 0 6px 18px -6px oklch(0.579 0.143 36 / 0.75)">
+        <svg viewBox="0 0 24 24" style="width: 27px; height: 27px" aria-hidden="true">
+          <path d="M12 5 v14 M5 12 h14" stroke="oklch(1 0 0)" stroke-width="2.9" stroke-linecap="round"></path>
+        </svg>
+      </div>
     </div>
   </div>
 
