@@ -35,7 +35,7 @@ export default async function ReportsPage() {
 
   return (
     <>
-      <SiteHeader active="stock" meta={`${waiting.length} waiting`} />
+      <SiteHeader active="none" meta={`${waiting.length} waiting`} />
       <main className="mx-auto w-full max-w-[640px] px-5 py-7 pb-32 sm:px-9">
         <Link
           href="/report"

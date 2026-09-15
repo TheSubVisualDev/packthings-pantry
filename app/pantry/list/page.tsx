@@ -60,7 +60,7 @@ export default async function ShoppingPage({
     <>
       {/* "to buy" read as the same count Running Low was offering to add,
           when it only ever counted what's already on the list. */}
-      <SiteHeader active="stock" meta={`${todo} on the list`} />
+      <SiteHeader active="none" meta={`${todo} on the list`} />
 
       <main className="mx-auto w-full max-w-[560px] px-5 py-7 pb-32 sm:px-9">
         <Link

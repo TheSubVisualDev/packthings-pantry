@@ -181,7 +181,7 @@ export default async function PantryPage({
   return (
     <>
       <SiteHeader
-        active="stock"
+        active="none"
         meta={`${onShelf.length} items · ${tags.length} ${tags.length === 1 ? "tag" : "tags"}`}
       />
 

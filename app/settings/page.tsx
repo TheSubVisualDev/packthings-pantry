@@ -43,7 +43,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <SiteHeader active="stock" />
+      <SiteHeader active="none" />
 
       <main className="mx-auto w-full max-w-[640px] px-5 py-8 pb-32 sm:px-9">
         <span className={LABEL}>Settings</span>

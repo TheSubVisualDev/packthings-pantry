@@ -8,10 +8,14 @@ import { isAdmin } from "@/lib/reports";
 import { unreadCount } from "@/lib/notifications";
 import { Bell } from "lucide-react";
 
+/**
+ * Three, matching the tab bar: the shelf moved under Tonight, so Stock is no
+ * longer somewhere you go. /pantry still holds the list and the groupings and
+ * is reached from the shelf.
+ */
 const tabs = [
-  { href: "/pantry", key: "stock", label: "Stock" },
-  // First after Stock because it is the question the app is for. Discover is
-  // browsing; this is the answer.
+  // First because it is the question the app is for. Discover is browsing;
+  // this is the answer.
   { href: "/tonight", key: "tonight", label: "Tonight" },
   { href: "/recipes", key: "recipes", label: "Cookbook" },
   { href: "/discover", key: "discover", label: "Discover" },

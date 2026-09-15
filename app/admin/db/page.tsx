@@ -41,7 +41,7 @@ export default async function AdminDbPage({
 
   return (
     <>
-      <SiteHeader active="stock" meta={`${tables.length} tables`} />
+      <SiteHeader active="none" meta={`${tables.length} tables`} />
       <main className="mx-auto w-full max-w-[840px] px-5 py-7 pb-32 sm:px-9">
         <Link
           href="/admin"

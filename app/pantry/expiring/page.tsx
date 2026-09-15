@@ -43,7 +43,7 @@ export default async function ExpiringPage() {
 
   return (
     <>
-      <SiteHeader active="stock" meta={`${rescues.length} with a date`} />
+      <SiteHeader active="none" meta={`${rescues.length} with a date`} />
 
       <main className="mx-auto w-full max-w-[560px] px-5 py-7 pb-32 sm:px-9">
         <Link

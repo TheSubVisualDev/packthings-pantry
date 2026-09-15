@@ -35,7 +35,7 @@ export default async function KitchensPage({
   if (!kitchen) {
     return (
       <>
-        <SiteHeader active="stock" />
+        <SiteHeader active="none" />
 
         <main className="mx-auto w-full max-w-[560px] px-5 py-10 pb-32 sm:px-9">
           <span className={LABEL}>Kitchens</span>
@@ -90,7 +90,7 @@ export default async function KitchensPage({
 
   return (
     <>
-      <SiteHeader active="stock" />
+      <SiteHeader active="none" />
 
       <main className="mx-auto w-full max-w-[640px] px-5 py-8 pb-32 sm:px-9">
         <span className={LABEL}>Kitchen</span>

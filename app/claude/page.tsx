@@ -55,7 +55,7 @@ export default async function ClaudePage() {
 
   return (
     <>
-      <SiteHeader active="stock" />
+      <SiteHeader active="none" />
 
       <main className="mx-auto w-full max-w-[680px] px-5 py-8 pb-32 sm:px-9">
         <span className={LABEL}>Setup</span>

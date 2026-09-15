@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Boxes, CalendarDays } from "lucide-react";
+import { CalendarDays, List } from "lucide-react";
 import { redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -10,6 +10,10 @@ import { nearlyThere, rankTonight } from "@/lib/tonight";
 import { RecipeFilters } from "@/components/recipe-filters";
 import { currentKitchen } from "@/lib/session";
 import { getPlanned, isoDate, getSlots } from "@/lib/plan";
+import { ShelfView } from "@/components/shelf-view";
+import { getItems } from "@/lib/queries";
+import { getLocations } from "@/lib/kitchens";
+import { inStock } from "@/lib/containers";
 import { hasBeenWelcomed } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +50,7 @@ export default async function TonightPage({
 
   const today = isoDate(new Date());
 
-  const [facts, myTags, plannedToday, slots] = await Promise.all([
+  const [facts, myTags, plannedToday, slots, items, places] = await Promise.all([
     getTonightFacts(kitchen.id, context.user.id),
     getRecipeTags(context.user.id),
     /**
@@ -65,7 +69,28 @@ export default async function TonightPage({
      */
     getPlanned(kitchen.id, today, today),
     getSlots(kitchen.id),
+    /**
+     * The shelf, now that this is where it lives.
+     *
+     * Stock stopped being a tab: what is in the kitchen is part of deciding
+     * what to cook rather than a separate errand, so it is under the answer
+     * instead of beside it. Loaded in the same Promise.all as everything else
+     * - this page already talks to Nuremberg five times and a sixth in
+     * parallel costs nothing, where a sixth in series would be another round
+     * trip before anybody sees a word.
+     */
+    getItems(kitchen.id),
+    getLocations(kitchen.id),
   ]);
+
+  /**
+   * The same filter /pantry uses: things that are there, plus things you keep
+   * on hand that have run out. A shelf that silently drops what you have run
+   * out of is a shelf that cannot tell you to buy more.
+   */
+  const onShelf = items.filter(
+    (item) => inStock(item) || item.restock_target !== null,
+  );
 
   const tagsByRecipe = await getTagsByRecipe(facts.map((each) => each.id));
 
@@ -160,19 +185,11 @@ export default async function TonightPage({
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
             What to cook
           </h1>
-          {/* Landing here now means the person who opened the app to check
-              "have we got milk" is a tap further from the shelf than they
-              used to be. This is the tap back: two pills, not a search box,
-              because the whole answer to "have we got X" is the stock list
-              itself once you're on it. */}
+          {/* The Stock pill has gone: the shelf is on this page now, so a tap
+              back to it would be a tap to somewhere you already are. What is
+              left is the other half of the question. */}
           <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href="/pantry"
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-chip px-3.5 text-xs font-bold text-muted-foreground"
-            >
-              <Boxes className="h-3.5 w-3.5" strokeWidth={2.8} />
-              Stock
-            </Link>
+
             {/* The two halves of the same question. This page answers "what
                 tonight, given what is in"; the planner answers "what this
                 week, and what do I need to buy for it". */}
@@ -317,6 +334,42 @@ export default async function TonightPage({
               </>
             )}
           </div>
+        )}
+
+        {/*
+          The shelf, under the answer.
+
+          This is the fold: Stock stopped being a tab because what is in the
+          kitchen is part of deciding what to cook, not an errand of its own.
+          It comes AFTER the suggestion because the suggestion is what this
+          page is for - somebody hungry at six gets an answer without
+          scrolling, and somebody wondering whether there is any milk scrolls
+          once.
+
+          The list, the groupings and the bulk actions stay on /pantry, which
+          is a page you go to on purpose now rather than a place in the tab
+          bar.
+        */}
+        {onShelf.length > 0 && (
+          <section className="mt-9">
+            <div className="mb-3 flex items-baseline justify-between gap-3">
+              <h2 className="text-[19px] font-extrabold tracking-[-0.01em]">
+                On the shelf
+              </h2>
+              <Link
+                href="/pantry"
+                className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-chip px-3.5 text-xs font-bold text-muted-foreground"
+              >
+                <List className="h-3.5 w-3.5" strokeWidth={2.8} />
+                As a list
+              </Link>
+            </div>
+            <ShelfView
+              items={onShelf}
+              places={places}
+              canEdit={kitchen.role !== "viewer"}
+            />
+          </section>
         )}
       </div>
 

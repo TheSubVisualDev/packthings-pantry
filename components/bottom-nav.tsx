@@ -25,8 +25,15 @@ import { Boxes, BookOpen, Compass, Plus, UtensilsCrossed } from "lucide-react";
  * rather than one of them getting the other's leftovers.
  */
 
+/**
+ * Three, since the shelf moved.
+ *
+ * Stock stopped being a place to go when the shelf moved under Tonight - what
+ * is in the kitchen is part of deciding what to cook, not a separate errand.
+ * /pantry is still a route and still holds the list, the groupings and the
+ * bulk actions; it is reached from the shelf rather than from here.
+ */
 const SECTIONS = [
-  { key: "stock", label: "Stock", href: "/pantry", Icon: Boxes },
   { key: "tonight", label: "Tonight", href: "/tonight", Icon: UtensilsCrossed },
   { key: "recipes", label: "Cookbook", href: "/recipes", Icon: BookOpen },
   { key: "discover", label: "Discover", href: "/discover", Icon: Compass },
@@ -58,9 +65,6 @@ export function BottomNav({
   const active = (href: string) =>
     href === "/pantry" ? pathname.startsWith("/pantry") : pathname.startsWith(href);
 
-  // Split either side of the add button, which is not a section and should not
-  // look like one.
-  const [left, right] = [SECTIONS.slice(0, 2), SECTIONS.slice(2)];
 
   return (
     <nav
@@ -69,36 +73,47 @@ export function BottomNav({
       // pb for the home indicator, which only reports a height once the
       // viewport is fit to cover - before that this padding was always zero
       // and the labels sat in the swipe area.
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-raised/95 pb-[env(safe-area-inset-bottom)] backdrop-blur select-none sm:hidden print:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 overflow-visible border-t border-border bg-surface-raised/95 pb-[env(safe-area-inset-bottom)] backdrop-blur select-none sm:hidden print:hidden"
     >
-      <div className="flex items-stretch justify-around">
-        {left.map(({ key, ...section }) => (
+      {/*
+        Four things in four equal columns, the button included.
+
+        It used to be split two-and-two around a centred button, which only
+        works with an even number of sections. With three the button had no
+        middle to sit in: putting it at the end balanced the two ends and left
+        the gaps uneven. A grid makes every gap identical by construction, at
+        any width, and the button simply takes the fourth column.
+      */}
+      <div className="grid grid-cols-4 items-center">
+        {SECTIONS.map(({ key, ...section }) => (
           <Tab key={key} {...section} current={active(section.href)} />
         ))}
 
-        {/* Raised out of the bar so it reads as an action rather than a fifth
-            place to go, and kept dead centre because that is where a thumb
-            sits when a phone is held in one hand. */}
-        {/* The most-pressed control in the app, so it gets the most obvious
-            give: down hard under the thumb, and a real spring back. */}
-        <motion.button
-          type="button"
-          onClick={onAdd}
-          aria-label="Add"
-          whileTap={{ scale: 0.86 }}
-          /* A plus turning into a cross, because it is the same button doing
-             the same job in reverse and they are the same two strokes at
-             forty-five degrees. Cheap, and it is the bit people notice. */
-          animate={{ rotate: open ? 135 : 0 }}
-          transition={{ type: "spring", stiffness: 500, damping: 17 }}
-          className="no-squish relative -top-3 mx-1 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_6px_18px_-6px_rgba(60,44,30,0.6)]"
-        >
-          <Plus className="h-6 w-6" strokeWidth={3} />
-        </motion.button>
+        <div className="flex items-center justify-center">
+          {/*
+            Bigger than a tab, and standing proud of the bar.
 
-        {right.map(({ key, ...section }) => (
-          <Tab key={key} {...section} current={active(section.href)} />
-        ))}
+            It is the only thing down here that DOES something rather than
+            going somewhere, so it should not look like a fourth place to go.
+            Overhanging the top edge, with a ring of the bar's own colour
+            behind it, is what separates "sits on top of the app" from "tab
+            somebody has coloured in".
+          */}
+          <motion.button
+            type="button"
+            onClick={onAdd}
+            aria-label="Add"
+            whileTap={{ scale: 0.86 }}
+            /* A plus turning into a cross, because it is the same button doing
+               the same job in reverse and they are the same two strokes at
+               forty-five degrees. Cheap, and it is the bit people notice. */
+            animate={{ rotate: open ? 135 : 0 }}
+            transition={{ type: "spring", stiffness: 500, damping: 17 }}
+            className="no-squish relative -top-4 flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-full border-4 border-surface-raised bg-primary text-primary-foreground shadow-[0_6px_18px_-6px_rgba(60,44,30,0.6)]"
+          >
+            <Plus className="h-6 w-6" strokeWidth={3} />
+          </motion.button>
+        </div>
       </div>
     </nav>
   );

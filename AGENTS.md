@@ -136,6 +136,14 @@ describing it, because a cook can be undone and "@luna cooked your ragu" for a
 cook that did not happen is worse than silence - and undo marks `undone_at`
 rather than deleting, so the cascade never fires and `forgetCook` has to.
 
+**Stock is not a tab.** Decided 15 Sep 2026. The shelf lives under the answer
+on `/tonight`, because what is in the kitchen is part of deciding what to cook
+rather than an errand of its own - three tabs and the add button, in four equal
+columns. `/pantry` is still a route and still owns the list, the groupings, the
+bulk actions and selection mode; it is reached from "As a list" on the shelf
+and from every item link, not from the tab bar. Pages that used to light up the
+Stock tab pass `active="none"`.
+
 **What shape a thing is, is decided in one place.** `lib/vessel.ts` answers it
 from the name and the unit, because nothing in the database says "jar" - there
 is no packaging column, Open Food Facts is never asked, and `count_noun` is

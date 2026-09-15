@@ -141,7 +141,10 @@ export function ShelfView({
                 >
                   <ShelfVessel item={item} size={44} />
                   <span
-                    className={`line-clamp-2 text-center text-[10px] leading-[1.2] font-extrabold ${
+                    /* break-words because line-clamp hides the overflow: one long word with
+                       nowhere to break gets cut off mid-letter rather than wrapped,
+                       which is how "Gochujang" came out as "Gochuj". */
+                    className={`line-clamp-2 [hyphens:auto] text-center text-[10px] leading-[1.2] font-extrabold break-words ${
                       fillFor(item) === null ? "text-quantity" : ""
                     }`}
                   >

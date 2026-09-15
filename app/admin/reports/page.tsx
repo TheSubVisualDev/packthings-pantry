@@ -37,7 +37,7 @@ export default async function AdminReportsPage() {
 
   return (
     <>
-      <SiteHeader active="stock" meta={`${counts.new} waiting`} />
+      <SiteHeader active="none" meta={`${counts.new} waiting`} />
       <main className="mx-auto w-full max-w-[720px] px-5 py-7 pb-32 sm:px-9">
         <Link
           href="/admin"

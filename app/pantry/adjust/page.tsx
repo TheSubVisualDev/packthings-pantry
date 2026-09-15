@@ -43,7 +43,7 @@ export default async function AdjustPage({
 
   return (
     <>
-      <SiteHeader active="stock" meta={`${items.length} items`} />
+      <SiteHeader active="none" meta={`${items.length} items`} />
       <main className="mx-auto w-full max-w-[640px] px-5 py-7 pb-32">
         <Link
           href="/pantry"

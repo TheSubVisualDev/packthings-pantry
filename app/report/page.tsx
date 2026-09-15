@@ -52,7 +52,7 @@ export default async function ReportPage({
 
   return (
     <>
-      <SiteHeader active="stock" />
+      <SiteHeader active="none" />
       <main className="mx-auto w-full max-w-[720px] px-5 py-7 pb-32 sm:px-9">
         <Link
           href={page ?? "/pantry"}

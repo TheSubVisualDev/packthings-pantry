@@ -23,7 +23,7 @@ export default async function ScanPage() {
 
   return (
     <>
-      <SiteHeader active="stock" />
+      <SiteHeader active="none" />
       <main className="mx-auto w-full max-w-[520px] px-5 py-7 pb-32">
         <Link
           href="/pantry"

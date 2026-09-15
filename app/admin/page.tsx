@@ -63,7 +63,7 @@ export default async function AdminPage() {
 
   return (
     <>
-      <SiteHeader active="stock" meta={queue > 0 ? `${queue} waiting` : undefined} />
+      <SiteHeader active="none" meta={queue > 0 ? `${queue} waiting` : undefined} />
       <main className="mx-auto w-full max-w-[720px] px-5 py-7 pb-32 sm:px-9">
         <h1 className="mb-1 text-[26px] font-extrabold tracking-[-0.02em]">Admin</h1>
         <p className="mb-5 text-sm font-semibold text-muted-foreground">
