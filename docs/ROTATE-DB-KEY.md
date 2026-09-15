@@ -173,6 +173,14 @@ a leaked token is worth much less if it can only be used from two places.
 
 ## What is already done, in the app
 
+**CSP status, checked 15 Sep 2026:** zero violations across a window of real
+production traffic - /tonight, /pantry, /discover, /recipes and two item pages.
+That is encouraging and NOT yet enough to enforce on. The three things that
+reach outside the app are the receipt scanner (tesseract fetches its
+WebAssembly and language data from a CDN), the barcode scanner and subscribing
+to push, and none of them appears in that window. Use each once, check again,
+then flip the header name in `next.config.ts`.
+
 Shipped 15 Sep 2026: `X-Frame-Options`, `X-Content-Type-Options`,
 `Referrer-Policy`, `Permissions-Policy`, HSTS with `includeSubDomains`, and a
 Content-Security-Policy in **report-only** mode with violations posted to

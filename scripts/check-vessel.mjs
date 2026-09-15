@@ -19,7 +19,8 @@
 // every possible name. fillFor is the part that must never be wrong, because
 // that IS the number.
 
-import { vesselFor, fillFor } from "../lib/vessel.ts";
+import { vesselFor, fillFor, tintFor } from "../lib/vessel.ts";
+import { PATHS, SPAN } from "../components/vessel-shapes.ts";
 
 let failures = 0;
 function is(name, unit, dimension, expected) {
@@ -33,6 +34,13 @@ function eq(what, got, expected) {
   if (got !== expected) {
     failures += 1;
     console.error(`  ${what}\n    expected ${expected}\n    got      ${got}`);
+  }
+}
+
+function ok(what, condition) {
+  if (!condition) {
+    failures += 1;
+    console.error(`  ${what}`);
   }
 }
 
@@ -101,6 +109,44 @@ eq("a zero pack size has no level", fillFor({ quantity: 250, pack_size: 0 }), nu
 
 /** More in the jar than the jar holds is still a full jar, never 140%. */
 eq("overfull clamps", fillFor({ quantity: 1400, pack_size: 1000 }), 1);
+
+/* ---------------------------------------------------------------------------
+   Every kind can actually be drawn
+   --------------------------------------------------------------------------- */
+
+/**
+ * A kind with no silhouette renders as nothing at all - an empty <path> and a
+ * label under it, which looks like a loading state rather than a bug. Adding a
+ * kind to lib/vessel.ts and forgetting the shape is the obvious way in, so the
+ * two tables are checked against each other rather than trusted to agree.
+ */
+const KINDS = [
+  "bottle", "carton", "jar", "tin", "bag",
+  "tub", "block", "tray", "spice", "pips",
+];
+
+for (const kind of KINDS) {
+  ok(`${kind} has a silhouette`, typeof PATHS[kind] === "string" && PATHS[kind].length > 10);
+  const span = SPAN[kind];
+  ok(`${kind} has an interior`, Array.isArray(span) && span.length === 2);
+  if (Array.isArray(span)) {
+    const [top, bottom] = span;
+    // Upside down would draw every level as its own opposite, which is the
+    // one way of being wrong here that still looks plausible.
+    ok(`${kind} fills upwards`, top < bottom);
+    ok(`${kind} stays inside the box`, top >= 0 && bottom <= 76);
+  }
+}
+
+for (const extra of Object.keys(PATHS)) {
+  ok(`PATHS has no stray "${extra}"`, KINDS.includes(extra));
+}
+
+/** Every kind gets a colour, and never a transparent or empty one. */
+for (const kind of KINDS) {
+  const tint = tintFor("something nobody has heard of", kind);
+  ok(`${kind} has a tint`, typeof tint === "string" && tint.startsWith("oklch("));
+}
 
 if (failures > 0) {
   console.error(`\n${failures} problem${failures === 1 ? "" : "s"}.`);

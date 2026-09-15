@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { formatQuantity } from "@/lib/units";
 import type { Dimension } from "@/lib/types";
 import { vesselFor, type Vessel as Kind } from "@/lib/vessel";
@@ -186,7 +186,16 @@ export function Vessel({
   label: string;
 }) {
   const box = useRef<HTMLDivElement>(null);
-  const clipId = `vessel-${kind}`;
+  /**
+   * Unique per instance, not per shape.
+   *
+   * It was keyed on the kind, so two bottles on one page shared a clipPath id
+   * and the second was clipped by the first one's element - the same bug the
+   * shelf had, where a screen of forty-seven meant every vessel after the
+   * first of each kind came out wrong. One control per page today; useId
+   * costs nothing and stops it being a trap for whoever puts two on a screen.
+   */
+  const clipId = useId();
 
   /**
    * Where the liquid is drawn while a finger is on it.
