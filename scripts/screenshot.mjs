@@ -11,6 +11,10 @@
 //
 //   SHOT_USER_ID   whose kitchen to render as (default 1)
 //   SHOT_FULL=1    whole page rather than one screen
+//   SHOT_SCROLL    how far down to scroll first: a number of pixels, or
+//                  "bottom". The only way to photograph anything pinned -
+//                  a sticky button, a header that changes once you move -
+//                  because at the top of the page it is just an element.
 //   SHOT_PORT      dev server port (default 3000)
 //
 // It signs its own session cookie with the app's own secret rather than
@@ -102,6 +106,26 @@ for (const p of paths) {
     await target.click();
     // Long enough for a transition to land, short enough not to be a sleep
     // anybody notices.
+    await page.waitForTimeout(400);
+  }
+
+  /**
+   * Scrolled before the picture, because some things only exist once you move.
+   *
+   * A sticky control is indistinguishable from an ordinary one until the page
+   * has scrolled past it, so a shot from the top of the page proves nothing
+   * about the thing it was taken to check. Ignored with SHOT_FULL, where the
+   * whole page is in frame and scrolling means nothing.
+   */
+  if (process.env.SHOT_SCROLL && process.env.SHOT_FULL !== "1") {
+    const to = process.env.SHOT_SCROLL;
+    await page.evaluate((amount) => {
+      window.scrollTo({
+        top: amount === "bottom" ? document.body.scrollHeight : Number(amount),
+        behavior: "instant",
+      });
+    }, to);
+    // Sticky repaints and any scroll-driven animation want a frame to settle.
     await page.waitForTimeout(400);
   }
 

@@ -490,12 +490,26 @@ interface DiscoveryRow {
  *
  * Your own recipes are included rather than filtered out - Luna asked, and it
  * is the only way to see what one looks like to everybody else.
+ *
+ * **Everything in the pool is scored, and the caller decides how many to
+ * draw.** This used to take the 24 most-recently-created recipes and rank
+ * those, which meant readiness - the heaviest weight in the whole formula -
+ * could never surface anything older. A recipe you could make entirely off
+ * the shelf right now was excluded before scoring ran, because it happened to
+ * have been written a month ago. Ranking a filing order is not ranking.
+ *
+ * The pool is bounded rather than unbounded: this is an invite-only app with
+ * tens of recipes, and a ceiling that is never reached is cheap insurance
+ * against the day it would be. When it is reached, the answer is a scored
+ * query rather than a bigger number here.
  */
+const DISCOVERY_POOL = 400;
+
 export async function getDiscoveries(
   viewerId: number,
   kitchenId: number | null,
   countStocked: (recipeId: number) => { have: number; total: number },
-  limit = 24,
+  pool = DISCOVERY_POOL,
 ): Promise<Discovery[]> {
   const result = await getDb().execute({
     sql: `SELECT r.id, r.name, r.photo_url, r.prep_minutes, r.cook_minutes,
@@ -536,7 +550,7 @@ export async function getDiscoveries(
       kitchenId,
       kitchenId,
       ...viewerArgs(viewerId),
-      limit,
+      pool,
     ],
   });
 

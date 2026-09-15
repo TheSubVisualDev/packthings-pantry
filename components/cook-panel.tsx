@@ -629,12 +629,30 @@ export function CookPanel({
         )}
 
       {hasKitchen && inCookbook ? (
-        <div className="print:hidden">
+        /**
+         * The cook button follows you down the ingredient list.
+         *
+         * Ticking things off while cooking pushed it off the top of the
+         * screen, and getting back to it meant scrolling up past everything
+         * you had just ticked - on the one screen this app is used on
+         * one-handed, standing up, with something on the hob.
+         *
+         * Sticky rather than fixed. Fixed would need to know how tall the tab
+         * bar is and would float over a short recipe that never scrolls;
+         * sticky stays in the flow, pins only while there is list left to
+         * scroll, and lets go at the end. The offset clears the tab bar and
+         * the home indicator underneath it. Released at `sm`, where the tab
+         * bar is gone and the left column is already sticky as a whole.
+         */
+        <>
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 sm:static print:hidden">
           <button
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className="w-full rounded-[14px] bg-primary px-4 py-4 text-[15px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
+            /* Its own shadow on mobile: pinned over a scrolling list it needs
+               to read as sitting above the page rather than in it. */
+            className="w-full rounded-[14px] bg-primary px-4 py-4 text-[15px] font-extrabold text-primary-foreground shadow-[0_8px_24px_-8px_rgba(60,44,30,0.55)] transition-opacity disabled:opacity-60 sm:shadow-none"
           >
             {pending
               ? "Cooking…"
@@ -642,11 +660,17 @@ export function CookPanel({
                 ? `Done — cooked ${resolved.length - skippedIds.length} of ${resolved.length}`
                 : `Done — cooked for ${servings}`}
           </button>
-          <p className="mt-2 text-center text-xs font-semibold text-muted-foreground">
-            Stock moves when you press this, not before. Untick anything you did
-            not use.
-          </p>
         </div>
+        {/* Outside the sticky box on purpose. It is read once, at the bottom,
+            and pinning it meant a line of transparent text riding over the
+            ingredient list. Still a sibling of the button rather than inside
+            anything, so the button's sticky parent stays the full-height
+            column and it pins for the whole scroll. */}
+        <p className="text-center text-xs font-semibold text-muted-foreground print:hidden">
+          Stock moves when you press this, not before. Untick anything you did
+          not use.
+        </p>
+        </>
       ) : hasKitchen ? (
         <p className="rounded-[14px] bg-chip px-4 py-3.5 text-center text-sm font-semibold text-muted-foreground">
           Add it to your cookbook below and this becomes Cook. That is where the

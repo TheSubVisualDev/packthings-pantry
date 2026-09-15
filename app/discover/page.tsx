@@ -6,6 +6,7 @@ import { PersonChip } from "@/components/person-chip";
 import { RecipeBrowseCard } from "@/components/recipe-browse-card";
 import { SiteHeader } from "@/components/site-header";
 import { SearchBox } from "@/components/search-box";
+import { FilterChips } from "@/components/ui/filter-chips";
 import {
   getFeed,
   readinessContext,
@@ -67,15 +68,29 @@ function Grid({
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; ready?: string; more?: string }>;
 }) {
   const session = await currentKitchen();
   if (!session.ok) redirect("/login?next=%2Fdiscover");
   const kitchen = session.kitchen;
 
-  const { q } = await searchParams;
+  const { q, ready, more } = await searchParams;
   const term = q?.trim() ?? "";
   const viewerId = session.user.id;
+
+  /**
+   * "Show me only what I can make right now."
+   *
+   * The one question this app can answer and a recipe site cannot, and until
+   * now it was only ever a badge on a card - readiness was the heaviest weight
+   * in the ranking and there was no way to ask for it. A query string rather
+   * than component state, like every other filter here, so a page of things
+   * you can cook tonight is a link.
+   *
+   * Meaningless without shelves to check against, so it is not offered to
+   * somebody with no kitchen rather than offered and always empty.
+   */
+  const readyOnly = kitchen !== null && ready === "1";
 
   if (term) {
     const [recipes, people, searchContext] = await Promise.all([
@@ -173,7 +188,53 @@ export default async function DiscoverPage({
    * not a redesign.
    */
   const inFeed = new Set(feed.map((recipe) => recipe.id));
-  const rest = ranked.filter((recipe) => !inFeed.has(recipe.id) && !recipe.yours);
+
+  /**
+   * One definition of "you can make this", applied to every section.
+   *
+   * Everything, not just the ranked list: a filter that quietly leaves three
+   * sections unfiltered is worse than no filter, because the page still looks
+   * full and none of it answers the question that was asked. A recipe with no
+   * ingredient lines at all is not cookable-now, it is unknown, and it is left
+   * out - claiming you can make something the app knows nothing about is the
+   * failure that would put people off the chip for good.
+   */
+  const cookableNow = (recipeId: number) => {
+    const counted = countStocked(recipeId);
+    return counted.total > 0 && counted.have === counted.total;
+  };
+
+  const shown = <T extends { id: number }>(recipes: T[]) =>
+    readyOnly ? recipes.filter((recipe) => cookableNow(recipe.id)) : recipes;
+
+  /**
+   * How many of the ranked list to draw.
+   *
+   * Every section on this page is a hard stop with no way past it, which is
+   * the one habit every place people actually find recipes has and this does
+   * not. A link that shows more is the smallest honest version of that: no
+   * cursor, no client state, and - like every other filter here - a URL you
+   * can share or come back to. The whole list is already scored and in hand,
+   * so this is a slice rather than another query.
+   */
+  const PAGE = 24;
+  const showingMore = more === "1";
+
+  const eligible = shown(
+    ranked.filter((recipe) => !inFeed.has(recipe.id) && !recipe.yours),
+  );
+  const rest = eligible.slice(0, showingMore ? PAGE * 4 : PAGE);
+  const moreHref = `/discover?${new URLSearchParams({
+    ...(readyOnly ? { ready: "1" } : {}),
+    more: "1",
+  })}`;
+  const shownFeed = shown(feed);
+  const shownTrusted = shown(trusted);
+  // Keyed on the recipe, not on the row: this list is one entry per person
+  // per recipe, so it needs the recipe id rather than its own.
+  const shownCooked = readyOnly
+    ? cooked.filter((entry) => cookableNow(entry.recipe_id))
+    : cooked;
 
   return (
     <>
@@ -189,6 +250,52 @@ export default async function DiscoverPage({
           <SearchBox basePath="/discover" placeholder="Search recipes, ingredients, people" />
         </Suspense>
 
+        {kitchen && (
+          <FilterChips
+            label="Filter what is shown"
+            className="mb-5"
+            chips={[
+              {
+                key: "ready",
+                label: "I can make this now",
+                href: readyOnly ? "/discover" : "/discover?ready=1",
+                active: readyOnly,
+              },
+            ]}
+          />
+        )}
+
+        {/*
+          An empty state here, and deliberately not one on the unfiltered page.
+
+          The rule the rest of this page follows is that an empty state is
+          offered when the thing it describes is the reason you came - nobody
+          opens Discover to be told their cookbook is private. But somebody who
+          has just tapped "I can make this now" asked exactly one question, and
+          a page that answers it by rendering nothing at all reads as broken
+          rather than as "no".
+        */}
+        {readyOnly &&
+          shownCooked.length === 0 &&
+          shownTrusted.length === 0 &&
+          shownFeed.length === 0 &&
+          rest.length === 0 && (
+            <div className="rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <p className="text-[15px] font-extrabold">
+                Nothing here is a full shelf right now.
+              </p>
+              <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                Every recipe on Discover is short of at least one thing.
+              </p>
+              <Link
+                href="/discover"
+                className="mt-4 inline-flex min-h-11 items-center rounded-[14px] bg-primary px-4 text-sm font-extrabold text-primary-foreground"
+              >
+                Show everything
+              </Link>
+            </div>
+          )}
+
         {/*
           Board 1n: social, not a social network.
 
@@ -198,11 +305,11 @@ export default async function DiscoverPage({
           no follower counts: none of them helps anybody decide what to have
           for dinner, and every one of them is a thing to keep up with.
         */}
-        {cooked.length > 0 && (
+        {shownCooked.length > 0 && (
           <section className="mb-9">
             <h2 className={HEADING}>Cooked this fortnight</h2>
             <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              {cooked.map((entry) => (
+              {shownCooked.map((entry) => (
                 <li
                   key={`${entry.recipe_id}-${entry.handle}`}
                   className="border-b border-border last:border-b-0"
@@ -273,66 +380,43 @@ export default async function DiscoverPage({
           </section>
         )}
 
-        {trusted.length > 0 && (
+        {shownTrusted.length > 0 && (
           <section className="mb-9">
             <h2 className={HEADING}>Cooks trust these</h2>
+            {/* The same card as everywhere else. This section used to draw
+                its own, which is why it was the one place on the page that
+                never said whether you could actually make any of it. */}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {trusted.map((recipe) => (
-                <Link
+              {shownTrusted.map((recipe) => (
+                <RecipeBrowseCard
                   key={recipe.id}
-                  href={`/recipes/${recipe.id}`}
-                  className="flex items-center gap-3 rounded-[18px] bg-card p-3 shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_22px_-10px_rgba(60,44,30,0.45)]"
-                >
-                  <span
-                    className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[12px]"
-                    style={
-                      recipe.photo_url
-                        ? undefined
-                        : { background: recipeTint(recipe.id) }
-                    }
-                  >
-                    {recipe.photo_url && (
-                      <Image
-                        src={recipe.photo_url}
-                        alt=""
-                        fill
-                        sizes="64px"
-                        className="object-cover"
-                      />
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="line-clamp-2 text-[15px] leading-snug font-extrabold">
-                      {recipe.name}
-                    </span>
-                    {/* The numbers themselves, not a score made out of them. */}
-                    <span className="mt-1 block text-xs font-semibold text-muted-foreground">
-                      {[
-                        recipe.times_cooked > 0
-                          ? `cooked ${recipe.times_cooked}×`
-                          : null,
-                        recipe.saves > 0 ? `saved by ${recipe.saves}` : null,
-                        recipe.avg_rating !== null ? `★ ${recipe.avg_rating}` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "nobody has cooked it yet"}
-                    </span>
-                    {recipe.author_handle && (
-                      <span className="mt-0.5 block text-xs font-semibold text-muted-foreground">
-                        @{recipe.author_handle}
-                      </span>
-                    )}
-                  </span>
-                </Link>
+                  recipe={recipe}
+                  match={kitchen ? countStocked(recipe.id) : undefined}
+                  /* The numbers themselves, not a score made out of them. */
+                  note={
+                    [
+                      recipe.times_cooked > 0 ? `cooked ${recipe.times_cooked}×` : null,
+                      recipe.saves > 0 ? `saved by ${recipe.saves}` : null,
+                      recipe.avg_rating !== null ? `★ ${recipe.avg_rating}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "nobody has cooked it yet"
+                  }
+                  states={
+                    recipe.author_handle
+                      ? [{ label: `@${recipe.author_handle}` }]
+                      : []
+                  }
+                />
               ))}
             </div>
           </section>
         )}
 
-        {feed.length > 0 && (
+        {shownFeed.length > 0 && (
           <section className="mb-9">
             <h2 className={HEADING}>From people you follow</h2>
-            <Grid recipes={feed} stocked={kitchen ? countStocked : undefined} />
+            <Grid recipes={shownFeed} stocked={kitchen ? countStocked : undefined} />
           </section>
         )}
 
@@ -346,7 +430,7 @@ export default async function DiscoverPage({
         {rest.length > 0 && (
           <section>
             <h2 className={HEADING}>
-              {feed.length > 0 ? "Everything else" : "Worth a look"}
+              {shownFeed.length > 0 ? "Everything else" : "Worth a look"}
             </h2>
 
             {/*
@@ -362,48 +446,34 @@ export default async function DiscoverPage({
             <ul className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {rest.map((recipe) => (
                 <li key={recipe.id}>
-                  <Link
-                    href={`/recipes/${recipe.id}`}
-                    className="flex h-full items-center gap-3 rounded-[18px] bg-card p-3 shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_22px_-10px_rgba(60,44,30,0.45)]"
-                  >
-                    <span
-                      className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[12px]"
-                      style={
-                        recipe.photo_url ? undefined : { background: recipeTint(recipe.id) }
-                      }
-                    >
-                      {recipe.photo_url && (
-                        <Image
-                          src={recipe.photo_url}
-                          alt=""
-                          fill
-                          sizes="64px"
-                          className="object-cover"
-                        />
-                      )}
-                    </span>
-
-                    <span className="min-w-0 flex-1">
-                      <span className="line-clamp-2 text-[15px] leading-snug font-extrabold">
-                        {recipe.name}
-                      </span>
-                      <span className="mt-0.5 block text-xs font-semibold text-muted-foreground">
-                        {recipe.reason}
-                        {recipe.total > 0 ? ` · ${recipe.have}/${recipe.total} in stock` : ""}
-                      </span>
-
-                      {/* No "yours" badge here - this list is filtered to
-                          exclude your own recipes, so it would never fire. */}
-                      <span className="mt-1.5 flex flex-wrap gap-1">
-                        {recipe.inCookbook && <State label="in your cookbook" solid />}
-                        {recipe.saved && !recipe.inCookbook && <State label="saved" />}
-                        {recipe.author_handle && <State label={`@${recipe.author_handle}`} />}
-                      </span>
-                    </span>
-                  </Link>
+                  <RecipeBrowseCard
+                    recipe={recipe}
+                    /* Already counted by the ranker, so it is handed over
+                       rather than worked out a second time. */
+                    match={recipe.total > 0 ? { have: recipe.have, total: recipe.total } : undefined}
+                    note={recipe.reason}
+                    /* No "yours" pill: this list is filtered to exclude your
+                       own recipes, so it would never fire. */
+                    states={[
+                      ...(recipe.inCookbook ? [{ label: "in your cookbook", solid: true }] : []),
+                      ...(recipe.saved && !recipe.inCookbook ? [{ label: "saved" }] : []),
+                      ...(recipe.author_handle ? [{ label: `@${recipe.author_handle}` }] : []),
+                    ]}
+                  />
                 </li>
               ))}
             </ul>
+
+            {eligible.length > rest.length && (
+              <div className="mt-4 text-center">
+                <Link
+                  href={moreHref}
+                  className="inline-flex min-h-11 items-center rounded-[14px] bg-chip px-5 text-sm font-extrabold hover:bg-border"
+                >
+                  Show more ({eligible.length - rest.length} more)
+                </Link>
+              </div>
+            )}
           </section>
         )}
 
@@ -465,26 +535,5 @@ export default async function DiscoverPage({
         )}
       </div>
     </>
-  );
-}
-
-/**
- * One word about your relationship to a recipe.
- *
- * Solid for a commitment you have made - you wrote it, or your kitchen cooks
- * it - and outline for everything else, which is the same rule the recipe page
- * uses to tell an opinion from a measurement.
- */
-function State({ label, solid = false }: { label: string; solid?: boolean }) {
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-        solid
-          ? "bg-primary text-primary-foreground"
-          : "border border-border text-muted-foreground"
-      }`}
-    >
-      {label}
-    </span>
   );
 }
