@@ -115,20 +115,33 @@ export function ShelfView({
               </span>
             </div>
 
-            {/* Wraps rather than scrolls sideways: a shelf you have to drag to
-                read is a shelf you cannot take in at a glance, which is the
-                one thing this view is for. */}
-            <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
+            {/*
+              Wraps rather than scrolls sideways: a shelf you have to drag to
+              read is a shelf you cannot take in at a glance, which is the one
+              thing this view is for.
+
+              **The ledge is each tile's bottom border, not one line under the
+              card.** A shelf of seven wraps to two rows, and a single line at
+              the bottom left the first row floating in mid-air - which is the
+              one thing that has to be right, because standing on something is
+              the whole reason these read as a shelf rather than as icons.
+              Tiles sit flush horizontally so their borders join into one
+              continuous line per row, which then works at any width without
+              anybody having to know how many fit.
+            */}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(56px,1fr))] items-end gap-y-3">
               {shelf.map((item) => (
                 <Link
                   key={item.id}
                   href={`/pantry/item/${item.id}`}
                   data-track="stock.open"
-                  className="card-press flex w-[54px] flex-col items-center gap-0.5 rounded-[10px] pb-1"
+                  className={`card-press flex flex-col items-center gap-0.5 px-0.5 pb-1.5 ${
+                    blind ? "border-b-[3px] border-border/50" : "border-b-[3px] border-border"
+                  }`}
                 >
                   <ShelfVessel item={item} size={44} />
                   <span
-                    className={`line-clamp-2 text-center text-[9px] leading-tight font-extrabold ${
+                    className={`line-clamp-2 text-center text-[9.5px] leading-[1.15] font-extrabold ${
                       fillFor(item) === null ? "text-quantity" : ""
                     }`}
                   >
@@ -137,13 +150,6 @@ export function ShelfView({
                 </Link>
               ))}
             </div>
-
-            {/* The ledge they stand on. Four pixels of nothing, and it is the
-                difference between a row of icons and a shelf. */}
-            <div
-              aria-hidden
-              className={`mt-0.5 h-1 rounded-full ${blind ? "bg-border/50" : "bg-border"}`}
-            />
 
             {canEdit && place === HOMELESS && (
               <Link
