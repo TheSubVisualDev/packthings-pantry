@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Segmented } from "@/components/ui/segmented";
-import { ShelfView } from "@/components/shelf-view";
 import { EstimateButton } from "@/components/estimate-button";
 import { EstimateDatesButton } from "@/components/estimate-dates-button";
 import { StockList } from "@/components/stock-list";
@@ -85,21 +84,20 @@ function group(
 }
 
 /**
- * Shelf is a view, not a grouping, and it sits here anyway.
+ * The three ways to group the LIST. The shelf is not among them any more.
  *
- * It groups by place like "Place" does - but it draws the kitchen instead of
- * listing it, so putting it in a second control would make somebody choose
- * twice to answer one question. First in the row because it is the one that
- * answers "what have I got" without reading; the three list groupings stay
- * exactly where they were for the questions a list is better at.
+ * It was a fourth segment here while Stock was still a tab. Now that the shelf
+ * lives on /tonight, offering it here too meant two shelves - and the first
+ * thing that went wrong was somebody adding an item, landing on this page, and
+ * finding the list rather than the drawing they had just been looking at.
+ * ?by=shelf still works and sends you to the one that is real.
  */
-function GroupToggle({ active }: { active: GroupBy | "shelf" }) {
+function GroupToggle({ active }: { active: GroupBy }) {
   return (
     <Segmented
       label="Group stock by"
       active={active}
       options={[
-        { key: "shelf", label: "Shelf", href: "/pantry?by=shelf" },
         { key: "tag", label: "Tag", href: "/pantry?by=tag" },
         { key: "nutrition", label: "Nutrition", href: "/pantry?by=nutrition" },
         { key: "location", label: "Place", href: "/pantry?by=location" },
@@ -114,9 +112,12 @@ export default async function PantryPage({
   searchParams: Promise<{ by?: string }>;
 }) {
   const { by } = await searchParams;
-  const shelf = by === "shelf";
+  // An old link, a bookmark, or the browser's back button after the segment
+  // was removed. There is one shelf and it is not here.
+  if (by === "shelf") redirect("/tonight");
+
   const groupBy: GroupBy =
-    by === "location" || shelf
+    by === "location"
       ? "location"
       : by === "nutrition"
         ? "nutrition"
@@ -215,25 +216,14 @@ export default async function PantryPage({
           <EmptyShelves />
         ) : (
           <>
-            {shelf ? (
-              <div className="flex flex-col gap-3">
-                <GroupToggle active="shelf" />
-                <ShelfView
-                  items={onShelf}
-                  places={places}
-                  canEdit={kitchen.role !== "viewer"}
-                />
-              </div>
-            ) : (
-              <StockList
-                groups={groups}
-                places={places}
-                tags={tags}
-                canEdit={kitchen.role !== "viewer"}
-                runOut={runOut}
-                groupControl={<GroupToggle active={groupBy} />}
-              />
-            )}
+            <StockList
+              groups={groups}
+              places={places}
+              tags={tags}
+              canEdit={kitchen.role !== "viewer"}
+              runOut={runOut}
+              groupControl={<GroupToggle active={groupBy} />}
+            />
 
             {/* Housekeeping, so it sits under the list rather than above it.
                 New items are estimated as they arrive, which makes this the

@@ -262,8 +262,17 @@ export async function addItem(
   record("item.add", access.user.id, "/pantry/new");
 
   revalidatePath("/pantry");
+  revalidatePath("/tonight");
   revalidatePath("/recipes");
-  redirect("/pantry");
+  /**
+   * Back to the shelf, which is on /tonight now.
+   *
+   * This sent people to /pantry, and /pantry has been the LIST since Stock
+   * stopped being a tab - so adding something drawn as a vessel dropped you
+   * into a grouped list of rows, which is the one place the new thing does not
+   * look like the thing you just added.
+   */
+  redirect("/tonight");
 }
 
 export interface AdjustResult {
@@ -460,7 +469,10 @@ export async function deleteItem(itemId: number): Promise<ItemResult> {
   });
 
   revalidatePath("/pantry");
-  redirect("/pantry");
+  revalidatePath("/tonight");
+  // Same reason as adding: the shelf is where you were, so it is where a
+  // delete should put you back.
+  redirect("/tonight");
 }
 
 export interface TagResult {

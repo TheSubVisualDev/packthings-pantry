@@ -158,10 +158,10 @@ export function ReceiptScanner() {
             Another receipt
           </button>
           <Link
-            href="/pantry"
+            href="/tonight"
             className="rounded-[14px] bg-chip px-5 py-2.5 text-sm font-bold"
           >
-            Back to stock
+            Back to the shelf
           </Link>
         </div>
       </section>

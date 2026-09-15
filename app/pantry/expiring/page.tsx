@@ -47,10 +47,10 @@ export default async function ExpiringPage() {
 
       <main className="mx-auto w-full max-w-[560px] px-5 py-7 pb-32 sm:px-9">
         <Link
-          href="/pantry"
+          href="/tonight"
           className="text-sm font-semibold text-muted-foreground hover:text-foreground"
         >
-          &larr; Stock
+          &larr; The shelf
         </Link>
         <h1 className="mt-2 mb-1 text-[26px] font-extrabold tracking-[-0.02em]">
           Expiring soon

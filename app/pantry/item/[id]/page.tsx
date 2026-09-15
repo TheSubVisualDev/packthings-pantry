@@ -60,10 +60,10 @@ export default async function ItemPage({
 
       <main className="mx-auto w-full max-w-[560px] px-5 py-7 pb-32 sm:px-9">
         <Link
-          href="/pantry"
+          href="/tonight"
           className="text-sm font-semibold text-muted-foreground hover:text-foreground"
         >
-          ← Stock
+          ← The shelf
         </Link>
 
         <div className="mt-3 space-y-3">
