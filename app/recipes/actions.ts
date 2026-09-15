@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getItems } from "@/lib/queries";
-import { currentKitchen } from "@/lib/session";
+import { currentKitchen, requireUser } from "@/lib/session";
 import {
   parseRecipeDocument,
   type RecipeProblem,
@@ -47,7 +47,24 @@ export async function saveRecipeDocument(
     return { ok: false, problems: parsed.problems, warnings: parsed.warnings };
   }
 
-  const id = await saveRecipe(parsed.recipe, existingId, context.user.id);
+  /**
+   * An edit to a recipe that is not yours is refused by the UPDATE itself, and
+   * arrives here as a throw. Turned into a problem the editor can show rather
+   * than a 500: the person is looking at a form full of their own typing.
+   */
+  let id: number;
+  try {
+    id = await saveRecipe(parsed.recipe, existingId, context.user.id);
+  } catch (error) {
+    if (error instanceof Error && error.message === "not-your-recipe") {
+      return {
+        ok: false,
+        problems: [{ path: "", message: "That recipe belongs to somebody else." }],
+        warnings: [],
+      };
+    }
+    throw error;
+  }
 
   // Only a new one. An edit is a different question - "is the editor used" -
   // and rolling the two together would make one heavily-revised recipe look
@@ -92,8 +109,26 @@ export async function parsePastedRecipe(text: string): Promise<SaveRecipeResult>
   };
 }
 
+/**
+ * Deletes one of YOUR recipes.
+ *
+ * It had no authorisation of any kind - no session check, no owner - and every
+ * exported function in a "use server" file is a live endpoint whether or not
+ * anything in the UI calls it. So this was a way for any signed-in account to
+ * delete any recipe in the network by its id, cascading to its ingredients,
+ * its steps and its cook history.
+ *
+ * The owner now goes to deleteRecipe, which puts it in the WHERE clause. A
+ * refusal reads the same as a missing recipe, deliberately: it should not
+ * confirm that somebody else's private recipe exists.
+ */
 export async function removeRecipe(id: number): Promise<void> {
-  await deleteRecipe(id);
+  const session = await requireUser();
+  if (!session.ok) redirect("/login");
+
+  if (!Number.isInteger(id) || id <= 0) redirect("/recipes");
+
+  await deleteRecipe(id, session.user.id);
   revalidatePath("/recipes");
   redirect("/recipes");
 }

@@ -37,11 +37,21 @@ export async function saveRecipe(
     if (existingId) {
       // times_cooked and rating are the household's history with the dish and
       // survive an edit; they aren't part of the document being saved.
-      await tx.execute({
+      const updated = await tx.execute({
+        /**
+         * The author is in the WHERE clause, for the same reason it is in
+         * deleteRecipe's.
+         *
+         * This was `WHERE id = ?`, and both callers that can reach it with an
+         * existing id - the editor's save action and PUT on the API - checked
+         * only that the person could SEE the recipe. Visibility is not write
+         * permission: it meant anybody who could open a shared recipe could
+         * overwrite it, including its ingredients and every step.
+         */
         sql: `UPDATE recipes SET name = ?, description = ?, base_servings = ?,
                 prep_minutes = ?, cook_minutes = ?, source = ?, notes = ?,
                 updated_at = CURRENT_TIMESTAMP
-              WHERE id = ?`,
+              WHERE id = ? AND author_id = ?`,
         args: [
           parsed.name,
           parsed.description,
@@ -51,8 +61,20 @@ export async function saveRecipe(
           parsed.source,
           parsed.notes,
           existingId,
+          authorId ?? null,
         ],
       });
+
+      /**
+       * Nothing matched, so this was somebody else's recipe.
+       *
+       * Thrown rather than returned quietly: every caller here treats a
+       * returned id as "saved", and the one thing worse than refusing an edit
+       * is telling somebody it worked and losing their writing.
+       */
+      if (updated.rowsAffected === 0) {
+        throw new Error("not-your-recipe");
+      }
       recipeId = existingId;
 
       // Steps are about to be deleted and rewritten, which would take their
@@ -160,13 +182,30 @@ export async function saveRecipe(
   }
 }
 
-export async function deleteRecipe(id: number): Promise<boolean> {
+/**
+ * Deletes a recipe, if it is yours.
+ *
+ * The author is in the WHERE clause rather than checked by the caller, which
+ * is the same rule the stock writes follow: a recipe id belonging to somebody
+ * else simply matches nothing. It was `WHERE id = ?` with no owner at all and
+ * no caller supplying one - so any signed-in account could delete any recipe
+ * in the network by its id, and recipes cascade to their ingredients, steps
+ * and cook history.
+ *
+ * Returns false when nothing was deleted, which covers "no such recipe" and
+ * "not yours" with one answer on purpose: the API turns it into a 404 rather
+ * than a 403, so it never confirms that somebody else's recipe exists.
+ */
+export async function deleteRecipe(
+  id: number,
+  authorId: number,
+): Promise<boolean> {
   // Ingredients and steps cascade; cook_events cascades too, which is the
   // right call - a history entry pointing at a recipe that no longer exists
   // can't be undone or read.
   const result = await getDb().execute({
-    sql: "DELETE FROM recipes WHERE id = ?",
-    args: [id],
+    sql: "DELETE FROM recipes WHERE id = ? AND author_id = ?",
+    args: [id, authorId],
   });
   return result.rowsAffected > 0;
 }

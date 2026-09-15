@@ -104,7 +104,19 @@ export async function PUT(
     );
   }
 
-  await saveRecipe(parsed.recipe, id);
+  /**
+   * getRecipe above proves they may SEE it, which is not the same as being
+   * allowed to overwrite it - that check let anybody edit any recipe shared
+   * with them. The UPDATE refuses now, and this turns the refusal into a 403.
+   */
+  try {
+    await saveRecipe(parsed.recipe, id, context.user.id);
+  } catch (error) {
+    if (error instanceof Error && error.message === "not-your-recipe") {
+      return NextResponse.json({ error: "Not your recipe" }, { status: 403 });
+    }
+    throw error;
+  }
 
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${id}`);
@@ -113,7 +125,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = Number((await params).id);
@@ -121,7 +133,20 @@ export async function DELETE(
     return NextResponse.json({ error: "Bad id" }, { status: 400 });
   }
 
-  if (!(await deleteRecipe(id))) {
+  const context = await apiContext(request);
+  if (!context.ok) {
+    return NextResponse.json({ error: "No account for this request" }, { status: 401 });
+  }
+
+  /**
+   * Yours to delete, not merely yours to see.
+   *
+   * This asked for no account at all and deleted by id alone, so a token that
+   * could read the pantry could also delete every recipe in it. The owner is
+   * in the WHERE clause now, and "not yours" comes back as 404 rather than 403
+   * so the endpoint never confirms that somebody else's recipe exists.
+   */
+  if (!(await deleteRecipe(id, context.user.id))) {
     return NextResponse.json({ error: "No such recipe" }, { status: 404 });
   }
 
