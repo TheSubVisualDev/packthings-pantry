@@ -65,6 +65,19 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  /**
+   * CSP violation reports, which cannot carry a credential.
+   *
+   * A browser posts these itself, with no cookie, no Authorization header and
+   * no willingness to follow a redirect - so gating it would mean the reports
+   * silently became 401s and the report-only policy taught us nothing, which
+   * is the entire point of having it. The route writes nothing and stores
+   * nothing; the worst somebody can do by posting here is fill a log.
+   */
+  if (request.nextUrl.pathname === "/api/csp-report") {
+    return NextResponse.next();
+  }
+
   // Session first, then the back door, and only then the database. Ordered by
   // cost: the first two are arithmetic, the third is a network hop to Hetzner,
   // and it only ever runs for an /api request that presented a bearer token.
