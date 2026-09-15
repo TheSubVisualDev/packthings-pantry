@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+  <style>
+    body { margin: 0; font-family: Manrope, ui-sans-serif, system-ui, sans-serif; }
+    a { color: oklch(0.579 0.143 36); } a:hover { color: oklch(0.50 0.15 36); }
+  </style>
+</helmet>
+
+<div style="width: 402px; height: 874px; background: oklch(0.956 0.013 64); color: oklch(0.26 0.012 55); display: flex; flex-direction: column; overflow: hidden">
+
+  <div style="padding: 22px 18px 14px; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0">
+    <div style="display: flex; align-items: baseline; justify-content: space-between">
+      <h1 style="margin: 0; font-size: 25px; font-weight: 800; letter-spacing: -0.02em">On the shelf</h1>
+      <div style="font-size: 12px; font-weight: 700; color: oklch(0.62 0.014 60)">47 things</div>
+    </div>
+    <div style="display: flex; gap: 7px">
+      <div style="padding: 8px 14px; border-radius: 999px; background: oklch(0.579 0.143 36); color: oklch(1 0 0); font-size: 12px; font-weight: 800">Fridge</div>
+      <div style="padding: 8px 14px; border-radius: 999px; border: 1px solid oklch(0.882 0.023 72); font-size: 12px; font-weight: 800; color: oklch(0.62 0.014 60)">Cupboard</div>
+      <div style="padding: 8px 14px; border-radius: 999px; border: 1px solid oklch(0.882 0.023 72); font-size: 12px; font-weight: 800; color: oklch(0.62 0.014 60)">Spice rack</div>
+      <div style="padding: 8px 14px; border-radius: 999px; border: 1px solid oklch(0.882 0.023 72); font-size: 12px; font-weight: 800; color: oklch(0.62 0.014 60)">Low</div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; overflow: hidden; padding: 0 18px; display: flex; flex-direction: column; gap: 8px">
+    <sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+      <div style="background: oklch(1 0 0); border-radius: 18px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 12px; min-height: 60px">
+
+        <svg viewBox="0 0 60 76" style="width: 26px; height: 33px; flex-shrink: 0; display: block" aria-hidden="true">
+          <path d="{{r.path}}" fill="none" stroke="{{r.glyph}}" stroke-width="4" stroke-linejoin="round"></path>
+        </svg>
+
+        <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px">
+            <div style="font-size: 14px; font-weight: 800; letter-spacing: -0.005em">{{r.name}}</div>
+            <div style="font-size: 12px; font-weight: 700; color: {{r.amountColour}}; flex-shrink: 0">{{r.amount}}</div>
+          </div>
+          <div style="height: 7px; border-radius: 999px; background: oklch(0.965 0.012 60); overflow: hidden; position: relative">
+            <div style="position: absolute; inset: 0 auto 0 0; width: {{r.pct}}; background: {{r.bar}}; border-radius: 999px"></div>
+          </div>
+        </div>
+
+        <sc-if value="{{r.flag}}" hint-placeholder-val="{{true}}">
+          <div style="width: 9px; height: 9px; border-radius: 999px; background: oklch(0.55 0.16 40); flex-shrink: 0"></div>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="flex-shrink: 0; padding: 14px 18px 22px">
+    <div style="border-radius: 16px; background: oklch(0.965 0.012 60); padding: 13px 15px; display: flex; align-items: center; gap: 11px">
+      <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; flex-shrink: 0" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="oklch(0.62 0.014 60)" stroke-width="2.2"></circle>
+        <path d="M12 8 v5" stroke="oklch(0.62 0.014 60)" stroke-width="2.2" stroke-linecap="round"></path>
+        <circle cx="12" cy="16" r="1.2" fill="oklch(0.62 0.014 60)"></circle>
+      </svg>
+      <div style="font-size: 12px; font-weight: 700; line-height: 1.45; color: oklch(0.42 0.02 55)">17 things have no amount recorded, so their bars are empty rather than wrong.</div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const P = {
+      bottle: 'M24 4 h12 v13 l10 11 v32 a6 6 0 0 1 -6 6 h-20 a6 6 0 0 1 -6 -6 v-32 l10 -11 z',
+      carton: 'M12 24 l18 -14 l18 14 v36 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 z',
+      jar:    'M14 20 h32 a6 6 0 0 1 6 6 v34 a6 6 0 0 1 -6 6 h-32 a6 6 0 0 1 -6 -6 v-34 a6 6 0 0 1 6 -6 z',
+      bag:    'M16 22 q14 -7 28 0 l4 38 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 z',
+      tub:    'M13 26 h34 l-4 34 a6 6 0 0 1 -6 6 h-14 a6 6 0 0 1 -6 -6 z',
+      spice:  'M21 24 h18 v36 a5 5 0 0 1 -5 5 h-8 a5 5 0 0 1 -5 -5 z'
+    };
+    const INK = 'oklch(0.55 0.02 60)';
+    const FADE = 'oklch(0.82 0.02 65)';
+
+    const row = (kind, name, amount, pct, flag) => ({
+      name, amount, flag,
+      path: P[kind],
+      glyph: pct === null ? FADE : INK,
+      pct: pct === null ? '0%' : Math.round(pct * 100) + '%',
+      bar: flag ? 'oklch(0.55 0.16 40)' : 'oklch(0.66 0.13 42)',
+      amountColour: pct === null ? 'oklch(0.78 0.02 65)' : 'oklch(0.62 0.014 60)'
+    });
+
+    return {
+      rows: [
+        row('carton', 'Whole Milk', '900ml of 1136', 0.79, true),
+        row('tub', 'Extra thick double cream', '100ml of 300 · 1 spare', 0.33, true),
+        row('bag', 'British Carrots', '200g of 1kg', 0.20, false),
+        row('jar', 'Gochujang', '180g of 200', 0.90, false),
+        row('tub', 'Unsalted butter', '410g', 0.68, false),
+        row('jar', 'Ginger Puree', '75g · 1 spare', 1, false),
+        row('bottle', 'Olive oil', 'amount unknown', null, false),
+        row('bag', 'Rice', 'amount unknown', null, false)
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

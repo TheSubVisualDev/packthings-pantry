@@ -29,7 +29,8 @@
     "check:dates": "node --import ./scripts/ts-imports.mjs scripts/check-dates.mjs",
     "check:display": "node --import ./scripts/ts-imports.mjs scripts/check-display.mjs",
     "check:usage": "node --import ./scripts/ts-imports.mjs scripts/check-usage.mjs",
-    "check:shelf-life": "node --import ./scripts/ts-imports.mjs scripts/check-shelf-life.mjs"
+    "check:shelf-life": "node --import ./scripts/ts-imports.mjs scripts/check-shelf-life.mjs",
+    "check:vessel": "node --import ./scripts/ts-imports.mjs scripts/check-vessel.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

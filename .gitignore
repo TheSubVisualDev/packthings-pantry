@@ -41,3 +41,8 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# The seeded design canvas is a ~2MB build artefact of the design skill; the
+# .dc.html artboards beside it are the source and are kept.
+design/*.html
+!design/*.dc.html

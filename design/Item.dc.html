@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+  <style>
+    body { margin: 0; font-family: Manrope, ui-sans-serif, system-ui, sans-serif; }
+    a { color: oklch(0.579 0.143 36); } a:hover { color: oklch(0.50 0.15 36); }
+  </style>
+</helmet>
+
+<div style="width: 402px; height: 874px; background: oklch(0.956 0.013 64); color: oklch(0.26 0.012 55); position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end">
+
+  <!-- the shelf behind, dimmed -->
+  <div style="position: absolute; inset: 0; padding: 26px 18px; opacity: 0.30; display: flex; flex-direction: column; gap: 14px">
+    <div style="height: 22px; width: 130px; border-radius: 8px; background: oklch(0.882 0.023 72)"></div>
+    <div style="height: 128px; border-radius: 20px; background: oklch(1 0 0)"></div>
+    <div style="height: 128px; border-radius: 20px; background: oklch(1 0 0)"></div>
+  </div>
+  <div style="position: absolute; inset: 0; background: oklch(0.26 0.012 55 / 0.30)"></div>
+
+  <!-- the sheet -->
+  <div style="position: relative; background: oklch(0.956 0.013 64); border-radius: 26px 26px 0 0; padding: 12px 20px 26px; display: flex; flex-direction: column; gap: 18px; box-shadow: 0 -12px 40px -16px rgba(60,44,30,0.55)">
+
+    <div style="width: 42px; height: 4px; border-radius: 999px; background: oklch(0.882 0.023 72); align-self: center"></div>
+
+    <!-- the vessel, large, with the level readable at a glance -->
+    <div style="display: flex; gap: 18px; align-items: center">
+      <svg viewBox="0 0 60 76" style="width: 96px; height: 122px; flex-shrink: 0; display: block" aria-hidden="true">
+        <defs>
+          <clipPath id="hero"><path d="M12 24 l18 -14 l18 14 v36 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 z"></path></clipPath>
+        </defs>
+        <path d="M12 24 l18 -14 l18 14 v36 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 z" fill="oklch(1 0 0)"></path>
+        <g clip-path="url(#hero)">
+          <rect x="0" y="33" width="60" height="76" fill="oklch(0.93 0.03 90)"></rect>
+          <path d="M0 33 q15 -3 30 0 t30 0 v6 h-60 z" fill="oklch(0.96 0.02 90)"></path>
+        </g>
+        <path d="M12 24 l18 -14 l18 14 v36 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 z" fill="none" stroke="oklch(0.55 0.16 40)" stroke-width="3" stroke-linejoin="round"></path>
+        <path d="M12 24 h36" stroke="oklch(0.55 0.16 40)" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 7"></path>
+      </svg>
+
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 7px">
+        <div style="font-size: 22px; font-weight: 800; letter-spacing: -0.015em; line-height: 1.15">Whole Milk</div>
+        <div style="display: flex; align-items: baseline; gap: 6px">
+          <div style="font-size: 30px; font-weight: 800; letter-spacing: -0.02em">900</div>
+          <div style="font-size: 15px; font-weight: 700; color: oklch(0.62 0.014 60)">ml of 1136</div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          <div style="display: inline-flex; align-items: center; gap: 5px; background: oklch(0.55 0.16 40); color: oklch(1 0 0); border-radius: 999px; padding: 5px 11px; font-size: 11px; font-weight: 800">Use by today</div>
+          <div style="display: inline-flex; align-items: center; gap: 5px; background: oklch(0.965 0.012 60); border-radius: 999px; padding: 5px 11px; font-size: 11px; font-weight: 800; color: oklch(0.62 0.014 60)">Opened Sun</div>
+          <div style="display: inline-flex; align-items: center; gap: 5px; background: oklch(0.965 0.012 60); border-radius: 999px; padding: 5px 11px; font-size: 11px; font-weight: 800; color: oklch(0.62 0.014 60)">Fridge</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- pour, don't type -->
+    <div style="background: oklch(1 0 0); border-radius: 20px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; align-items: baseline; justify-content: space-between">
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: oklch(0.595 0.098 42)">How much is left</div>
+        <div style="font-size: 12px; font-weight: 800; color: oklch(0.62 0.014 60)">drag the level</div>
+      </div>
+
+      <div style="position: relative; height: 46px; border-radius: 14px; background: oklch(0.965 0.012 60); overflow: hidden">
+        <div style="position: absolute; inset: 0 21% 0 0; background: oklch(0.88 0.06 88)"></div>
+        <div style="position: absolute; top: 0; bottom: 0; left: 79%; width: 4px; background: oklch(0.579 0.143 36); border-radius: 999px"></div>
+        <div style="position: absolute; top: 50%; left: 79%; transform: translate(-50%, -50%); width: 34px; height: 34px; border-radius: 999px; background: oklch(1 0 0); border: 3px solid oklch(0.579 0.143 36); box-shadow: 0 2px 8px -2px rgba(60,44,30,0.5)"></div>
+      </div>
+
+      <div style="display: flex; gap: 8px">
+        <div style="flex-grow: 1; min-height: 44px; border-radius: 14px; background: oklch(0.965 0.012 60); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800">Half</div>
+        <div style="flex-grow: 1; min-height: 44px; border-radius: 14px; background: oklch(0.965 0.012 60); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800">A splash</div>
+        <div style="flex-grow: 1; min-height: 44px; border-radius: 14px; background: oklch(0.965 0.012 60); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800">All gone</div>
+      </div>
+    </div>
+
+    <!-- spares, drawn rather than counted -->
+    <div style="background: oklch(1 0 0); border-radius: 20px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 14px">
+      <div style="display: flex; gap: 5px; align-items: flex-end">
+        <sc-for list="{{spares}}" as="s" hint-placeholder-count="3">
+          <svg viewBox="0 0 60 76" style="width: 26px; height: 34px; display: block" aria-hidden="true">
+            <path d="M12 24 l18 -14 l18 14 v36 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 z" fill="{{s.fill}}" stroke="{{s.stroke}}" stroke-width="3" stroke-linejoin="round" stroke-dasharray="{{s.dash}}"></path>
+          </svg>
+        </sc-for>
+      </div>
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px">
+        <div style="font-size: 13px; font-weight: 800">No spare in the fridge</div>
+        <div style="font-size: 11px; font-weight: 700; color: oklch(0.62 0.014 60)">You usually keep two</div>
+      </div>
+      <button style="min-height: 44px; padding: 0 15px; border: 0; border-radius: 14px; background: oklch(0.965 0.012 60); font-family: inherit; font-size: 13px; font-weight: 800; color: oklch(0.26 0.012 55); cursor: pointer">+ List</button>
+    </div>
+
+    <button style="min-height: 50px; border: 0; border-radius: 14px; background: oklch(0.579 0.143 36); color: oklch(1 0 0); font-family: inherit; font-size: 15px; font-weight: 800; cursor: pointer">Save the level</button>
+
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      spares: [
+        { fill: 'oklch(0.93 0.03 90)', stroke: 'oklch(0.42 0.02 55)', dash: '0' },
+        { fill: 'transparent', stroke: 'oklch(0.85 0.02 65)', dash: '5 4' },
+        { fill: 'transparent', stroke: 'oklch(0.85 0.02 65)', dash: '5 4' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

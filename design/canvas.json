@@ -1,0 +1,40 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 402, "h": 874, "title": "Tonight, with the shelf under it" },
+    { "file": "Shelf.dc.html", "x": 522, "y": 0, "w": 402, "h": 1500, "title": "The whole shelf — real data" },
+    { "file": "Item.dc.html", "x": 1044, "y": 0, "w": 402, "h": 874, "title": "Tapping a vessel" },
+    { "file": "Vessels.dc.html", "x": 1566, "y": 0, "w": 402, "h": 1180, "title": "The vessel vocabulary" },
+    { "file": "AltDense.dc.html", "x": 2088, "y": 0, "w": 402, "h": 874, "title": "Alternate — enriched list" }
+  ],
+  "annotations": [
+    {
+      "id": "the-move",
+      "x": 0,
+      "y": -170,
+      "w": 402,
+      "text": "THE RADICAL MOVE\n\nStock stops being a tab. Tonight is the front door and the shelf lives underneath it, so four tabs become three.\n\nYour design brief asked for this in September and only half happened: the suggestion came off the stock page, but the stock page never became the stock."
+    },
+    {
+      "id": "real-data",
+      "x": 522,
+      "y": -170,
+      "w": 402,
+      "text": "THIS IS YOUR ACTUAL KITCHEN\n\nEvery shape and level here comes out of lib/vessel.ts run over the real 47 rows — not drawn by hand.\n\nOnly 13 of 47 have a level. The spice rack is entirely hollow, and 19 things have no shelf at all. Both get a row and a way to fix it, because an outline is the only thing here that asks to be filled in."
+    },
+    {
+      "id": "why-vessels",
+      "x": 1566,
+      "y": -170,
+      "w": 402,
+      "text": "WHY VESSELS\n\nYou already store pack_size, sealed_count and the open amount. A carton drawn 79% full is not decoration — it is data you already have, finally legible.\n\nThe shape is derived from the name and the unit. Nothing in the database says 'jar'."
+    },
+    {
+      "id": "alt-tradeoff",
+      "x": 2088,
+      "y": -170,
+      "w": 402,
+      "text": "THE HONEST ALTERNATIVE\n\nKeeps the list, adds a kind glyph and a fill bar to every row.\n\nBetter: scannable at 47 items, sorts and filters, no horizontal scrolling.\nWorse: no whimsy at all, and a bar chart of your kitchen is not a picture of it."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

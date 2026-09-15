@@ -1,0 +1,199 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+  <style>
+    body { margin: 0; font-family: Manrope, ui-sans-serif, system-ui, sans-serif; }
+    a { color: oklch(0.579 0.143 36); } a:hover { color: oklch(0.50 0.15 36); }
+  </style>
+</helmet>
+
+<div style="width: 402px; min-height: 1500px; background: oklch(0.956 0.013 64); color: oklch(0.26 0.012 55); padding: 22px 18px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+
+  <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px">
+    <h1 style="margin: 0; font-size: 25px; font-weight: 800; letter-spacing: -0.02em">On the shelf</h1>
+    <div style="font-size: 12px; font-weight: 700; color: oklch(0.62 0.014 60)">47 things</div>
+  </div>
+
+  <!-- The honest headline. This is the real number. -->
+  <div style="background: oklch(1 0 0); border-radius: 18px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 13px">
+    <div style="display: flex; align-items: flex-end; gap: 3px; flex-shrink: 0">
+      <div style="width: 7px; height: 26px; border-radius: 2px; background: oklch(0.66 0.13 42)"></div>
+      <div style="width: 7px; height: 26px; border-radius: 2px; background: oklch(0.66 0.13 42)"></div>
+      <div style="width: 7px; height: 26px; border-radius: 2px; border: 1.5px dashed oklch(0.78 0.02 65); box-sizing: border-box"></div>
+      <div style="width: 7px; height: 26px; border-radius: 2px; border: 1.5px dashed oklch(0.78 0.02 65); box-sizing: border-box"></div>
+      <div style="width: 7px; height: 26px; border-radius: 2px; border: 1.5px dashed oklch(0.78 0.02 65); box-sizing: border-box"></div>
+    </div>
+    <div style="flex-grow: 1; font-size: 12px; font-weight: 700; line-height: 1.45">
+      <span style="font-weight: 800">13 of 47 have a level.</span> The rest are outlines &mdash; the app has never been told how much.
+    </div>
+  </div>
+
+  <sc-for list="{{places}}" as="place" hint-placeholder-count="5">
+    <div style="background: oklch(1 0 0); border-radius: 20px; padding: 13px 14px 11px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 5px">
+
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+        <div style="display: flex; align-items: center; gap: 7px">
+          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: {{place.tone}}">{{place.name}}</div>
+          <sc-if value="{{place.flag}}" hint-placeholder-val="{{true}}">
+            <div style="font-size: 10px; font-weight: 800; color: oklch(1 0 0); background: oklch(0.72 0.02 65); border-radius: 999px; padding: 2px 8px">{{place.flag}}</div>
+          </sc-if>
+        </div>
+        <div style="font-size: 11px; font-weight: 700; color: oklch(0.72 0.02 65)">{{place.count}}</div>
+      </div>
+
+      <div style="display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap">
+        <sc-for list="{{place.items}}" as="it" hint-placeholder-count="6">
+          <div style="width: 50px; display: flex; flex-direction: column; align-items: center; gap: 3px">
+            <svg viewBox="0 0 60 76" style="width: 42px; height: 53px; display: block" aria-hidden="true">
+              <defs>
+                <clipPath id="s{{place.key}}{{$index}}"><path d="{{it.path}}"></path></clipPath>
+              </defs>
+              <path d="{{it.path}}" fill="oklch(0.965 0.012 60)"></path>
+              <g clip-path="url(#s{{place.key}}{{$index}})">
+                <rect x="0" y="{{it.fillY}}" width="60" height="76" fill="{{it.tint}}"></rect>
+              </g>
+              <path d="{{it.path}}" fill="none" stroke="{{it.stroke}}" stroke-width="{{it.weight}}" stroke-linejoin="round" stroke-dasharray="{{it.dash}}"></path>
+              <text x="30" y="55" text-anchor="middle" font-family="Manrope, sans-serif" font-size="23" font-weight="800" fill="oklch(0.78 0.02 65)">{{it.q}}</text>
+            </svg>
+            <div style="font-size: 9px; font-weight: 800; text-align: center; line-height: 1.15; color: {{it.label}}">{{it.name}}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="height: 4px; border-radius: 999px; background: {{place.ledge}}; margin-top: 3px"></div>
+
+      <sc-if value="{{place.cta}}" hint-placeholder-val="{{true}}">
+        <button style="margin-top: 7px; min-height: 44px; border: 0; border-radius: 14px; background: oklch(0.579 0.143 36); color: oklch(1 0 0); font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer">{{place.cta}}</button>
+      </sc-if>
+    </div>
+  </sc-for>
+
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const P = {
+      bottle: 'M24 4 h12 v13 l10 11 v32 a6 6 0 0 1 -6 6 h-20 a6 6 0 0 1 -6 -6 v-32 l10 -11 z',
+      carton: 'M12 24 l18 -14 l18 14 v36 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 z',
+      jar:    'M14 20 h32 a6 6 0 0 1 6 6 v34 a6 6 0 0 1 -6 6 h-32 a6 6 0 0 1 -6 -6 v-34 a6 6 0 0 1 6 -6 z',
+      bag:    'M16 22 q14 -7 28 0 l4 38 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 z',
+      tub:    'M13 26 h34 l-4 34 a6 6 0 0 1 -6 6 h-14 a6 6 0 0 1 -6 -6 z',
+      spice:  'M21 24 h18 v36 a5 5 0 0 1 -5 5 h-8 a5 5 0 0 1 -5 -5 z',
+      tin:    'M14 22 h32 v38 a6 6 0 0 1 -6 6 h-20 a6 6 0 0 1 -6 -6 z',
+      block:  'M11 28 h38 a4 4 0 0 1 4 4 v28 a6 6 0 0 1 -6 6 h-34 a6 6 0 0 1 -6 -6 v-28 a4 4 0 0 1 4 -4 z',
+      tray:   'M9 32 h42 l-4 28 a6 6 0 0 1 -6 6 h-22 a6 6 0 0 1 -6 -6 z',
+      pips:   'M14 20 h32 a6 6 0 0 1 6 6 v34 a6 6 0 0 1 -6 6 h-32 a6 6 0 0 1 -6 -6 v-34 a6 6 0 0 1 6 -6 z'
+    };
+    const SPAN = {
+      bottle: [28, 66], carton: [24, 66], jar: [20, 66], bag: [22, 66],
+      tub: [26, 66], spice: [24, 65], tin: [22, 66], block: [28, 66],
+      tray: [32, 66], pips: [20, 66]
+    };
+    const INK = 'oklch(0.42 0.02 55)';
+    const FADE = 'oklch(0.78 0.02 65)';
+    const ALARM = 'oklch(0.55 0.16 40)';
+
+    const it = (kind, name, pct, tint, off) => {
+      const [top, bottom] = SPAN[kind];
+      const unknown = pct === null;
+      return {
+        name,
+        path: P[kind],
+        tint: unknown ? 'transparent' : tint,
+        fillY: unknown ? 76 : bottom - (bottom - top) * pct,
+        stroke: unknown ? FADE : (off ? ALARM : INK),
+        weight: off ? 3 : 2.5,
+        dash: unknown ? '6 5' : '0',
+        q: unknown ? '?' : '',
+        label: unknown ? 'oklch(0.72 0.02 65)' : 'oklch(0.26 0.012 55)'
+      };
+    };
+
+    const CREAM = 'oklch(0.93 0.03 90)';
+    const GREEN = 'oklch(0.72 0.09 140)';
+    const RUST  = 'oklch(0.55 0.15 35)';
+    const OAT   = 'oklch(0.88 0.05 78)';
+    const DARK  = 'oklch(0.38 0.06 45)';
+
+    return {
+      places: [
+        {
+          key: 'f', name: 'Fridge', count: '10 things', tone: 'oklch(0.595 0.098 42)',
+          ledge: 'oklch(0.882 0.023 72)', flag: '', cta: '',
+          items: [
+            it('carton', 'Whole Milk', 0.79, CREAM, true),
+            it('jar', 'Gochujang', 0.90, RUST),
+            it('tub', 'Double cream', 0.33, CREAM, true),
+            it('bag', 'Carrots', 0.20, 'oklch(0.75 0.12 60)'),
+            it('block', 'Butter', null, ''),
+            it('tray', 'Turkey mince', null, ''),
+            it('pips', 'Sweet Peppers', 0, GREEN)
+          ]
+        },
+        {
+          key: 'n', name: 'Counter', count: '4 things', tone: 'oklch(0.595 0.098 42)',
+          ledge: 'oklch(0.882 0.023 72)', flag: '', cta: '',
+          items: [
+            it('bottle', 'Light Soy', 0.40, DARK),
+            it('bottle', 'Dark Soy', 0.30, DARK),
+            it('pips', 'Free Range Eggs', 0.50, OAT),
+            it('bag', 'Tiger Bloomer', null, '')
+          ]
+        },
+        {
+          key: 'c', name: 'Cupboard', count: '7 things', tone: 'oklch(0.595 0.098 42)',
+          ledge: 'oklch(0.882 0.023 72)', flag: '', cta: '',
+          items: [
+            it('pips', 'Stock cubes', 0.30, OAT),
+            it('jar', 'Broadbean Paste', 0, RUST, true),
+            it('pips', 'Brown Onions', 0, 'oklch(0.80 0.07 85)'),
+            it('bag', 'Plain Flour', null, ''),
+            it('bag', 'Spaghetti', null, ''),
+            it('carton', 'Almond milk', null, ''),
+            it('bag', 'Sugar', null, '')
+          ]
+        },
+        {
+          key: 's', name: 'Spice rack', count: '7 things', tone: 'oklch(0.72 0.02 65)',
+          ledge: 'oklch(0.92 0.015 70)', flag: 'all unknown',
+          cta: 'Fill in the spice rack',
+          items: [
+            it('spice', 'Paprika', null, ''),
+            it('spice', 'Cumin', null, ''),
+            it('spice', 'Oregano', null, ''),
+            it('spice', 'Chilli flakes', null, ''),
+            it('spice', 'Red Pepper', null, ''),
+            it('spice', 'MSG', null, ''),
+            it('bag', 'Furikake', null, '')
+          ]
+        },
+        {
+          key: 'u', name: 'Not put away', count: '19 things', tone: 'oklch(0.72 0.02 65)',
+          ledge: 'oklch(0.92 0.015 70)', flag: 'no home',
+          cta: 'Give these a shelf',
+          items: [
+            it('bottle', 'Olive oil', null, ''),
+            it('carton', 'Milk', null, ''),
+            it('pips', 'Eggs', null, ''),
+            it('spice', 'Salt', null, ''),
+            it('bag', 'Rice', null, ''),
+            it('tin', 'Tinned tomatoes', null, ''),
+            it('bag', 'Nerds', 0.64, 'oklch(0.70 0.13 330)')
+          ]
+        }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
