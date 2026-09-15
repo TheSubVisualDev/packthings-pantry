@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { getDb, plainRows } from "./db";
 import { nudge } from "./push";
 
@@ -15,6 +16,14 @@ import { nudge } from "./push";
  * cook being wrong. `record` never throws and is never awaited by the cook
  * action: a push service having a bad afternoon must not roll back somebody's
  * dinner coming off the shelf.
+ *
+ * It goes through `after` rather than being left as a floating promise,
+ * though, and the difference is the feature working at all. A promise nobody
+ * holds races the response in a serverless function - once the response is
+ * sent the instance can be frozen, and the insert and the push never happen.
+ * Warm instances mean it would usually work, which is worse than never
+ * working: the failure is silent, intermittent, and looks exactly like nobody
+ * having cooked anything.
  */
 
 export interface Notification {
@@ -94,7 +103,7 @@ export function record(input: {
   recipeName: string;
   cookHandle: string;
 }): void {
-  void (async () => {
+  const work = async () => {
     const authorId = await audienceFor(
       input.cookEventId,
       input.recipeId,
@@ -120,9 +129,18 @@ export function record(input: {
       body: input.recipeName,
       url: `/recipes/${input.recipeId}`,
     });
-  })().catch(() => {
-    // Swallowed. The dinner happened; the telling is best-effort.
-  });
+  };
+
+  // Swallowed either way. The dinner happened; the telling is best-effort.
+  const guarded = () => work().catch(() => {});
+
+  // `after` wants a request around it. A script has none, and for those the
+  // floating promise is correct - nothing is about to freeze the process.
+  try {
+    after(guarded);
+  } catch {
+    void guarded();
+  }
 }
 
 /** Undo takes the news with it - see the note on the table. */

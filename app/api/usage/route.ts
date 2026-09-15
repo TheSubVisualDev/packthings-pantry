@@ -12,10 +12,18 @@ export const dynamic = "force-dynamic";
  * hide, which survives the navigation - and sendBeacon can only POST a body,
  * never read a response, which is why this returns 204 and nothing else.
  *
- * Anonymous is allowed through as a null user rather than rejected. A signed
- * out tap is still a tap, and 401ing a beacon means the count quietly loses
- * exactly the people who have not signed in yet - who are the ones whose
- * friction matters most.
+ * **This is behind the auth gate, like everything else under /api.** It was
+ * written to accept a signed-out tap as a null user, on the reasoning that
+ * 401ing a beacon loses exactly the people who have not signed in yet - and
+ * that reasoning never reached production, because proxy.ts refuses the
+ * request long before this file sees it. Tested with curl: 401.
+ *
+ * Left gated rather than opened up. The only pages a signed-out person can
+ * reach are /login and /invite, nothing in ACTIONS happens on either, so the
+ * whole argument buys nothing real - and an unauthenticated endpoint that
+ * writes database rows is a spam vector in a way /api/csp-report, which writes
+ * nothing, is not. The null-user handling below stays because Basic auth
+ * reaches this with no account attached, which is a real case.
  */
 export async function POST(request: Request) {
   let body: unknown;

@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { getDb, plainRows } from "./db";
 
 /**
@@ -14,6 +15,15 @@ import { getDb, plainRows } from "./db";
  * measuring is worse than no tracker, and an await on a Nuremberg round trip
  * in front of a cook is a tracker that makes the app slower to teach you it is
  * slow. `record` swallows everything and is not awaited by its callers.
+ *
+ * But not-awaited is not the same as fire-and-forget, and that distinction is
+ * the whole reason `after` is here. A bare floating promise in a serverless
+ * function races the response: once the response is sent the instance can be
+ * frozen or torn down, and a write still in flight simply never lands. It
+ * would mostly work, because Fluid Compute keeps instances warm - which is the
+ * worst kind of bug, one that passes every test and loses an unknown fraction
+ * of its writes in production. And it would fail as a zero, which is exactly
+ * the reading check:usage exists to stop being wrong.
  *
  * It counts and nothing else. One row per action, no session id, no path
  * through the app, no funnel. "Which features get used" is answerable from
@@ -79,14 +89,34 @@ export function record(
   userId: number | null,
   page: string | null,
 ): void {
-  void getDb()
-    .execute({
+  defer(() =>
+    getDb().execute({
       sql: "INSERT INTO usage_events (user_id, action, page) VALUES (?, ?, ?)",
       args: [userId, action, page ? page.slice(0, 200) : null],
-    })
-    .catch(() => {
-      // Swallowed on purpose. See above: the button matters, the count does not.
-    });
+    }),
+  );
+}
+
+/**
+ * Runs the write after the response, and never in front of the person.
+ *
+ * `after` is the framework's answer to the floating-promise problem: the work
+ * is handed to the runtime, which keeps the function alive for it. It also
+ * runs when the handler threw or called `redirect`, which matters - adding an
+ * item ends in a redirect, and a redirect unwinds by throwing.
+ *
+ * Wrapped because `after` needs a request to be inside. Anything calling this
+ * from a script has no request and would get an exception instead of a count,
+ * so that case falls back to the floating promise it was before: best-effort,
+ * and correct wherever the process is not about to be frozen.
+ */
+function defer(work: () => Promise<unknown>): void {
+  const guarded = () => work().catch(() => {});
+  try {
+    after(guarded);
+  } catch {
+    void guarded();
+  }
 }
 
 /** Several at once, for a beacon arriving with a page's worth of taps on it. */
@@ -106,12 +136,12 @@ export function recordMany(
     event.page ? event.page.slice(0, 200) : null,
   ]);
 
-  void getDb()
-    .execute({
+  defer(() =>
+    getDb().execute({
       sql: `INSERT INTO usage_events (user_id, action, page) VALUES ${values}`,
       args,
-    })
-    .catch(() => {});
+    }),
+  );
 }
 
 export interface ActionCount {

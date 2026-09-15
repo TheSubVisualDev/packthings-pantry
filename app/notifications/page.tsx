@@ -36,7 +36,9 @@ export default async function NotificationsPage() {
 
   return (
     <>
-      <SiteHeader active="recipes" />
+      {/* No tab is right for this page - it is not one of the four sections,
+          and highlighting Cookbook said you were somewhere you were not. */}
+      <SiteHeader active="none" />
 
       <div className="mx-auto w-full max-w-[720px] px-5 pt-6 pb-32 sm:px-9 sm:py-7">
         <div className="mb-1 flex items-center gap-3">

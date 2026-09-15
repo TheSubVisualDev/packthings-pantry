@@ -34,7 +34,8 @@ export async function SiteHeader({
   active,
   meta,
 }: {
-  active: "stock" | "tonight" | "recipes" | "discover";
+  /** "none" for the pages that are not one of the four sections. */
+  active: "stock" | "tonight" | "recipes" | "discover" | "none";
   meta?: string;
 }) {
   // Reached through the Basic-auth back door there is no account and so no
