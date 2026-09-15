@@ -148,7 +148,11 @@ are pinned in `npm run check:vessel`.
 
 Two components draw from it and neither may grow its own copy:
 `components/vessel.tsx` is the control you DRAG to say how full something is,
-and `components/shelf-vessel.tsx` only ever reports. The classifier used to
+and `components/shelf-vessel.tsx` only ever reports. **The silhouettes they
+draw are also shared**, in `components/vessel-shapes.ts` - they were not, and
+tapping a soy sauce on the shelf opened a page showing a visibly different
+soy sauce. The shapes are a 60x76 box and anything drawing bigger scales them;
+a second set is a second idea of what a bottle is. The classifier used to
 live inside the client component, where `scripts/ts-imports.mjs` could not load
 it - a .tsx is invisible to the check harness, so every rule in it was
 untestable. Anything a check needs to ask belongs in `lib/`.

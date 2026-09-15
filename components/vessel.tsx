@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { formatQuantity } from "@/lib/units";
 import type { Dimension } from "@/lib/types";
 import { vesselFor, type Vessel as Kind } from "@/lib/vessel";
+import { CAPS, CRIMPS, PATHS, SPAN } from "@/components/vessel-shapes";
 
 /**
  * How much is in it, asked the way anybody would answer.
@@ -32,7 +33,15 @@ import { vesselFor, type Vessel as Kind } from "@/lib/vessel";
  * be a fraction of and inventing one would be inventing a measurement.
  */
 
-export type VesselKind = "bottle" | "jar" | "tin" | "bag";
+/**
+ * Every shape the app knows, not the four this control used to draw.
+ *
+ * It narrowed to four because it only had four silhouettes. They are shared
+ * now - see components/vessel-shapes.ts - so a carton of milk is drawn as a
+ * carton here too, and the mapping that flattened six kinds into "jar" is
+ * gone with the reason for it.
+ */
+export type VesselKind = Kind;
 
 export type VesselMode = "fill" | "count" | "none";
 
@@ -66,34 +75,18 @@ export function vesselModeFor(item: {
  * anything unrecognised. The shelf falls back to a bag instead - see the note
  * on VesselHints about why both are right.
  */
-const DRAWABLE: Record<Kind, VesselKind> = {
-  bottle: "bottle",
-  carton: "bottle",
-  tin: "tin",
-  bag: "bag",
-  jar: "jar",
-  tub: "jar",
-  spice: "jar",
-  block: "jar",
-  tray: "jar",
-  // Counted items never reach this control - vesselModeFor sends them to the
-  // stepper - but a total map is one less thing that can be undefined.
-  pips: "jar",
-};
-
 export function vesselKindFor(item: {
   packUnit?: string | null;
   tags?: string[];
   name?: string;
   dimension: Dimension;
 }): VesselKind {
-  return DRAWABLE[
-    vesselFor(item.name ?? "", item.dimension === "count" ? "count" : "", item.dimension, {
-      packUnit: item.packUnit,
-      tags: item.tags,
-      fallback: "jar",
-    })
-  ];
+  return vesselFor(
+    item.name ?? "",
+    item.dimension === "count" ? "count" : "",
+    item.dimension,
+    { packUnit: item.packUnit, tags: item.tags, fallback: "jar" },
+  );
 }
 
 /** The levels a tap can set, which is how most people would answer anyway. */
@@ -127,19 +120,37 @@ function stepFor(capacity: number, unit: string): number {
 const SNAP = 0.05;
 
 /**
- * The outline of each vessel, as a path in a 100x140 box.
+ * How the shared 60x76 silhouettes fit this control's 100x140 box.
  *
- * Drawn rather than photographed so it tints with the palette, and kept
- * deliberately crude: this is a diagram of "how full", not a picture of your
- * actual bottle.
+ * Scaled rather than redrawn. 100/60 fits the width and leaves the shape
+ * 126.7 tall in a 140 box, so it is nudged down to sit centred - and the
+ * liquid, which translates over the full 140, still clears the bottom of the
+ * shape when empty and covers its top when full.
  */
-const SHAPES: Record<VesselKind, string> = {
-  bottle:
-    "M40 4 h20 v22 c0 6 14 16 14 30 v70 a10 10 0 0 1 -10 10 h-28 a10 10 0 0 1 -10 -10 v-70 c0 -14 14 -24 14 -30 z",
-  jar: "M22 10 h56 a8 8 0 0 1 8 8 v108 a10 10 0 0 1 -10 10 h-52 a10 10 0 0 1 -10 -10 v-108 a8 8 0 0 1 8 -8 z",
-  tin: "M24 24 h52 a6 6 0 0 1 6 6 v96 a10 10 0 0 1 -10 10 h-44 a10 10 0 0 1 -10 -10 v-96 a6 6 0 0 1 6 -6 z",
-  bag: "M28 18 h44 l10 18 v90 a10 10 0 0 1 -10 10 h-44 a10 10 0 0 1 -10 -10 v-90 z",
-};
+const FIT = "translate(0 6.6) scale(1.6667)";
+
+/** 3px of stroke once the scale above has been applied to it. */
+const STROKE = 3 / 1.6667;
+
+/**
+ * Where the surface of the liquid sits, in this box, for a given level.
+ *
+ * It used to translate over the whole 140 - which worked only because the old
+ * shapes filled the box top to bottom. The shared silhouettes do not: they
+ * have a neck, a shoulder and a base, so a third of a bottle drawn against the
+ * box came out as a sliver in the bottom. This measures against the SHAPE'S
+ * interior instead, which is also more honest than the old version ever was -
+ * a full bottle now fills to the shoulder rather than to the top of the cap.
+ *
+ * The wave's own crest sits at y=8 in its untranslated position, so that is
+ * subtracted to put the crest on the surface rather than below it.
+ */
+function surfaceFor(kind: VesselKind, level: number): number {
+  const [top, bottom] = SPAN[kind];
+  const scaledTop = 6.6 + top * 1.6667;
+  const scaledBottom = 6.6 + bottom * 1.6667;
+  return scaledBottom - (scaledBottom - scaledTop) * level - 8;
+}
 
 export function Vessel({
   kind,
@@ -274,11 +285,11 @@ export function Vessel({
         <svg viewBox="0 0 100 140" className="h-full w-full overflow-visible">
           <defs>
             <clipPath id={clipId}>
-              <path d={SHAPES[kind]} />
+              <path d={PATHS[kind]} transform={FIT} />
             </clipPath>
           </defs>
 
-          <path d={SHAPES[kind]} className="fill-card" />
+          <path d={PATHS[kind]} transform={FIT} className="fill-card" />
 
           {/* The contents. A rect clipped to the shape rather than a second
               path per level, so any fraction works and the animation is one
@@ -296,7 +307,7 @@ export function Vessel({
           <g clipPath={`url(#${clipId})`}>
             <g
               style={{
-                transform: `translateY(${(1 - shown) * 140}px)`,
+                transform: `translateY(${surfaceFor(kind, shown)}px)`,
                 transition: live === null ? "transform .35s cubic-bezier(.34,1.3,.5,1)" : undefined,
               }}
             >
@@ -308,10 +319,27 @@ export function Vessel({
           </g>
 
           <path
-            d={SHAPES[kind]}
+            d={PATHS[kind]}
+            transform={FIT}
             className="fill-none stroke-border"
-            strokeWidth="3"
+            strokeWidth={STROKE}
+            strokeLinejoin="round"
           />
+          {/* The lid and the torn crimp, so this is the same object the shelf
+              drew a moment ago rather than a family resemblance. */}
+          {CAPS[kind] && (
+            <path d={CAPS[kind]} transform={FIT} className="fill-border" />
+          )}
+          {CRIMPS[kind] && (
+            <path
+              d={CRIMPS[kind]}
+              transform={FIT}
+              className="fill-none stroke-border"
+              strokeWidth={STROKE}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          )}
         </svg>
       </div>
 
