@@ -3,10 +3,18 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 15 Sep 2026 — reports #23 and #24 done, security headers on
+**Last updated:** 15 Sep 2026 — P7 decided and built, shelf life built
 **Doing right now:** nothing
 **Waiting on you:** how the swipe sensitivity actually feels in the hand. The
 thresholds were guessed with a mouse and a thumb is not a mouse.
+
+### Two things to press when you next open it
+
+1. **Stock → "Date the 34 with no date"**, under the list. It will date 29 of
+   them and decline salt, sugar, MSG and the Nerds. Every date it writes is
+   marked as a guess and says "probably"; type over any of them to correct it.
+2. **The bell**, top right. @darpy cooked your Red Pepper & Carrot Soup on the
+   11th, which is real news the app had no way of telling you at the time.
 
 ### 15 Sep, in one line
 
@@ -22,6 +30,14 @@ there is one engine and always was. The real disagreement was narrower and
 worse — /tonight never read the plan at all, so a curry planned for Thursday
 on Sunday was invisible on Thursday and the app cheerfully suggested something
 else. Fixed: the plan leads, the ranking is "or something else".
+
+**P7 is decided: tell them.** Somebody cooking a recipe you wrote is now the
+one notification this app has, and the bar for a second one is written into
+AGENTS.md so it stays that way.
+
+**Shelf life is in.** 34 of 47 items had no date and no once-opened life, so
+the rescue engine was blind to three quarters of the kitchen. Guesses are
+marked, muted, and never say "throw this away".
 
 **The database key is rotated.** The pre-rotation token is dead - it now
 returns `AUTH_JWT_INVALID`, tested rather than assumed. Four minutes down.
