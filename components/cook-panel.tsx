@@ -417,12 +417,19 @@ export function CookPanel({
           Cooking for
         </h2>
         <div className="flex items-center gap-3">
-          <div className="flex flex-1 items-center justify-between rounded-[14px] bg-card px-4 py-3 font-bold shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+          {/* py-2 rather than py-3, because the buttons inside now carry their
+              own height and the row would otherwise grow by the difference. */}
+          <div className="flex flex-1 items-center justify-between rounded-[14px] bg-card px-2 py-2 font-bold shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+            {/* min-h-11/min-w-11 is the 44px Apple asks for, and this is the
+                one control on the page that gets used standing at a hob with
+                one hand. The hit box used to be the size of the glyph - about
+                26px - which is a miss every few presses, and a miss on a
+                stepper reads as the app ignoring you. */}
             <button
               type="button"
               aria-label="Fewer servings"
               onClick={() => setServings((v) => Math.max(1, v - 1))}
-              className="text-2xl leading-none text-primary disabled:opacity-30"
+              className="flex min-h-11 min-w-11 items-center justify-center text-2xl leading-none text-primary disabled:opacity-30"
               disabled={servings <= 1}
             >
               &minus;
@@ -434,7 +441,7 @@ export function CookPanel({
               type="button"
               aria-label="More servings"
               onClick={() => setServings((v) => Math.min(50, v + 1))}
-              className="text-2xl leading-none text-primary disabled:opacity-30"
+              className="flex min-h-11 min-w-11 items-center justify-center text-2xl leading-none text-primary disabled:opacity-30"
               disabled={servings >= 50}
             >
               +

@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { RecipeMenu } from "@/components/recipe-menu";
+import { RecipeLike } from "@/components/recipe-like";
 import { PrintButton } from "@/components/print-button";
 import { RecipeVisibility } from "@/components/recipe-visibility";
 import { RemixButton } from "@/components/remix-button";
@@ -280,25 +281,36 @@ export default async function RecipePage({
               <ArrowLeft className="h-5 w-5" strokeWidth={2.5} />
             </Link>
 
-            <RecipeMenu>
-              <PrintButton label="Print this recipe" />
-              {isAuthor && (
-                <Link
-                  href={`/recipes/${recipe.id}/edit`}
-                  className="flex min-h-11 items-center rounded-[14px] bg-chip px-4 text-sm font-extrabold hover:bg-border"
-                >
-                  Edit this recipe
-                </Link>
-              )}
-              {isAuthor ? (
-                <RecipeVisibility recipeId={recipe.id} current={recipe.visibility} />
-              ) : (
-                <RemixButton recipeId={recipe.id} yours={false} />
-              )}
-              {/* The author gets it too: trying a variation without losing the
-                  version that already works is the same operation. */}
-              {isAuthor && <RemixButton recipeId={recipe.id} yours />}
-            </RecipeMenu>
+            <div className="flex items-center gap-2">
+              {/* Where the first look happens. It was at the bottom of the
+                  page, several screens down, and was reported as hidden. */}
+              <RecipeLike
+                recipeId={recipe.id}
+                likes={social.likes}
+                youLiked={social.youLiked}
+                onPhoto={Boolean(recipe.photo_url)}
+              />
+
+              <RecipeMenu>
+                <PrintButton label="Print this recipe" />
+                {isAuthor && (
+                  <Link
+                    href={`/recipes/${recipe.id}/edit`}
+                    className="flex min-h-11 items-center rounded-[14px] bg-chip px-4 text-sm font-extrabold hover:bg-border"
+                  >
+                    Edit this recipe
+                  </Link>
+                )}
+                {isAuthor ? (
+                  <RecipeVisibility recipeId={recipe.id} current={recipe.visibility} />
+                ) : (
+                  <RemixButton recipeId={recipe.id} yours={false} />
+                )}
+                {/* The author gets it too: trying a variation without losing the
+                    version that already works is the same operation. */}
+                {isAuthor && <RemixButton recipeId={recipe.id} yours />}
+              </RecipeMenu>
+            </div>
           </div>
 
           <div className="relative flex min-h-[220px] flex-col justify-end px-5 pt-20 pb-5 sm:min-h-[260px]">
@@ -425,8 +437,6 @@ export default async function RecipePage({
         <div className="print:hidden">
         <RecipeSocial
           recipeId={recipe.id}
-          likes={social.likes}
-          youLiked={social.youLiked}
           comments={comments}
           viewerId={context.user.id}
           isAuthor={isAuthor}

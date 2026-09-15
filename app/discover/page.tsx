@@ -34,11 +34,31 @@ export const metadata: Metadata = {
 
 const HEADING = "mb-3 text-xs font-bold uppercase tracking-[0.1em] text-label";
 
-function Grid({ recipes }: { recipes: Awaited<ReturnType<typeof searchRecipes>> }) {
+/**
+ * Every grid on this page, with the cupboard answer switched on.
+ *
+ * The card has drawn "you have everything" / "4 of 6 in stock" since it was
+ * written, and Discover passed it nothing - so the one thing this app knows
+ * that a recipe site does not was silent on the screen where people are
+ * actively hunting for something to cook. `stocked` is the readiness count
+ * from the page, threaded through; where there is no kitchen there is no
+ * answer, and the card shows no badge rather than a wrong one.
+ */
+function Grid({
+  recipes,
+  stocked,
+}: {
+  recipes: Awaited<ReturnType<typeof searchRecipes>>;
+  stocked?: (recipeId: number) => { have: number; total: number };
+}) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {recipes.map((recipe) => (
-        <RecipeBrowseCard key={recipe.id} recipe={recipe} />
+        <RecipeBrowseCard
+          key={recipe.id}
+          recipe={recipe}
+          match={stocked?.(recipe.id)}
+        />
       ))}
     </div>
   );
@@ -58,10 +78,24 @@ export default async function DiscoverPage({
   const viewerId = session.user.id;
 
   if (term) {
-    const [recipes, people] = await Promise.all([
+    const [recipes, people, searchContext] = await Promise.all([
       searchRecipes(viewerId, term),
       searchPeople(viewerId, term),
+      // Searching is the moment somebody is deciding what to cook, so it is
+      // the last place the cupboard should go quiet. One pass over the stock,
+      // same as the browse branch below.
+      readinessContext(kitchen?.id ?? null),
     ]);
+
+    const searchStocked = kitchen
+      ? (recipeId: number) =>
+          countStockedLines(
+            searchContext.byRecipe.get(recipeId) ?? [],
+            searchContext.links,
+            searchContext.stock,
+            searchContext.byId,
+          )
+      : undefined;
 
     return (
       <>
@@ -98,7 +132,7 @@ export default async function DiscoverPage({
           {recipes.length > 0 && (
             <section>
               <h2 className={HEADING}>Recipes</h2>
-              <Grid recipes={recipes} />
+              <Grid recipes={recipes} stocked={searchStocked} />
             </section>
           )}
         </div>
@@ -175,14 +209,53 @@ export default async function DiscoverPage({
                 >
                   <Link
                     href={`/recipes/${entry.recipe_id}`}
+                    data-track="recipe.open"
                     className="flex min-h-[60px] items-center gap-3 px-4 py-3 hover:bg-chip"
                   >
-                    <Avatar
-                      handle={entry.handle}
-                      displayName={entry.display_name}
-                      url={entry.avatar_url}
-                      size={36}
-                    />
+                    {/* The food, then who cooked it.
+                        This row is the most appetising thing on the page - a
+                        real person, a real dinner, this week - and it was
+                        drawn as a 36px face and two lines of type. The photo
+                        was already being selected and thrown away. Tinted when
+                        there is no photo, the way every other card here is, so
+                        the column stays a column. */}
+                    {/* Two spans, because the clip and the badge disagree.
+                        The photo has to be clipped to its rounded corners and
+                        the face has to hang off one of them, so the corner
+                        radius lives on the inner span and the overhang on the
+                        outer - one element doing both cut the face in half. */}
+                    <span className="relative block h-12 w-12 shrink-0">
+                      <span
+                        className="block h-full w-full overflow-hidden rounded-[12px]"
+                        style={
+                          entry.photo_url
+                            ? undefined
+                            : { background: recipeTint(entry.recipe_id) }
+                        }
+                      >
+                        {entry.photo_url && (
+                          <Image
+                            src={entry.photo_url}
+                            alt=""
+                            width={48}
+                            height={48}
+                            className="h-full w-full object-cover"
+                          />
+                        )}
+                      </span>
+                      {/* The face rides the corner of the plate rather than
+                          sitting beside it: the row is about a dinner, and who
+                          made it is the caption on it. Ringed so it reads as a
+                          face against whatever the photo happens to be. */}
+                      <span className="absolute -right-1 -bottom-1 block overflow-hidden rounded-full ring-2 ring-card">
+                        <Avatar
+                          handle={entry.handle}
+                          displayName={entry.display_name}
+                          url={entry.avatar_url}
+                          size={20}
+                        />
+                      </span>
+                    </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[15px] font-extrabold break-words">
                         {entry.name}
@@ -259,7 +332,7 @@ export default async function DiscoverPage({
         {feed.length > 0 && (
           <section className="mb-9">
             <h2 className={HEADING}>From people you follow</h2>
-            <Grid recipes={feed} />
+            <Grid recipes={feed} stocked={kitchen ? countStocked : undefined} />
           </section>
         )}
 

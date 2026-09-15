@@ -1,32 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { Heart } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Avatar } from "@/components/avatar";
-import { comment, removeComment, setLiked } from "@/app/social/actions";
+import { comment, removeComment } from "@/app/social/actions";
 import { shortDate } from "@/lib/dates";
 import type { Comment } from "@/lib/queries";
 
 const CARD = "rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]";
 
+/**
+ * Comments, and only comments.
+ *
+ * The like used to be the first thing in this card, which put it below the
+ * whole ingredient list, the method and the cook button - so it moved to the
+ * header, where the first look at a recipe happens. It did not get copied:
+ * two like buttons on one page that have to agree about the count is the shape
+ * of bug this codebase keeps a running total of.
+ */
 export function RecipeSocial({
   recipeId,
-  likes,
-  youLiked,
   comments,
   viewerId,
   isAuthor,
 }: {
   recipeId: number;
-  likes: number;
-  youLiked: boolean;
   comments: Comment[];
   viewerId: number;
   isAuthor: boolean;
 }) {
-  const [liked, setLike] = useState(youLiked);
-  const [count, setCount] = useState(likes);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -46,43 +48,9 @@ export function RecipeSocial({
 
   return (
     <section className={`${CARD} mt-5`}>
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          aria-pressed={liked}
-          aria-label={liked ? "Unlike this recipe" : "Like this recipe"}
-          disabled={pending}
-          onClick={() =>
-            startTransition(async () => {
-              const next = !liked;
-              const result = await setLiked(recipeId, next);
-              if (result.ok) {
-                setLike(next);
-                setCount((c) => c + (next ? 1 : -1));
-                setError(null);
-              } else {
-                setError(result.error ?? "Couldn't save that.");
-              }
-            })
-          }
-          className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold ${
-            liked ? "bg-primary text-primary-foreground" : "bg-chip text-muted-foreground"
-          }`}
-        >
-          <Heart
-            className="h-4 w-4"
-            // Filled only once you've liked it, so the state reads at a glance
-            // rather than from the word beside it.
-            fill={liked ? "currentColor" : "none"}
-            strokeWidth={2.5}
-          />
-          {liked ? "Liked" : "Like"}
-          {count > 0 && <span className="tabular-nums">{count}</span>}
-        </button>
-        <span className="text-sm font-semibold text-muted-foreground">
-          {comments.length} {comments.length === 1 ? "comment" : "comments"}
-        </span>
-      </div>
+      <h2 className="text-sm font-extrabold text-muted-foreground">
+        {comments.length} {comments.length === 1 ? "comment" : "comments"}
+      </h2>
 
       {comments.length > 0 && (
         <ul className="mt-4 space-y-3">
