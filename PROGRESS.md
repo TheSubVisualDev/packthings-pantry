@@ -3,12 +3,32 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 14 Sep 2026 — audit round closed, 13 commits pushed
+**Last updated:** 15 Sep 2026 — reports #23 and #24 done, security headers on
 **Doing right now:** nothing
-**Waiting on you:** how the swipe sensitivity actually feels in the hand. The
-thresholds were guessed with a mouse and a thumb is not a mouse.
+**Waiting on you:** two things. The database key rotation, which needs the
+Hetzner box and about twenty minutes — `docs/ROTATE-DB-KEY.md` is the runbook.
+And how the swipe sensitivity actually feels in the hand; the thresholds were
+guessed with a mouse and a thumb is not a mouse.
 
-### Today, in one line
+### 15 Sep, in one line
+
+Three approved reports collated: the app now counts what gets pressed, the
+recipe page and Discover had the friction taken out of them, and the pen
+test's headers are finally on. One report left open by choice — photographing
+a cupboard waits for agentic support.
+
+**Open item corrected.** The note below said /tonight and /plan were two
+suggestion engines free to disagree. They are not: `fillTheGaps` has always
+called `rankTonight` over `getTonightFacts`, the same pair /tonight uses, so
+there is one engine and always was. The real disagreement was narrower and
+worse — /tonight never read the plan at all, so a curry planned for Thursday
+on Sunday was invisible on Thursday and the app cheerfully suggested something
+else. Fixed: the plan leads, the ranking is "or something else".
+
+**Still to do on security, and it needs you:** the pre-rotation database token
+still works. `docs/ROTATE-DB-KEY.md`.
+
+### 14 Sep, in one line
 
 Three independent auditors walked the app; sixteen findings, six of them
 blockers, all fixed and pushed. Four of those findings were in code written
@@ -49,9 +69,12 @@ deployments roll out.
 
 ### Still open, as projects rather than fixes
 
-1. **Merge `/tonight` and `/plan`.** Two suggestion engines answering one
-   question, free to disagree with each other the way the date code did. Risk:
-   `/tonight` is tuned for one fast decision at six when you are hungry.
+1. ~~**Merge `/tonight` and `/plan`.**~~ Done 15 Sep, and the premise was
+   wrong — see above. There was one ranker all along; what was missing was
+   /tonight reading the plan. The pages stay separate on purpose: one answers
+   "what tonight, given what is in", the other "what this week, and what do I
+   need to buy". Merging the screens would have cost /tonight the thing it is
+   good at, which is one fast decision at six when you are hungry.
 2. **Read the use-by date with the camera.** Tesseract already runs in the
    browser for receipts. Must confirm before saving — a barcode misread as a
    date is worse than an empty field.

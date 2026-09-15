@@ -9,6 +9,7 @@ import { getRecipeTags, getTagsByRecipe } from "@/lib/recipe-tags";
 import { nearlyThere, rankTonight } from "@/lib/tonight";
 import { RecipeFilters } from "@/components/recipe-filters";
 import { currentKitchen } from "@/lib/session";
+import { getPlanned, isoDate, getSlots } from "@/lib/plan";
 import { hasBeenWelcomed } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
@@ -43,9 +44,27 @@ export default async function TonightPage({
   const forServings =
     Number.isFinite(Number(servings)) && Number(servings) > 0 ? Number(servings) : 2;
 
-  const [facts, myTags] = await Promise.all([
+  const today = isoDate(new Date());
+
+  const [facts, myTags, plannedToday, slots] = await Promise.all([
     getTonightFacts(kitchen.id, context.user.id),
     getRecipeTags(context.user.id),
+    /**
+     * What you already decided about tonight, on some calmer evening.
+     *
+     * This page and the planner were answering the same question and only one
+     * of them was listening. Plan a curry for Thursday on Sunday, open the app
+     * on Thursday, and it would suggest something else entirely and never
+     * mention the curry - two screens, one evening, two answers. That is the
+     * shape of bug AGENTS.md keeps a running total of, arrived at from a
+     * different direction: not two copies of a rule, but one screen ignoring
+     * the other's answer.
+     *
+     * A decision you already made beats a ranking every time, so it goes
+     * first and the ranked list becomes the alternatives.
+     */
+    getPlanned(kitchen.id, today, today),
+    getSlots(kitchen.id),
   ]);
 
   const tagsByRecipe = await getTagsByRecipe(facts.map((each) => each.id));
@@ -73,7 +92,47 @@ export default async function TonightPage({
   });
 
   const ranked = rankTonight(considered);
-  const [best, ...rest] = ranked;
+
+  // The suggestion for something already planned, so the card that says "you
+  // planned this" is the same card with the same cook button - rather than a
+  // second, lesser version of it that cannot do anything.
+  const byId = new Map(ranked.map((suggestion) => [suggestion.id, suggestion]));
+
+  const filtered = wantedTag !== null || wantedWithin !== null;
+
+  /**
+   * Tonight's plan, only when nothing is filtered.
+   *
+   * Setting a filter is asking a different question - "something Asian, under
+   * half an hour" is not "what did I decide on Sunday" - and answering the old
+   * one anyway would put a shepherd's pie at the top of a search for Asian
+   * food. So the filters hide it rather than fight it.
+   *
+   * Every slot for today, not just dinner: a kitchen with Breakfast, Lunch and
+   * Dinner set up planned all three, and showing one of them would be picking
+   * a meal on somebody's behalf.
+   */
+  const plannedForToday = filtered
+    ? []
+    : plannedToday
+        .filter((meal) => meal.recipe_id !== null || meal.note)
+        .sort((a, b) => a.slot - b.slot);
+
+  /**
+   * The alternatives, with tonight's plan taken out of them.
+   *
+   * Without this the planned curry is the card at the top AND the top of the
+   * list underneath it, which reads as the app not knowing it has already
+   * answered - the same complaint as before, one screen down.
+   */
+  const plannedIds = new Set(
+    plannedForToday
+      .map((meal) => meal.recipe_id)
+      .filter((id): id is number => id !== null),
+  );
+  const [best, ...rest] = ranked.filter(
+    (suggestion) => !plannedIds.has(suggestion.id),
+  );
 
   /**
    * Only offered once something can actually be cooked.
@@ -82,9 +141,9 @@ export default async function TonightPage({
    * it is nearly there - and the shortfall on the main card already covers
    * that case.
    */
-  const nearly = best ? nearlyThere(considered, [best.id]) : null;
-
-  const filtered = wantedTag !== null || wantedWithin !== null;
+  const nearly = best
+    ? nearlyThere(considered, [best.id, ...plannedIds])
+    : null;
 
   // Built once and placed twice: the phone folds it away, the desktop does not,
   // and the list itself should not know which.
@@ -138,7 +197,79 @@ export default async function TonightPage({
           basePath="/tonight"
         />
 
-        {!best ? (
+        {plannedForToday.length > 0 && (
+          <section className="mb-5">
+            <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-label">
+              You planned this
+            </h2>
+            <div className="space-y-3">
+              {plannedForToday.map((meal) => {
+                const suggestion = meal.recipe_id ? byId.get(meal.recipe_id) : undefined;
+
+                // The full card when the recipe is one this kitchen can cook -
+                // same buttons, same shortfall, nothing lesser about it.
+                if (suggestion) {
+                  return (
+                    <TonightCard
+                      key={meal.id}
+                      suggestion={suggestion}
+                      servings={meal.servings ?? forServings}
+                    />
+                  );
+                }
+
+                /**
+                 * A note, or a recipe the ranker did not have.
+                 *
+                 * "Leftovers" and "Out" are real answers about an evening and
+                 * there is nothing to cook for them. A planned recipe that is
+                 * missing from the ranking has usually left the cookbook since
+                 * it was planned - still worth saying, because the alternative
+                 * is the plan silently disappearing.
+                 */
+                return (
+                  <div
+                    key={meal.id}
+                    className="rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]"
+                  >
+                    <p className="text-xs font-bold uppercase tracking-[0.08em] text-label">
+                      {slots[meal.slot] ?? "Tonight"}
+                    </p>
+                    <p className="mt-1 text-[17px] font-extrabold">
+                      {meal.note || meal.recipe_name}
+                    </p>
+                    {meal.recipe_id && (
+                      <Link
+                        href={`/recipes/${meal.recipe_id}`}
+                        className="mt-3 inline-flex min-h-11 items-center rounded-[14px] bg-chip px-4 text-sm font-extrabold hover:bg-border"
+                      >
+                        Open it
+                      </Link>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs font-semibold text-muted-foreground">
+              From the week planner.{" "}
+              <Link href="/plan" className="font-bold text-primary underline underline-offset-2">
+                Change it
+              </Link>
+            </p>
+          </section>
+        )}
+
+        {plannedForToday.length > 0 && best && (
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-label">
+            Or something else
+          </h2>
+        )}
+
+        {/* With a plan up and nothing left to rank, say nothing. "Nothing in
+            your cookbook yet" under a card showing tonight's dinner is a lie,
+            and it is exactly what happens when the only recipe you have is the
+            one you planned. */}
+        {!best && plannedForToday.length > 0 ? null : !best ? (
           <div className="rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             <p className="text-sm font-semibold text-muted-foreground">
               {filtered
