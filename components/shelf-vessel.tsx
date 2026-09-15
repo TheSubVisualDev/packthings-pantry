@@ -28,7 +28,7 @@ const PATHS: Record<Kind, string> = {
   bottle: "M24 4 h12 v13 l10 11 v32 a6 6 0 0 1 -6 6 h-20 a6 6 0 0 1 -6 -6 v-32 l10 -11 z",
   carton: "M12 24 l18 -14 l18 14 v36 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 z",
   jar: "M14 20 h32 a6 6 0 0 1 6 6 v34 a6 6 0 0 1 -6 6 h-32 a6 6 0 0 1 -6 -6 v-34 a6 6 0 0 1 6 -6 z",
-  bag: "M16 22 q14 -7 28 0 l4 38 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 z",
+  bag: "M19 22 h22 c4 10 7 18 7 28 v10 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 v-10 c0 -10 3 -18 7 -28 z",
   tub: "M13 26 h34 l-4 34 a6 6 0 0 1 -6 6 h-14 a6 6 0 0 1 -6 -6 z",
   spice: "M21 24 h18 v36 a5 5 0 0 1 -5 5 h-8 a5 5 0 0 1 -5 -5 z",
   tin: "M14 22 h32 v38 a6 6 0 0 1 -6 6 h-20 a6 6 0 0 1 -6 -6 z",
@@ -53,9 +53,21 @@ const CAPS: Partial<Record<Kind, string>> = {
  * neck, and getting that wrong makes every bottle look fuller than it is.
  */
 const SPAN: Record<Kind, [number, number]> = {
-  bottle: [28, 66], carton: [24, 66], jar: [20, 66], bag: [22, 66],
+  bottle: [28, 66], carton: [24, 66], jar: [20, 66], bag: [24, 66],
   tub: [26, 66], spice: [24, 65], tin: [22, 66], block: [28, 66],
   tray: [32, 66], pips: [20, 66],
+};
+
+/**
+ * A crimped seal, for the shapes that are closed by being pinched shut.
+ *
+ * Stroked rather than filled, and zigzagged, because the first two attempts at
+ * a bag both failed the same way: anything solid across the top reads as a
+ * LID, and a lid makes a bag of carrots look like a tin of them. This is the
+ * serrated edge you tear off, which nothing with a lid has.
+ */
+const CRIMPS: Partial<Record<Kind, string>> = {
+  bag: "M19 22 l4 -5 l4 5 l4 -5 l4 5 l4 -5 l4 5",
 };
 
 const INK = "oklch(0.42 0.02 55)";
@@ -188,16 +200,35 @@ export function ShelfVessel({ item, size = 44 }: { item: Item; size?: number }) 
         strokeDasharray={fill === null ? "6 5" : undefined}
       />
       {CAPS[kind] && <path d={CAPS[kind]} fill={outline} />}
+      {CRIMPS[kind] && (
+        <path
+          d={CRIMPS[kind]}
+          fill="none"
+          stroke={outline}
+          strokeWidth={urgent ? 3 : 2.5}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          strokeDasharray={fill === null ? "6 5" : undefined}
+        />
+      )}
 
-      {/* A broken seal along the shoulder: this one is open, so the date on
-          the packet has stopped being the answer. */}
+      {/*
+        This one is open, so the date on the packet has stopped being the
+        answer.
+
+        Inset and thin rather than a heavy line across the full width: at the
+        shoulder, edge to edge, it read as the RIM OF A TIN - which is how a
+        bag of carrots came to look like a can. It is a seal that has been
+        broken, so it sits inside the outline rather than replacing it.
+      */}
       {item.opened_at && (
         <path
-          d={`M8 ${top} h44`}
+          d={`M18 ${top + 4} h24`}
           stroke={outline}
-          strokeWidth="3"
+          strokeWidth="2"
           strokeLinecap="round"
-          strokeDasharray="1 7"
+          strokeDasharray="1 5"
+          opacity="0.75"
         />
       )}
 
