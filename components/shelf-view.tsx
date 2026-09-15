@@ -129,7 +129,7 @@ export function ShelfView({
               continuous line per row, which then works at any width without
               anybody having to know how many fit.
             */}
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(56px,1fr))] items-end gap-y-3">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(62px,1fr))] items-end gap-y-3">
               {shelf.map((item) => (
                 <Link
                   key={item.id}
@@ -141,7 +141,7 @@ export function ShelfView({
                 >
                   <ShelfVessel item={item} size={44} />
                   <span
-                    className={`line-clamp-2 text-center text-[9.5px] leading-[1.15] font-extrabold ${
+                    className={`line-clamp-2 text-center text-[10px] leading-[1.2] font-extrabold ${
                       fillFor(item) === null ? "text-quantity" : ""
                     }`}
                   >

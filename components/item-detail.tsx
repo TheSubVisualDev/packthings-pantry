@@ -119,6 +119,10 @@ export function ItemDetail({
         </div>
       )}
       <section className={CARD}>
+        {/* No vessel here on purpose. The "On the shelf" card below already
+            draws this item large and DRAGGABLE - putting a small static copy
+            above it meant two pictures of one bottle on one screen, in two
+            different styles, and the better one second. */}
         <div className="flex items-baseline justify-between gap-3">
           <h1 className="text-[24px] font-extrabold tracking-[-0.02em] break-words">
             {item.name}

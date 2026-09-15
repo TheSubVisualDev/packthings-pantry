@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Rescue } from "@/lib/queries";
 import { daysUntil } from "@/lib/dates";
+import { ShelfVessel } from "@/components/shelf-vessel";
 
 /**
  * What is expiring soon, as a band rather than a panel - board `1a`/`1b`.
@@ -54,21 +55,30 @@ export function ExpiringSoon({ rescues }: { rescues: Rescue[] }) {
                 gone || today ? "border-l-destructive" : "border-l-primary"
               }`}
             >
-              <div className="truncate text-[13px] font-extrabold tracking-[-0.01em]">
-                {item.name}
-              </div>
-              <div
-                className={`mt-0.5 text-[12px] font-bold ${
-                  gone || today ? "text-destructive" : "text-muted-foreground"
-                }`}
-              >
-                {gone
-                  ? `${Math.abs(left)}d ago`
-                  : today
-                    ? "Today"
-                    : left === 1
-                      ? "1 day"
-                      : `${left} days`}
+              {/* The same drawing as the shelf, so the thing you are being
+                  warned about is the thing you will recognise when you go
+                  looking for it. Small: this is a deadline, and the vessel is
+                  identification rather than the point. */}
+              <div className="flex items-center gap-2.5">
+                <ShelfVessel item={item} size={26} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-extrabold tracking-[-0.01em]">
+                    {item.name}
+                  </div>
+                  <div
+                    className={`mt-0.5 text-[12px] font-bold ${
+                      gone || today ? "text-destructive" : "text-muted-foreground"
+                    }`}
+                  >
+                    {gone
+                      ? `${Math.abs(left)}d ago`
+                      : today
+                        ? "Today"
+                        : left === 1
+                          ? "1 day"
+                          : `${left} days`}
+                  </div>
+                </div>
               </div>
             </Link>
           );
