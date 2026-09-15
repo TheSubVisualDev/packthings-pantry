@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { formatQuantity } from "@/lib/units";
 import type { Dimension } from "@/lib/types";
+import { vesselFor, type Vessel as Kind } from "@/lib/vessel";
 
 /**
  * How much is in it, asked the way anybody would answer.
@@ -48,32 +49,51 @@ export function vesselModeFor(item: {
 }
 
 /**
- * Which glyph to draw, from the words already on the item.
+ * Which of the four drawable shapes this item gets.
  *
- * A lookup over the pack unit, the tags and the name - never a table of foods.
- * A new food should never need a line of code here, and if nothing matches, a
- * jar is the shape that reads as "container" without claiming anything.
+ * The rules used to live here, as a handful of regexes over the pack unit, the
+ * tags and the name. They have moved to lib/vessel.ts and this narrows what
+ * comes back - not because the old ones were wrong, but because the shelf view
+ * needed the same question answered with a wider vocabulary (a carton, a tub,
+ * a spice jar) and two functions deciding what shape a thing is would be two
+ * answers free to disagree, which is the bug this codebase keeps a count of.
+ *
+ * It also could not be checked from here. `scripts/ts-imports.mjs` cannot load
+ * a .tsx, so every rule in this file was invisible to the check harness that
+ * AGENTS.md says exists so a check tests what ships.
+ *
+ * `fallback: "jar"` keeps this control drawing exactly what it drew before for
+ * anything unrecognised. The shelf falls back to a bag instead - see the note
+ * on VesselHints about why both are right.
  */
+const DRAWABLE: Record<Kind, VesselKind> = {
+  bottle: "bottle",
+  carton: "bottle",
+  tin: "tin",
+  bag: "bag",
+  jar: "jar",
+  tub: "jar",
+  spice: "jar",
+  block: "jar",
+  tray: "jar",
+  // Counted items never reach this control - vesselModeFor sends them to the
+  // stepper - but a total map is one less thing that can be undefined.
+  pips: "jar",
+};
+
 export function vesselKindFor(item: {
   packUnit?: string | null;
   tags?: string[];
   name?: string;
   dimension: Dimension;
 }): VesselKind {
-  const words = [item.packUnit ?? "", item.name ?? "", ...(item.tags ?? [])]
-    .join(" ")
-    .toLowerCase();
-
-  if (/\b(bottle|oil|sauce|milk|vinegar|juice|squash|wine)\b/.test(words)) {
-    return "bottle";
-  }
-  if (/\b(tin|can|tinned|canned)\b/.test(words)) return "tin";
-  if (/\b(bag|sack|packet|pack|flour|rice|pasta|sugar|lentils|oats)\b/.test(words)) {
-    return "bag";
-  }
-  // Volume with nothing else said is more often poured than scooped.
-  if (item.dimension === "volume") return "bottle";
-  return "jar";
+  return DRAWABLE[
+    vesselFor(item.name ?? "", item.dimension === "count" ? "count" : "", item.dimension, {
+      packUnit: item.packUnit,
+      tags: item.tags,
+      fallback: "jar",
+    })
+  ];
 }
 
 /** The levels a tap can set, which is how most people would answer anyway. */

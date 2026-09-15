@@ -152,6 +152,10 @@ export function RowAdjust({
         )}
         <Link
           href={`/pantry/item/${item.id}`}
+          // Counted here as well as on the shelf, so the two can be compared.
+          // A name that only ever fires from one view answers nothing about
+          // whether that view is the better one.
+          data-track="stock.open"
           className="flex h-9 items-center gap-1 rounded-full bg-card px-3.5 text-[12px] font-bold shadow-[0_1px_3px_rgba(0,0,0,0.05)]"
         >
           Open item

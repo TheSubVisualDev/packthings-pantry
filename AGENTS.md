@@ -136,6 +136,28 @@ describing it, because a cook can be undone and "@luna cooked your ragu" for a
 cook that did not happen is worse than silence - and undo marks `undone_at`
 rather than deleting, so the cascade never fires and `forgetCook` has to.
 
+**What shape a thing is, is decided in one place.** `lib/vessel.ts` answers it
+from the name and the unit, because nothing in the database says "jar" - there
+is no packaging column, Open Food Facts is never asked, and `count_noun` is
+empty on every row. The rule learned from running it over the real kitchen is
+**the name beats the unit**: half the rows are "there is some, nobody said how
+much" placeholders and every one of those is stored as mass whatever it is, so
+a unit-first rule drew Olive oil and Milk as bags - while Paprika and MSG are
+stored as `1 count`, so counting first drew spice jars as pips. Both directions
+are pinned in `npm run check:vessel`.
+
+Two components draw from it and neither may grow its own copy:
+`components/vessel.tsx` is the control you DRAG to say how full something is,
+and `components/shelf-vessel.tsx` only ever reports. The classifier used to
+live inside the client component, where `scripts/ts-imports.mjs` could not load
+it - a .tsx is invisible to the check harness, so every rule in it was
+untestable. Anything a check needs to ask belongs in `lib/`.
+
+Being wrong about a shape is deliberately cheap - a bottle drawn as a jar still
+shows the right amount at the right level - so it needs no marking, unlike the
+expiry guess. `fillFor` is the half that must never lie: it returns null rather
+than a plausible level for an `unspecified` row or one with no pack size.
+
 ## Before changing the database
 
 1. `node --env-file=.env.local scripts/clone-db.mjs <file>` - copies live into a
@@ -169,6 +191,7 @@ still there as the way back.
     npm run check:estimates   the generic-food matcher
     npm run check:usage       every counted name is one the server accepts
     npm run check:shelf-life  how long food lasts, and the date arithmetic
+    npm run check:vessel      what shape a thing is, and whether it has a level
     npm run probe             round-trip time to the database
 
 `scripts/ts-imports.mjs` lets plain node import the project's TypeScript, so a

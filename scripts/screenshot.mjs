@@ -129,6 +129,24 @@ for (const p of paths) {
     await page.waitForTimeout(400);
   }
 
+  /**
+   * A beat for entrance animations that are deliberately late.
+   *
+   * networkidle means the data has arrived, not that the page has finished
+   * appearing. The segmented control fades in on a 120ms delay (see .segmented
+   * in globals.css, which holds it back so a white pill does not pop up over a
+   * half-finished page transition) - so every screenshot ever taken of the
+   * stock page has had an invisible group-by control in it, and it looked
+   * exactly like a bug in whatever was being reviewed that day.
+   *
+   * 700ms rather than the 260ms the animation needs, because hydration can
+   * restart it: the control is server-rendered, React adopts it, and the
+   * animation runs again from whenever that happened rather than from load.
+   * Measured in a real browser the control is there and fully opaque - it is
+   * only the picture that kept missing it.
+   */
+  await page.waitForTimeout(700);
+
   // caret: "initial" because Playwright's default hides the text caret by
   // writing `caret-color: transparent` into the page - which then shows up as
   // a hydration mismatch in the dev log, on a style nothing in this codebase
@@ -137,6 +155,19 @@ for (const p of paths) {
     path: `${OUT}/${name}.png`,
     fullPage: process.env.SHOT_FULL === "1",
     caret: "initial",
+    /**
+     * Finish every CSS animation before the shutter, rather than catching one
+     * mid-flight.
+     *
+     * The stock page's group-by control fades in on a delay - see .segmented
+     * in globals.css - and no amount of waiting caught it, because hydration
+     * restarts the animation after the page has otherwise settled. Every
+     * screenshot of that page ever taken has had an invisible control in it,
+     * which reads as a missing control in whatever was being reviewed.
+     * "disabled" fast-forwards animations to their end state, which is the
+     * page as somebody actually sees it a moment after it loads.
+     */
+    animations: "disabled",
   });
   console.log(name, page.url());
 }

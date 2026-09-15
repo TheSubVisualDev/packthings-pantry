@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Segmented } from "@/components/ui/segmented";
+import { ShelfView } from "@/components/shelf-view";
 import { EstimateButton } from "@/components/estimate-button";
 import { EstimateDatesButton } from "@/components/estimate-dates-button";
 import { StockList } from "@/components/stock-list";
@@ -83,12 +84,22 @@ function group(
   return entries.sort(([a], [b]) => a.localeCompare(b));
 }
 
-function GroupToggle({ active }: { active: GroupBy }) {
+/**
+ * Shelf is a view, not a grouping, and it sits here anyway.
+ *
+ * It groups by place like "Place" does - but it draws the kitchen instead of
+ * listing it, so putting it in a second control would make somebody choose
+ * twice to answer one question. First in the row because it is the one that
+ * answers "what have I got" without reading; the three list groupings stay
+ * exactly where they were for the questions a list is better at.
+ */
+function GroupToggle({ active }: { active: GroupBy | "shelf" }) {
   return (
     <Segmented
       label="Group stock by"
       active={active}
       options={[
+        { key: "shelf", label: "Shelf", href: "/pantry?by=shelf" },
         { key: "tag", label: "Tag", href: "/pantry?by=tag" },
         { key: "nutrition", label: "Nutrition", href: "/pantry?by=nutrition" },
         { key: "location", label: "Place", href: "/pantry?by=location" },
@@ -103,8 +114,13 @@ export default async function PantryPage({
   searchParams: Promise<{ by?: string }>;
 }) {
   const { by } = await searchParams;
+  const shelf = by === "shelf";
   const groupBy: GroupBy =
-    by === "location" ? "location" : by === "nutrition" ? "nutrition" : "tag";
+    by === "location" || shelf
+      ? "location"
+      : by === "nutrition"
+        ? "nutrition"
+        : "tag";
 
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
@@ -199,14 +215,25 @@ export default async function PantryPage({
           <EmptyShelves />
         ) : (
           <>
-            <StockList
-              groups={groups}
-              places={places}
-              tags={tags}
-              canEdit={kitchen.role !== "viewer"}
-              runOut={runOut}
-              groupControl={<GroupToggle active={groupBy} />}
-            />
+            {shelf ? (
+              <div className="flex flex-col gap-3">
+                <GroupToggle active="shelf" />
+                <ShelfView
+                  items={onShelf}
+                  places={places}
+                  canEdit={kitchen.role !== "viewer"}
+                />
+              </div>
+            ) : (
+              <StockList
+                groups={groups}
+                places={places}
+                tags={tags}
+                canEdit={kitchen.role !== "viewer"}
+                runOut={runOut}
+                groupControl={<GroupToggle active={groupBy} />}
+              />
+            )}
 
             {/* Housekeeping, so it sits under the list rather than above it.
                 New items are estimated as they arrive, which makes this the

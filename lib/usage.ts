@@ -49,6 +49,10 @@ export const ACTIONS = [
   "stock.adjust",         // the stepper or the sheet moved a quantity
   "stock.pack",           // a sealed pack was opened
   "stock.swipe",          // the row gesture, either direction
+  // Tapping through to an item. Worth its own name because the shelf view and
+  // the list both lead here, and `page` says which - which is the whole
+  // question about whether drawing the kitchen beats tabulating it.
+  "stock.open",
   "item.add",             // something new put on a shelf
   "receipt.scan",         // a photo of a receipt was read
   "shopping.add",         // anything added to the list, from anywhere

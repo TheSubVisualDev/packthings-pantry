@@ -74,12 +74,33 @@ const BAGGED = new Set([
   "sugar", "carrots", "potato", "sweet potato", "onion", "peas",
 ]);
 
+export interface VesselHints {
+  /** What one pack is called, when a barcode said so. */
+  packUnit?: string | null;
+  /** The item's tags, which sometimes name the packaging. */
+  tags?: string[];
+  /**
+   * What to return when nothing is recognised.
+   *
+   * Callers disagree about what "I do not know" should look like, and both are
+   * right. The shelf wants a bag - a soft slumped shape that carries a level
+   * convincingly and claims nothing about packaging. The editable control in
+   * components/vessel.tsx wants a jar, which is the shape that reads as
+   * "container" at the size it draws. One set of rules, two ideas of nothing.
+   */
+  fallback?: Vessel;
+}
+
 export function vesselFor(
   name: string,
   canonicalUnit: string,
   dimension: string,
+  hints: VesselHints = {},
 ): Vessel {
   const label = estimateFor(name)?.label ?? "";
+  // The pack unit and the tags are words about the packet, so they answer this
+  // question as well as the name does - "bottle" in a tag is not a guess.
+  const said = [name, hints.packUnit ?? "", ...(hints.tags ?? [])].join(" ");
 
   /**
    * The name beats the unit, and that ordering was learned from real rows.
@@ -98,7 +119,7 @@ export function vesselFor(
     // Black pepper, and every jar on the rack, whatever unit it landed in.
     if (!has(name, ["sweet pepper", "peppers", "red pepper flakes"])) return "spice";
   }
-  if (has(name, ["oil"])) return "bottle";
+  if (has(said, ["oil", "sauce", "vinegar", "juice", "squash", "wine"])) return "bottle";
   if (has(name, ["milk"])) return "carton";
   if (has(name, ["egg", "eggs"])) return "pips";
   if (has(name, ["cube", "cubes"])) return "pips";
@@ -114,11 +135,11 @@ export function vesselFor(
 
   // The name wins over the food, because a name is about the packet and the
   // generic is only about the food. "Tinned tomatoes" and "tomato" agree here.
-  if (has(name, ["tinned", "tin", "can", "canned"])) return "tin";
+  if (has(said, ["tinned", "tin", "can", "canned"])) return "tin";
   if (has(name, ["jar", "paste", "puree", "pickle", "jam", "chutney"])) return "jar";
-  if (has(name, ["bottle"])) return "bottle";
-  if (has(name, ["carton"])) return "carton";
-  if (has(name, ["bag", "sack", "packet"])) return "bag";
+  if (has(said, ["bottle"])) return "bottle";
+  if (has(said, ["carton"])) return "carton";
+  if (has(said, ["bag", "sack", "packet", "pack"])) return "bag";
 
   if (dimension === "volume") {
     if (has(name, ["milk", "cream", "yoghurt", "yogurt"]) || label.includes("milk")) {
@@ -152,7 +173,7 @@ export function vesselFor(
    * carries a level convincingly at any size, and unlike a tin or a jar it
    * does not claim to know anything about the packaging.
    */
-  return "bag";
+  return hints.fallback ?? "bag";
 }
 
 /**
@@ -172,4 +193,51 @@ export function fillFor(item: {
   if (item.unspecified === 1) return null;
   if (item.pack_size === null || item.pack_size <= 0) return null;
   return Math.max(0, Math.min(1, item.quantity / item.pack_size));
+}
+
+/**
+ * What colour the contents are.
+ *
+ * Not decoration: it is the difference between reading a shelf and reading a
+ * bar chart. A row of identical terracotta silhouettes tells you the levels
+ * and nothing else, and the whole argument for drawing vessels is that a
+ * kitchen is recognisable at a glance.
+ *
+ * Hues stay inside the app's warm range at a similar chroma, with one green
+ * for produce, so a shelf reads as one picture rather than a paint chart -
+ * the same rule the design language applies to everything else.
+ *
+ * Keyed off the food where it is recognised and the vessel otherwise, because
+ * the container is a decent proxy when the food is not known: whatever is in
+ * an unrecognised tin, it is not bright white.
+ */
+export function tintFor(name: string, vessel: Vessel): string {
+  const label = estimateFor(name)?.label ?? "";
+  const n = name.toLowerCase();
+
+  if (label.includes("milk") || has(name, ["milk", "cream", "yoghurt"])) {
+    return "oklch(0.93 0.03 90)";
+  }
+  if (has(name, ["butter", "cheese"])) return "oklch(0.88 0.08 90)";
+  if (has(name, ["soy", "vinegar", "worcestershire"])) return "oklch(0.38 0.06 45)";
+  if (has(name, ["oil"])) return "oklch(0.82 0.11 85)";
+  if (has(name, ["chilli", "chili", "paprika", "gochujang", "tomato", "harissa"])) {
+    return "oklch(0.55 0.15 35)";
+  }
+  if (has(name, ["carrot", "squash", "pepper", "onion"])) return "oklch(0.75 0.12 60)";
+  if (n.includes("herb") || has(name, ["oregano", "basil", "parsley", "coriander", "mint", "spinach", "pea", "bean"])) {
+    return "oklch(0.68 0.10 130)";
+  }
+  if (has(name, ["flour", "sugar", "rice", "oats", "couscous"])) return "oklch(0.91 0.03 75)";
+
+  switch (vessel) {
+    case "spice": return "oklch(0.62 0.12 50)";
+    case "tray": return "oklch(0.68 0.11 30)";
+    case "tin": return "oklch(0.60 0.10 45)";
+    case "block": return "oklch(0.88 0.06 88)";
+    case "tub": return "oklch(0.92 0.03 85)";
+    case "bottle": return "oklch(0.70 0.10 70)";
+    case "carton": return "oklch(0.90 0.04 80)";
+    default: return "oklch(0.86 0.06 72)";
+  }
 }
