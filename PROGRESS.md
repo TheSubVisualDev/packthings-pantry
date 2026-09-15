@@ -5,10 +5,8 @@ timestamp to see how fresh it is.
 
 **Last updated:** 15 Sep 2026 — reports #23 and #24 done, security headers on
 **Doing right now:** nothing
-**Waiting on you:** two things. The database key rotation, which needs the
-Hetzner box and about twenty minutes — `docs/ROTATE-DB-KEY.md` is the runbook.
-And how the swipe sensitivity actually feels in the hand; the thresholds were
-guessed with a mouse and a thumb is not a mouse.
+**Waiting on you:** how the swipe sensitivity actually feels in the hand. The
+thresholds were guessed with a mouse and a thumb is not a mouse.
 
 ### 15 Sep, in one line
 
@@ -25,8 +23,14 @@ worse — /tonight never read the plan at all, so a curry planned for Thursday
 on Sunday was invisible on Thursday and the app cheerfully suggested something
 else. Fixed: the plan leads, the ranking is "or something else".
 
-**Still to do on security, and it needs you:** the pre-rotation database token
-still works. `docs/ROTATE-DB-KEY.md`.
+**The database key is rotated.** The pre-rotation token is dead - it now
+returns `AUTH_JWT_INVALID`, tested rather than assumed. Four minutes down.
+The new token expires 14 Dec 2026 and renewing it needs no downtime, because
+the key does not change. `docs/ROTATE-DB-KEY.md`.
+
+**Left on the box:** `db.packthings.fyi` still answers the open internet and
+still tells anyone its version. Restricting it at Caddy needs a decision about
+Vercel's egress addresses changing.
 
 ### 14 Sep, in one line
 

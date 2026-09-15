@@ -1,14 +1,16 @@
 # Killing the old database token
 
-**The oldest outstanding item in the project.** Flagged by the pen test on
-10 Sep 2026 as its only real finding, deferred ever since because it is the one
-change with production downtime attached.
+**Done, 15 Sep 2026.** This was the oldest outstanding item in the project -
+flagged by the pen test on 10 Sep 2026 as its only real finding, and deferred
+ever since because it is the one change with production downtime attached.
+The result is below; the history and the steps are kept because this has to be
+done again before the new token expires.
 
 ## What the problem actually is
 
 The token was rotated on 10 Sep and a new one issued with an expiry of
 9 Dec 2026. That did not help as much as it sounds: **the old token still
-works.** sqld verifies a JWT's signature against the public key it was started
+worked.** sqld verifies a JWT's signature against the public key it was started
 with and keeps no revocation list, so a token minted before the rotation is
 still a valid signature over a still-valid claim. There is no list to add it
 to and no flag to turn it off.
@@ -31,54 +33,75 @@ own database is a real outcome:
 
     node --env-file=.env.local scripts/clone-db.mjs "C:\Users\Luna\Documents\pantry\backups\pre-key-rotation.db"
 
-## Where this got to on 15 Sep 2026
+## DONE — 15 Sep 2026, 17:48 UTC
 
-Half done, and stopped deliberately at the safe point.
+The old token is dead. Verified, not assumed.
 
-**Done already:**
-
-- Database backed up to
-  `C:\Users\Luna\Documents\pantry\backups\pre-key-rotation-2026-09-15.db`
-  (600 rows, foreign keys intact).
-- A new Ed25519 keypair generated in `C:\Users\Luna\Documents\pantry\keys\`.
-  The private key has never been on the server and does not need to be.
-- A 90-day `rw` token minted from it, in `keys\token.txt`. Expires
-  14 Dec 2026.
-- The new public key copied to the box as `/opt/pantry-db/jwt-public.new.pem`,
-  **not yet active**. sqld is still reading `jwt-public.pem` and everything
-  still works.
-
-Fingerprints, so you can tell them apart:
+What happened, in order: database backed up (600 rows); a new Ed25519 keypair
+generated on Luna's machine, where the private key has stayed; a 90-day `rw`
+token minted from it; the new public key staged on the box; Luna wrote the
+token into Vercel production; the key swapped and `pantry-sqld` restarted; a
+production deploy; both tokens tested against the running server.
 
 | | |
 |---|---|
-| active now | `a755c02d9248c043` |
-| staged | `484d950c68f23a1d` |
+| old key fingerprint | `a755c02d9248c043` — no longer accepted |
+| new key fingerprint | `484d950c68f23a1d` — live |
+| token expires | 14 Dec 2026 |
+| private key | `C:\Users\Luna\Documents\pantry\keys\jwt-private.pem` |
+| downtime | about four minutes |
 
-**Blocked on:** writing the token into Vercel. Claude Code's auto mode refuses
-secret-store writes, which is the same wall the phase 1 migration hit. Nothing
-after that step can safely run until it is done - restarting sqld while Vercel
-still holds a token signed by the old key takes the site down and leaves it
-down.
+**Proof the rotation took**, which is the step worth not skipping: the previous
+token now returns `AUTH_JWT_INVALID: Authentication failed: The JWT is
+invalid`, and the new one reads 47 items. `/api/health` on the live site
+reports 7.5ms single queries from Frankfurt to Nuremberg over `wss`, so the
+deployed app is genuinely talking to the database rather than serving a cached
+page.
 
-So run these two, and nothing else:
+**Before 14 Dec 2026** this has to be done again, and it is far cheaper the
+second time: the keypair does not change, so it is `scripts/gen-token.mjs`,
+the two Vercel commands, `.env.local`, and a redeploy. No restart, no
+downtime, because the key stays the same.
 
-    vercel env rm LIBSQL_AUTH_TOKEN production --yes
-    vercel env add LIBSQL_AUTH_TOKEN production < "C:\Users\Luna\Documents\pantry\keys\token.txt"
+### Two things found on the way
 
-Then say so, and the rest - swapping the key, restarting the container,
-redeploying, and proving the old token is dead - can be done in one go. The
-site is down from the restart until the redeploy lands, a minute or two.
+**Nobody knows where the original private key is.** Not on this machine, not
+on the box, and `.gitignore` has `*.pem` so it never reached git. That is no
+longer a live problem - anything signed with it is now refused - but it is why
+the new one has a home written down above, and why the expiry is ninety days
+rather than never.
 
-Also worth knowing: **the old private key is nowhere on this machine or the
-box.** `.gitignore` has `*.pem` so it never reached git. Nobody can say who
-holds a copy, which is an argument for finishing this rather than against.
+**`/opt/pantry-db/iku.db` is not yours and is not a problem.** An empty
+directory that appears at every container start and alarms whoever notices it.
+The image's entrypoint is:
 
-And there is a stray file in `/opt/pantry-db/` literally named
-`sudo ss -tlnp | grep -E ':80|:443'` - somebody's fat-fingered command line
-became a filename on 10 Sep. Harmless, worth deleting while you are there.
+    SQLD_DB_PATH="${SQLD_DB_PATH:-iku.db}"
+    mkdir -p $SQLD_DB_PATH
 
-## The steps
+It creates the default path before exec'ing sqld with our explicit
+`--db-path /var/lib/sqld/pantry.db`, so the directory is made, never opened,
+and remade the next time. Deleting it achieves nothing. The real database is
+`pantry.db`, which has `dbs/`, `metastore/` and a `.version` inside it.
+
+Also deleted while there: a file in `/opt/pantry-db/` literally named
+`sudo ss -tlnp | grep -E ':80|:443'`, a command line that became a filename
+during the original setup.
+
+### Still open on the box
+
+`db.packthings.fyi` still answers the open internet, and still tells anybody
+who asks what version it is:
+
+    curl https://db.packthings.fyi/version
+
+Restricting the host at Caddy to Vercel's egress and Luna's own IP closes
+pen-test finding 3 and makes a future leaked token worth much less. Not done -
+it needs a decision about what happens when Vercel's egress addresses change,
+which is a different kind of risk from this one.
+
+## The steps, for next time
+
+
 
 1. **Generate a new keypair**, on the box:
 
