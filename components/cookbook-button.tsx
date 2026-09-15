@@ -115,6 +115,7 @@ export function CookbookButton({
         type="button"
         disabled={pending}
         onClick={begin}
+        data-track="recipe.save"
         className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-primary px-4 py-3.5 text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
       >
         <BookOpen className="h-4 w-4" strokeWidth={2.5} />

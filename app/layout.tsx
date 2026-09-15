@@ -3,6 +3,7 @@ import { Manrope, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { NavTransitions } from "@/components/nav-transitions";
 import { AddMenu } from "@/components/add-menu";
+import { UsageTracker } from "@/components/usage-tracker";
 
 /**
  * Two families, deliberately.
@@ -78,6 +79,9 @@ export default function RootLayout({
         <NavTransitions />
         {children}
         <AddMenu />
+        {/* Counts taps on anything carrying data-track, from one listener.
+            Renders nothing, and cannot affect the click it is watching. */}
+        <UsageTracker />
       </body>
     </html>
   );

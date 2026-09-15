@@ -12,6 +12,7 @@ import {
 import { deleteRecipe, saveRecipe } from "@/lib/recipe-store";
 import { readRecipeText } from "@/lib/recipe-text";
 import { splitAmount } from "@/lib/units";
+import { record } from "@/lib/usage";
 
 export interface SaveRecipeResult {
   ok: boolean;
@@ -47,6 +48,13 @@ export async function saveRecipeDocument(
   }
 
   const id = await saveRecipe(parsed.recipe, existingId, context.user.id);
+
+  // Only a new one. An edit is a different question - "is the editor used" -
+  // and rolling the two together would make one heavily-revised recipe look
+  // like a stream of people writing recipes.
+  if (existingId === undefined) {
+    record("recipe.create", context.user.id, "/recipes/new");
+  }
 
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${id}`);
@@ -156,6 +164,11 @@ export async function readPastedText(text: string): Promise<ReadPastedResult> {
       warnings: parsed.warnings,
     };
   }
+
+  // Counted on a successful read rather than on save: the question this
+  // answers is whether pasting is how people get recipes in, and a paste that
+  // was read and then abandoned still says yes to that.
+  record("recipe.paste", context.user.id, "/recipes/paste");
 
   return {
     ok: true,

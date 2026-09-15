@@ -8,6 +8,7 @@ import { forkRecipe, setVisibility } from "@/lib/recipe-store";
 import { block, follow, isVisibility, unblock, unfollow } from "@/lib/social";
 import { getDb } from "@/lib/db";
 import { getUserByHandle } from "@/lib/users";
+import { record } from "@/lib/usage";
 
 export interface SocialResult {
   ok: boolean;
@@ -115,6 +116,11 @@ export async function setLiked(
       args: [recipeId, session.user.id],
     });
   }
+
+  // The like, not the unlike. An unlike is a correction, and counting both
+  // would make a heart that gets toggled twice look twice as used as one
+  // that got pressed and meant.
+  if (liked) record("recipe.like", session.user.id, `/recipes/${recipeId}`);
 
   revalidatePath(`/recipes/${recipeId}`);
   return { ok: true };

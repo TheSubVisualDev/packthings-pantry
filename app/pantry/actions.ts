@@ -9,6 +9,7 @@ import { requireKitchenRole } from "@/lib/session";
 import { isBarcode } from "@/lib/off";
 import { CANONICAL_FOR, dimensionOf, toCanonical } from "@/lib/units";
 import { ADJUST_SQL, PACK_SQL } from "@/lib/containers";
+import { record } from "@/lib/usage";
 import { cleanTagName, ensureTag, setPrimaryTag, tagItem, untagItem } from "@/lib/tags";
 import { cleanShopName, setPreferredShop, shopItem, unshopItem } from "@/lib/shops";
 import {
@@ -232,6 +233,10 @@ export async function addItem(
    */
   await estimateOne(access.kitchen.id, itemId, name);
 
+  // Before the redirect. `redirect` throws to unwind, so anything after it
+  // never runs - which is the trap this line would otherwise fall into.
+  record("item.add", access.user.id, "/pantry/new");
+
   revalidatePath("/pantry");
   revalidatePath("/recipes");
   redirect("/pantry");
@@ -285,6 +290,10 @@ export async function adjustItem(
   if (!row) {
     return { ok: false, error: "That item can't be adjusted." };
   }
+
+  // Counted here rather than on the stepper, because the stepper moves
+  // optimistically and can move several times for one real change.
+  record("stock.adjust", access.user.id, "/pantry");
 
   revalidatePath("/pantry");
   revalidatePath("/recipes");
@@ -532,6 +541,8 @@ export async function adjustPacks(
   if (!row) {
     return { ok: false, error: "Give this a pack size first." };
   }
+
+  record("stock.pack", access.user.id, `/pantry/item/${itemId}`);
 
   revalidatePath("/pantry");
   revalidatePath(`/pantry/item/${itemId}`);

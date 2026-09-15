@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
+import { track } from "./usage-tracker";
 
 /**
  * Search, without a Search button.
@@ -27,8 +28,15 @@ export function SearchBox({
   const router = useRouter();
   const [term, setTerm] = useState(params.get("q") ?? "");
 
-  const go = (value: string) =>
+  const go = (value: string) => {
+    // Counted where the search is actually issued rather than per keystroke.
+    // It still over-counts slightly - somebody who pauses mid-word types two
+    // searches by this measure - but the question being asked is "does anyone
+    // search here at all, and on which page", and that survives the noise.
+    // Clearing the box is not a search.
+    if (value.trim()) track("search.run", basePath);
     router.push(value.trim() ? `${basePath}?q=${encodeURIComponent(value.trim())}` : basePath);
+  };
 
   /**
    * Waits for a pause in typing before asking the server.

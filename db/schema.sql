@@ -679,3 +679,37 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
+
+-- What people actually press.
+--
+-- The point of this table is to answer "which things get used, and which were
+-- built and then never touched again" - so that the frictionless-making effort
+-- goes where the taps are. It is a counting table and nothing else: one row per
+-- action, no session stitching, no funnels, no path through the app. Anything
+-- that needed those would need a different table and a reason.
+--
+-- `action` is a dotted name, lowercase, coarse: 'cook.start', 'stock.adjust',
+-- 'shopping.add'. Coarse because a name per button gives you two hundred
+-- counts of one, and the question is which FEATURE is used. The name is
+-- written at the call site and never parsed here, so renaming one splits its
+-- history - which is the honest outcome, since a renamed button is usually a
+-- changed button.
+--
+-- `page` is the route it happened on, because the same action fires from more
+-- than one place and "add to shopping list, from the recipe" and "from the
+-- pantry" are different facts about where the app is actually used.
+--
+-- The author is kept nullable and set null on delete for the same reason the
+-- reports table does it: the count is still true after the account is gone.
+CREATE TABLE IF NOT EXISTS usage_events (
+  id         INTEGER PRIMARY KEY,
+  user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  action     TEXT NOT NULL,
+  page       TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Every question asked of this table is "in the last N days, grouped by
+-- action", in that order, so the index is in that order.
+CREATE INDEX IF NOT EXISTS idx_usage_when ON usage_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_usage_action ON usage_events(action, created_at);

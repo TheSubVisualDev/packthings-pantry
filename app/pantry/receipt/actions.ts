@@ -7,6 +7,7 @@ import { STRONG_MATCH, rankItems } from "@/lib/match";
 import { parseReceipt } from "@/lib/receipt";
 import { getItems } from "@/lib/queries";
 import { requireKitchenRole } from "@/lib/session";
+import { record } from "@/lib/usage";
 
 /** More text than any till produces; past this it is not a receipt. */
 const MAX_TEXT = 100_000;
@@ -97,6 +98,11 @@ export async function matchReceipt(text: string): Promise<ScanResult> {
       confident,
     };
   });
+
+  // On a receipt that read as shopping, not on every attempt: the failures
+  // above are a photo problem, and counting them as uses of the scanner would
+  // make a feature nobody can get working look popular.
+  record("receipt.scan", access.user.id, "/pantry/receipt");
 
   return { ok: true, matches };
 }

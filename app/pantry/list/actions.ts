@@ -17,6 +17,7 @@ import { scaleQuantity } from "@/lib/units";
 import { getLinks } from "@/lib/cookbook";
 import { indexStock } from "@/lib/pantry-match";
 import { suggestionsForShop } from "./restock-filter";
+import { record } from "@/lib/usage";
 
 export interface ListResult {
   ok: boolean;
@@ -58,6 +59,8 @@ export async function addItemToList(
     unit: quantity === null ? null : String(formData.get("unit") ?? "g"),
   });
 
+  record("shopping.add", gate.user.id, "/pantry/list");
+
   revalidatePath("/pantry/list");
   return { ok: true };
 }
@@ -67,6 +70,10 @@ export async function tick(lineId: number, bought: boolean): Promise<ListResult>
   if (!gate.ok) return { ok: false, error: gate.error };
 
   await setBought(gate.scope, lineId, bought);
+  // Only the tick, not the untick: crossing a line off is the thing being
+  // counted, and un-crossing one is a correction to it.
+  if (bought) record("shopping.tick", gate.user.id, "/pantry/list");
+
   revalidatePath("/pantry/list");
   return { ok: true };
 }
@@ -182,6 +189,10 @@ export async function addShortfall(
    * immediately true.
    */
   await pin(gate.kitchen.id, recipeId, gate.user.id);
+
+  // The recipe page, not the list: the same action fires from three buttons in
+  // three places, and where it was pressed is the interesting half.
+  record("shopping.add", gate.user.id, `/recipes/${recipeId}`);
 
   revalidatePath("/pantry/list");
   revalidatePath("/pantry");

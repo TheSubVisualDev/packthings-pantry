@@ -103,6 +103,15 @@ twice a year the gap changes. `londonNow()` asks Intl. `npm run check:push`.
 a serverless function - the worker never starts and the request hangs rather
 than failing. Receipt reading runs in the browser for that reason.
 
+**A count that is wrong reads as "delete this feature".** `usage_events` and
+`lib/usage.ts` record what gets pressed, against a closed list of names in
+`ACTIONS` - closed because the counts are only comparable if the names are
+stable, and because the route drops an unknown name silently. Which means a
+typo in a `data-track` attribute, or a name added to the list and never wired
+up, both arrive in the report as a zero, and a zero is a number somebody acts
+on. `npm run check:usage` walks both directions. `record()` never throws and is
+never awaited: the button matters and the count does not.
+
 ## Before changing the database
 
 1. `node --env-file=.env.local scripts/clone-db.mjs <file>` - copies live into a
@@ -134,6 +143,7 @@ still there as the way back.
     npm run check:push        when the weekly nudge decides it is due
     npm run check:receipt     receipt parsing and matching
     npm run check:estimates   the generic-food matcher
+    npm run check:usage       every counted name is one the server accepts
     npm run probe             round-trip time to the database
 
 `scripts/ts-imports.mjs` lets plain node import the project's TypeScript, so a

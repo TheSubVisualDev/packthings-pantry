@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { storePhoto } from "@/lib/photos";
+import { record } from "@/lib/usage";
 import {
   attachReportPhoto,
   decideReport,
@@ -71,6 +72,8 @@ export async function submitReport(form: FormData): Promise<FileReportResult> {
     if (stored.ok && stored.url) await attachReportPhoto(id, stored.url, index);
     else photoErrors.push(stored.error ?? "A photo would not upload.");
   }
+
+  record("report.file", session.user.id, page || "/report");
 
   revalidatePath("/report");
   revalidatePath("/reports");

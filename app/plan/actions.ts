@@ -20,6 +20,7 @@ import { rankTonight } from "@/lib/tonight";
 import { addLine, pendingNames, recipeShortfall } from "@/lib/shopping";
 import { indexStock } from "@/lib/pantry-match";
 import { getLinks } from "@/lib/cookbook";
+import { record } from "@/lib/usage";
 
 export interface PlanResult {
   ok: boolean;
@@ -87,6 +88,8 @@ export async function putInSlot(input: {
     note: input.note ?? null,
     servings: input.servings ?? null,
   });
+
+  record("plan.set", gate.user.id, "/plan");
 
   revalidatePath("/plan");
   revalidatePath("/tonight");
@@ -369,6 +372,8 @@ export async function shopForTheWeek(start: string): Promise<PlanResult> {
     }
     if (wanted.length > 0) shoppedFor.push(recipe.name);
   }
+
+  record("plan.shop", gate.user.id, "/plan");
 
   revalidatePath("/pantry/list");
   revalidatePath("/plan");

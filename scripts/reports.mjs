@@ -5,6 +5,7 @@
 //   node --env-file=.env.local scripts/reports.mjs done <id> "what was done"
 //   node --env-file=.env.local scripts/reports.mjs purge
 //   node --env-file=.env.local scripts/reports.mjs admin [handle]
+//   node --env-file=.env.local scripts/reports.mjs usage [days]
 //
 // The triage screen decides; this is how the decisions get acted on. Kept as a
 // script rather than an endpoint because the thing acting on them is an agent
@@ -193,9 +194,78 @@ switch (command) {
     break;
   }
 
+  case "usage": {
+    /**
+     * What has actually been pressed, next to what people have written in.
+     *
+     * The two belong together: a report says what one person noticed, and
+     * these counts say whether the thing they noticed is on the path everybody
+     * walks or on a branch nobody takes. A bug in the cook flow and a bug in a
+     * screen opened twice this month are not the same size of problem, and
+     * until this existed there was no way to tell them apart except by
+     * guessing.
+     *
+     * The zero rows at the bottom are the half worth reading. A list of what
+     * is popular mostly confirms what you already believed.
+     */
+    const days = Number(rest[0] ?? 30) || 30;
+    const window = `-${Math.max(1, Math.floor(days))} days`;
+
+    const counted = await client.execute({
+      sql: `SELECT action,
+                   COUNT(*)                AS uses,
+                   COUNT(DISTINCT user_id) AS people
+              FROM usage_events
+             WHERE created_at >= datetime('now', ?)
+          GROUP BY action
+          ORDER BY uses DESC`,
+      args: [window],
+    });
+
+    console.log(`Last ${Math.max(1, Math.floor(days))} days:\n`);
+    if (counted.rows.length === 0) {
+      console.log("  Nothing recorded yet.");
+    }
+    for (const row of counted.rows) {
+      const uses = String(row.uses).padStart(5);
+      const people = `${row.people} ${row.people === 1 ? "person" : "people"}`;
+      console.log(`  ${uses}  ${String(row.action).padEnd(16)} ${people}`);
+    }
+
+    const pages = await client.execute({
+      sql: `SELECT COALESCE(page, '(unknown)') AS page, COUNT(*) AS uses
+              FROM usage_events
+             WHERE created_at >= datetime('now', ?)
+          GROUP BY page
+          ORDER BY uses DESC
+             LIMIT 8`,
+      args: [window],
+    });
+    if (pages.rows.length > 0) {
+      console.log("\nWhere:\n");
+      for (const row of pages.rows) {
+        console.log(`  ${String(row.uses).padStart(5)}  ${row.page}`);
+      }
+    }
+
+    const used = new Set(counted.rows.map((row) => row.action));
+    // Read out of the TypeScript rather than listed again here, so this can
+    // never disagree with what the app is able to record.
+    const source = await import("node:fs").then(({ readFileSync }) =>
+      readFileSync(new URL("../lib/usage.ts", import.meta.url), "utf8"),
+    );
+    const declared = [...source.matchAll(/^  "([a-z.]+)",/gm)].map((m) => m[1]);
+    const untouched = declared.filter((action) => !used.has(action));
+    if (untouched.length > 0) {
+      console.log(`\nNobody touched, in ${Math.max(1, Math.floor(days))} days:\n`);
+      for (const action of untouched) console.log(`  ${action}`);
+    }
+    break;
+  }
+
   default:
     console.error(
-      `Unknown command "${command}". One of: list, show, done, purge, admin`,
+      `Unknown command "${command}". One of: list, show, done, purge, admin, usage`,
     );
     process.exit(1);
 }

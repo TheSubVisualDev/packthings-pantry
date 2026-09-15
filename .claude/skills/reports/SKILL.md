@@ -40,6 +40,24 @@ about something only visible in a picture — two buttons painted on top of each
 other, text cut off mid-word. A report you have only read the title of is a
 report you are about to guess at.
 
+## What people actually use
+
+```
+node --env-file=.env.local scripts/reports.mjs usage [days]
+```
+
+Counts of what has been pressed in the last 30 days, which page it was pressed
+on, and - the part worth reading - what nobody has touched at all. Read this
+**before** starting the queue, because it changes the size of the reports in
+it: a complaint about the cook flow and a complaint about a screen opened twice
+this month are not the same problem, and the report itself cannot tell you
+which is which.
+
+Two things it is not. It is not a vote: an idea nobody can find yet will show
+zero uses, and that is an argument for making it findable rather than for
+dropping it. And it is not a substitute for the screenshot - a count says how
+often, never why.
+
 ## Doing them
 
 Work in the order the list gives them. Group ones that touch the same file or
@@ -106,5 +124,7 @@ Finish with, in this order:
 2. Anything approved that you did **not** do, and why — blocked, needs a
    decision, turned out to be three questions rather than one.
 3. How many are still waiting to be triaged, if any.
+4. Anything the usage counts changed your mind about — a report you sized up
+   or down because of what the numbers said, or a feature nobody has touched.
 
 Keep it short. Luna's reply-length rules apply here like everywhere else.

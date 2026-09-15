@@ -40,6 +40,10 @@ export function RecipeBrowseCard({
   return (
     <Link
       href={`/recipes/${recipe.id}`}
+      /* Every list of recipes in the app goes through this card, so counting
+         the open here counts it from the feed, the search and the cookbook
+         alike - and the page it was pressed on says which. */
+      data-track="recipe.open"
       /* card-press, because a card is a button in everything but tag
          name - and on a phone the press is the only feedback there is. */
       className="card-press flex items-center gap-3 rounded-[18px] bg-card p-3 shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-[0_8px_22px_-10px_rgba(60,44,30,0.45)]"

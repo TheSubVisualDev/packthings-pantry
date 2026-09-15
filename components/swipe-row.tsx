@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import { Plus, Trash2 } from "lucide-react";
+import { track } from "./usage-tracker";
 
 /**
  * Swipe a stock row left to say it is gone.
@@ -137,7 +138,12 @@ export function SwipeRow({
             info.offset.x > COMMIT ||
             (info.velocity.x > FLICK_SPEED && info.offset.x > FLICK_DISTANCE);
 
+          // Counted on the commit, not the drag: the adjust it causes is
+          // already recorded, and this answers the separate question of
+          // whether anybody reaches the number by swiping rather than by
+          // opening the row and tapping.
           if (left && onUsedUp) {
+            track("stock.swipe");
             setCommitting("left");
             onUsedUp();
             return;
@@ -151,6 +157,7 @@ export function SwipeRow({
              * it was with a bigger number on it, and animating it out would
              * promise a disappearance that never comes.
              */
+            track("stock.swipe");
             setCommitting(null);
             onAddOne();
           }

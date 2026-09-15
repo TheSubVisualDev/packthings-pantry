@@ -11,6 +11,7 @@ import { resolveAmount, scaleQuantity } from "@/lib/units";
 import { ADJUST_SQL } from "@/lib/containers";
 import { addLine, pendingNames, removeLine } from "@/lib/shopping";
 import { unpinIf } from "@/lib/trip";
+import { record } from "@/lib/usage";
 import type {
   CookChange,
   CookEvent,
@@ -377,6 +378,10 @@ export async function cookRecipe(
     await unpinIf(access.kitchen.id, recipeId);
 
     revalidatePath("/pantry");
+    // After the commit, not before: a cook that rolled back did not happen,
+    // and a count of attempts is a different question nobody asked.
+    record("cook.start", access.user.id, `/recipes/${recipeId}`);
+
     revalidatePath("/recipes");
     revalidatePath(`/recipes/${recipeId}`);
 
