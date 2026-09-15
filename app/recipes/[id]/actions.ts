@@ -12,6 +12,7 @@ import { ADJUST_SQL } from "@/lib/containers";
 import { addLine, pendingNames, removeLine } from "@/lib/shopping";
 import { unpinIf } from "@/lib/trip";
 import { record } from "@/lib/usage";
+import { forgetCook, record as tellAuthor } from "@/lib/notifications";
 import type {
   CookChange,
   CookEvent,
@@ -382,6 +383,23 @@ export async function cookRecipe(
     // and a count of attempts is a different question nobody asked.
     record("cook.start", access.user.id, `/recipes/${recipeId}`);
 
+    /**
+     * Tell whoever wrote it, if it was not this person.
+     *
+     * Also after the commit, and for a stronger reason than the count: this
+     * one leaves the building. A push sent for a cook that then rolled back
+     * cannot be taken back out of somebody's pocket.
+     */
+    if (event.lastInsertRowid) {
+      tellAuthor({
+        cookEventId: Number(event.lastInsertRowid),
+        recipeId,
+        cookId: access.user.id,
+        recipeName: recipe.name,
+        cookHandle: access.user.handle,
+      });
+    }
+
     revalidatePath("/recipes");
     revalidatePath(`/recipes/${recipeId}`);
 
@@ -558,6 +576,20 @@ export async function undoCook(eventId: number): Promise<UndoResult> {
     });
 
     await tx.commit();
+
+    /**
+     * The news goes with the cook.
+     *
+     * Undo marks undone_at rather than deleting the row, so the cascade on
+     * notifications never fires and the author is left holding "@luna cooked
+     * your ragu" for a dinner that was taken back. Outside the transaction
+     * because it is a different kind of failure: a notification that outlives
+     * its cook is untidy, a rolled-back undo is somebody's shelf being wrong.
+     *
+     * The push, if one went, cannot be recalled - that is inherent to push and
+     * the reason this app sends one only for something that already happened.
+     */
+    await forgetCook(eventId).catch(() => {});
 
     revalidatePath("/pantry");
     revalidatePath("/recipes");

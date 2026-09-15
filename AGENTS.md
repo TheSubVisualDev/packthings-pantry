@@ -112,6 +112,30 @@ up, both arrive in the report as a zero, and a zero is a number somebody acts
 on. `npm run check:usage` walks both directions. `record()` never throws and is
 never awaited: the button matters and the count does not.
 
+**A guessed expiry date must never look like a read one.** `lib/shelf-life.ts`
+fills in a date for food nobody dated - 34 of 47 items had neither a packet
+date nor a once-opened life, so the rescue engine, the heaviest weight in the
+tonight ranker and the Sunday nudge were all blind to most of the kitchen. The
+guess is only offered for food `estimateFor` actually recognises, because a
+confident wrong number is worse than a blank: a blank invites a correction and
+a number does not. `items.expiry_estimated` carries the marking all the way to
+the screen, an estimate is never drawn in the alarm colour however far past it
+is, and nothing anywhere tells anybody to throw food away on one. Two numbers,
+not one - `keeps` is sealed from today, `openFor` is after opening, and the
+schema is emphatic that they differ. `npm run check:shelf-life`.
+
+**There is one notification and the bar for a second is high.** Five phases
+were spent deliberately not having any - a thing with unread items in it is a
+thing to keep up with. `notifications` exists for one case, chosen 15 Sep 2026:
+somebody cooked a recipe you wrote. The argument was that writing a recipe down
+is the only thing in here done for other people, and it was the only one that
+gave nothing back. A second `kind` needs that same argument - somebody else's
+action, about something you made, that you would otherwise never learn. A like
+is a tap; it does not qualify. The row is keyed to the `cook_event` rather than
+describing it, because a cook can be undone and "@luna cooked your ragu" for a
+cook that did not happen is worse than silence - and undo marks `undone_at`
+rather than deleting, so the cascade never fires and `forgetCook` has to.
+
 ## Before changing the database
 
 1. `node --env-file=.env.local scripts/clone-db.mjs <file>` - copies live into a
@@ -144,6 +168,7 @@ still there as the way back.
     npm run check:receipt     receipt parsing and matching
     npm run check:estimates   the generic-food matcher
     npm run check:usage       every counted name is one the server accepts
+    npm run check:shelf-life  how long food lasts, and the date arithmetic
     npm run probe             round-trip time to the database
 
 `scripts/ts-imports.mjs` lets plain node import the project's TypeScript, so a

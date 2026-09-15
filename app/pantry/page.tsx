@@ -3,6 +3,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Segmented } from "@/components/ui/segmented";
 import { EstimateButton } from "@/components/estimate-button";
+import { EstimateDatesButton } from "@/components/estimate-dates-button";
 import { StockList } from "@/components/stock-list";
 import { ExpiringSoon } from "@/components/expiring-soon";
 import { EmptyShelves } from "@/components/empty-shelves";
@@ -216,6 +217,19 @@ export default async function PantryPage({
                 missing={
                   items.filter(
                     (item) => item.kcal_100 === null && item.protein_100 === null,
+                  ).length
+                }
+              />
+              {/* Beside the nutrition one because it is the same kind of
+                  housekeeping - the generics table applied to shelves that
+                  already exist. This is the one that matters more: an item
+                  with no figures is missing from a total, an item with no date
+                  is invisible to the entire rescue idea. */}
+              <EstimateDatesButton
+                blind={
+                  items.filter(
+                    (item) =>
+                      item.expiry_date === null && item.shelf_life_days === null,
                   ).length
                 }
               />

@@ -5,6 +5,8 @@ import { Segmented } from "@/components/ui/segmented";
 import { getKitchensFor } from "@/lib/kitchens";
 import { currentKitchen } from "@/lib/session";
 import { isAdmin } from "@/lib/reports";
+import { unreadCount } from "@/lib/notifications";
+import { Bell } from "lucide-react";
 
 const tabs = [
   { href: "/pantry", key: "stock", label: "Stock" },
@@ -38,9 +40,13 @@ export async function SiteHeader({
   // Reached through the Basic-auth back door there is no account and so no
   // kitchen; the header still has to render.
   const context = await currentKitchen();
-  const [kitchens, admin] = context.ok
-    ? await Promise.all([getKitchensFor(context.user.id), isAdmin(context.user.id)])
-    : [[], false];
+  const [kitchens, admin, unread] = context.ok
+    ? await Promise.all([
+        getKitchensFor(context.user.id),
+        isAdmin(context.user.id),
+        unreadCount(context.user.id),
+      ])
+    : [[], false, 0];
 
   return (
     /*
@@ -112,6 +118,32 @@ export async function SiteHeader({
             <div className="hidden text-sm font-semibold text-muted-foreground lg:block">
               {meta}
             </div>
+          )}
+          {/*
+            The only bell in the app, and it stays that way.
+
+            Five phases were spent deliberately not having one - a thing with
+            unread items in it is a thing to keep up with, and keeping up with
+            something does not help anybody decide what to have for dinner. It
+            is here for one kind of news: somebody cooked a recipe you wrote.
+            That is the single thing in this app done for other people, and the
+            only one you could never find out about otherwise.
+
+            Hidden entirely at zero rather than shown empty. A bell with
+            nothing behind it is an invitation to check it, which is the habit
+            this app has spent five phases not building.
+          */}
+          {unread > 0 && (
+            <Link
+              href="/notifications"
+              aria-label={`${unread} new ${unread === 1 ? "thing" : "things"}`}
+              className="relative flex h-9 w-9 items-center justify-center rounded-full bg-chip text-foreground"
+            >
+              <Bell className="h-4 w-4" strokeWidth={2.6} />
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-extrabold text-primary-foreground tabular-nums">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            </Link>
           )}
           <AccountMenu
             current={context.ok ? context.kitchen : null}

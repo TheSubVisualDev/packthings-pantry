@@ -12,6 +12,13 @@ CREATE TABLE IF NOT EXISTS items (
   category       TEXT,
   location       TEXT,            -- where in the kitchen: Fridge | Freezer | ...
   expiry_date    DATE,              -- the date on the packet, while sealed
+  -- 1 when nobody read that date off a packet and the app worked it out from
+  -- what the food usually is. Marked rather than hidden, for the reason the
+  -- nutrition estimates are marked: a stored guess is indistinguishable from a
+  -- measurement six months later, and the difference between "this is what the
+  -- packet says" and "this is what bread is usually like" is the whole point.
+  -- Nothing in the app tells anybody to throw food away on the strength of one.
+  expiry_estimated INTEGER NOT NULL DEFAULT 0,
   -- Once a jar is open the date on it stops being the answer. opened_at is
   -- when it was, shelf_life_days how long it keeps after that, and the earlier
   -- of the two deadlines is the one that matters.
@@ -713,3 +720,40 @@ CREATE TABLE IF NOT EXISTS usage_events (
 -- action", in that order, so the index is in that order.
 CREATE INDEX IF NOT EXISTS idx_usage_when ON usage_events(created_at);
 CREATE INDEX IF NOT EXISTS idx_usage_action ON usage_events(action, created_at);
+
+-- Somebody cooked your recipe.
+--
+-- The app went five phases without a notification on purpose - phase 5 wrote
+-- down that a comment feed, notifications and follower counts are all things
+-- to keep up with, and none of them helps anybody decide what to have for
+-- dinner. This is the deliberate exception, chosen 15 Sep 2026, and the
+-- argument for it is narrow: writing a recipe down and sharing it is the one
+-- thing in here somebody does FOR other people, and it was the only thing the
+-- app gave no signal back about at all. Eleven recipes, and nobody who wrote
+-- one had any way of knowing it had ever been made.
+--
+-- So the rule for adding a second `kind` is the same argument or none: it has
+-- to be somebody else's action, about something you made, that you would
+-- otherwise never learn. "Somebody liked it" is not that; a like is a tap.
+--
+-- Keyed to the cook_event rather than describing it, because a cook can be
+-- undone, and "Luna cooked your ragu" for a cook that did not happen is worse
+-- than silence. The cascade takes the row with the event; undo deletes it
+-- explicitly, since undo marks undone_at rather than deleting.
+CREATE TABLE IF NOT EXISTS notifications (
+  id            INTEGER PRIMARY KEY,
+  -- Who is being told. Their notifications go when their account does.
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind          TEXT NOT NULL DEFAULT 'cook',
+  -- Who did it. Kept nullable: the news survives the account, as "somebody".
+  actor_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  recipe_id     INTEGER REFERENCES recipes(id) ON DELETE CASCADE,
+  cook_event_id INTEGER REFERENCES cook_events(id) ON DELETE CASCADE,
+  read_at       TIMESTAMP,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Every read is "mine, newest first", and the unread count is the same query
+-- with a WHERE on it. One index covers both.
+CREATE INDEX IF NOT EXISTS idx_notifications_mine
+  ON notifications(user_id, created_at DESC);

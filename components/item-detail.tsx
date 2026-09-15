@@ -57,6 +57,16 @@ export function ItemDetail({
   const useBy = [...deadlines].sort()[0] ?? null;
   const left = useBy ? daysUntil(useBy) : null;
 
+  /**
+   * Whether the date being shown is one the app made up.
+   *
+   * Only when the packet date is the one winning. An opened-on deadline is
+   * arithmetic on a day somebody actually opened it, which is a different
+   * confidence - and if the guessed packet date is later than that, it is not
+   * the number on screen and its guessiness is nobody's business.
+   */
+  const guessed = item.expiry_estimated === 1 && useBy === item.expiry_date;
+
   return (
     <div className="space-y-3">
       {/*
@@ -116,17 +126,37 @@ export function ItemDetail({
         </div>
 
         {useBy && (
+          /*
+            A guess is never drawn in the alarm colour, and never told as a
+            fact.
+
+            "Was good until the 3rd" is a thing to act on; the app has no
+            business saying it about a date it invented from the average life
+            of bread. So an estimate stays muted however far past it is, says
+            "probably", and offers the way to correct it - which is the only
+            reason this wording matters: the fastest way to get a real date
+            into the app is somebody disagreeing with a wrong one.
+          */
           <p
             className={`mt-2 text-sm font-bold ${
-              left !== null && left < 0 ? "text-destructive" : "text-muted-foreground"
+              left !== null && left < 0 && !guessed
+                ? "text-destructive"
+                : "text-muted-foreground"
             }`}
           >
-            {left !== null && left < 0
-              ? `Was good until ${useBy} — ${Math.abs(left)} days ago`
-              : left === 0
-                ? "Use it today"
-                : `Use by ${useBy} — ${left} days`}
+            {guessed
+              ? left !== null && left <= 0
+                ? "Probably past its best by now"
+                : `Probably about ${left} ${left === 1 ? "day" : "days"} left`
+              : left !== null && left < 0
+                ? `Was good until ${useBy} — ${Math.abs(left)} days ago`
+                : left === 0
+                  ? "Use it today"
+                  : `Use by ${useBy} — ${left} days`}
             {openedDeadline && useBy === openedDeadline && " (because it's open)"}
+            {guessed && (
+              <span className="font-semibold"> — estimated, no date entered</span>
+            )}
           </p>
         )}
 

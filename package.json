@@ -28,7 +28,8 @@
     "check:bundle": "node scripts/check-bundle.mjs",
     "check:dates": "node --import ./scripts/ts-imports.mjs scripts/check-dates.mjs",
     "check:display": "node --import ./scripts/ts-imports.mjs scripts/check-display.mjs",
-    "check:usage": "node --import ./scripts/ts-imports.mjs scripts/check-usage.mjs"
+    "check:usage": "node --import ./scripts/ts-imports.mjs scripts/check-usage.mjs",
+    "check:shelf-life": "node --import ./scripts/ts-imports.mjs scripts/check-shelf-life.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

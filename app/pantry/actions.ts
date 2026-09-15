@@ -10,6 +10,7 @@ import { isBarcode } from "@/lib/off";
 import { CANONICAL_FOR, dimensionOf, toCanonical } from "@/lib/units";
 import { ADJUST_SQL, PACK_SQL } from "@/lib/containers";
 import { record } from "@/lib/usage";
+import { dateInDays, shelfLifeFor } from "@/lib/shelf-life";
 import { cleanTagName, ensureTag, setPrimaryTag, tagItem, untagItem } from "@/lib/tags";
 import { cleanShopName, setPreferredShop, shopItem, unshopItem } from "@/lib/shops";
 import {
@@ -133,7 +134,29 @@ export async function addItem(
   }
 
   // An empty date input posts "", which would otherwise be stored as a date.
-  const expiryDate = /^\d{4}-\d{2}-\d{2}$/.test(expiry) ? expiry : null;
+  const typedExpiry = /^\d{4}-\d{2}-\d{2}$/.test(expiry) ? expiry : null;
+
+  /**
+   * A date for the things nobody dates.
+   *
+   * Thirty-four of forty-seven items had no date and no once-opened life, so
+   * the rescue engine - the best idea in here - could not see most of the
+   * kitchen. What is typed always wins; this only ever fills a blank, and only
+   * for food the generics table actually recognises.
+   *
+   * `expiryEstimated` is what keeps it honest downstream. A guessed date that
+   * looks like a read one is worse than no date, because somebody will throw
+   * food away on it.
+   */
+  const guess = typedExpiry === null || shelfLife === null ? shelfLifeFor(name) : null;
+  const expiryDate =
+    typedExpiry ??
+    (guess && guess.keeps !== null ? dateInDays(guess.keeps) : null);
+  const expiryEstimated = typedExpiry === null && expiryDate !== null;
+  // Same rule for the once-opened number, which has the same problem and no
+  // marking of its own - it is never shown as a date, only used to work one
+  // out, and that date is marked.
+  const shelfLifeDays = shelfLife ?? guess?.openFor ?? null;
 
   let itemId: number;
 
@@ -141,9 +164,9 @@ export async function addItem(
 
   try {
     const inserted = await getDb().execute({
-      sql: `INSERT INTO items (kitchen_id, name, quantity, canonical_unit, dimension, location, expiry_date, pack_size, pack_unit, sealed_count,
+      sql: `INSERT INTO items (kitchen_id, name, quantity, canonical_unit, dimension, location, expiry_date, expiry_estimated, pack_size, pack_unit, sealed_count,
               shelf_life_days, restock_target, unspecified, count_noun, opened_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     -- Stamped now when the thing arrives already open, which is
                     -- what "it's already open" on the form means.
                     CASE WHEN ? THEN CURRENT_TIMESTAMP END) RETURNING id`,
@@ -155,12 +178,13 @@ export async function addItem(
         dimension,
         isKnownLocation(location, places) ? location : null,
         expiryDate,
+        expiryEstimated ? 1 : 0,
         // Stored in the canonical unit, like every other quantity here, so
         // nothing downstream has to ask what the number means.
         convertedPack && convertedPack.ok ? convertedPack.quantity : null,
         packSize === null ? null : CANONICAL_FOR[dimension],
         packSize === null ? 0 : sealed,
-        shelfLife,
+        shelfLifeDays,
         convertedTarget && convertedTarget.ok ? convertedTarget.quantity : null,
         unspecified,
         countNoun,
@@ -942,9 +966,65 @@ export async function setExpiry(
     args: [clean || null, itemId, access.kitchen.id],
   });
 
+  // A date typed by hand is never an estimate, whatever it was before. This
+  // is also how somebody corrects a guess: type over it and the marking goes.
+  await getDb().execute({
+    sql: "UPDATE items SET expiry_estimated = 0 WHERE id = ? AND kitchen_id = ?",
+    args: [itemId, access.kitchen.id],
+  });
+
   revalidatePath("/pantry");
   revalidatePath(`/pantry/item/${itemId}`);
   return { ok: true, message: "Saved." };
+}
+
+/**
+ * Puts a date on everything that has never had one.
+ *
+ * The same shape as estimateNutrition below and for the same reason: the
+ * generics table only helps if something applies it to the shelf that already
+ * exists, and nobody is going to open forty-seven items to do it by hand.
+ *
+ * Only ever fills blanks. A date somebody typed, and a date already guessed,
+ * are both left exactly where they are - so this is safe to press twice, and
+ * pressing it after correcting one by hand does not undo the correction.
+ */
+export async function estimateExpiry(): Promise<EstimateResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  const blind = await getDb().execute({
+    sql: `SELECT id, name FROM items
+           WHERE kitchen_id = ? AND expiry_date IS NULL AND shelf_life_days IS NULL
+        ORDER BY name`,
+    args: [access.kitchen.id],
+  });
+
+  const filled: { name: string; basis: string }[] = [];
+
+  for (const row of blind.rows as unknown as { id: number; name: string }[]) {
+    const guess = shelfLifeFor(row.name);
+    if (!guess) continue;
+
+    const date = guess.keeps !== null ? dateInDays(guess.keeps) : null;
+    if (date === null && guess.openFor === null) continue;
+
+    await getDb().execute({
+      sql: `UPDATE items
+               SET expiry_date = COALESCE(?, expiry_date),
+                   expiry_estimated = CASE WHEN ? IS NULL THEN expiry_estimated ELSE 1 END,
+                   shelf_life_days = COALESCE(?, shelf_life_days),
+                   updated_at = CURRENT_TIMESTAMP
+             WHERE id = ? AND kitchen_id = ?`,
+      args: [date, date, guess.openFor, row.id, access.kitchen.id],
+    });
+
+    filled.push({ name: row.name, basis: guess.label });
+  }
+
+  revalidatePath("/pantry");
+  revalidatePath("/tonight");
+  return { ok: true, filled };
 }
 
 export interface EstimateResult {

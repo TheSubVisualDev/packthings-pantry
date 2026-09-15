@@ -23,6 +23,15 @@ export interface Item {
   /** Where you usually buy it, of however many places sell it. */
   preferred_shop_id: number | null;
   expiry_date: string | null;
+  /**
+   * 1 when the app worked the date out rather than somebody reading a packet.
+   *
+   * Carried all the way to the screen on purpose. A guessed date that is drawn
+   * like a read one is worse than no date at all, because somebody throws food
+   * away on it - so everywhere this date is shown has to be able to say which
+   * kind it is.
+   */
+  expiry_estimated: number;
   /** When it was opened, if it has been. */
   opened_at: string | null;
   /** How long it keeps once opened. */

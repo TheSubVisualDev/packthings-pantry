@@ -48,6 +48,13 @@ const ADDED_COLUMNS = [
   // Once-opened tracking: the date on the packet stops applying when it's open.
   { table: "items", column: "opened_at", definition: "TIMESTAMP" },
   { table: "items", column: "shelf_life_days", definition: "INTEGER" },
+  // Whether the date came off a packet or out of the generics table. Existing
+  // rows default to 0, which is right: every date in there was typed by hand.
+  {
+    table: "items",
+    column: "expiry_estimated",
+    definition: "INTEGER NOT NULL DEFAULT 0",
+  },
   // What a count counts. Nothing to back-fill it from: the unit picked at the
   // door was converted to 'count' and the word discarded, so old rows stay
   // bare numbers until somebody says what they are.
