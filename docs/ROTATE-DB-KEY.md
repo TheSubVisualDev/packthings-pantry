@@ -31,6 +31,53 @@ own database is a real outcome:
 
     node --env-file=.env.local scripts/clone-db.mjs "C:\Users\Luna\Documents\pantry\backups\pre-key-rotation.db"
 
+## Where this got to on 15 Sep 2026
+
+Half done, and stopped deliberately at the safe point.
+
+**Done already:**
+
+- Database backed up to
+  `C:\Users\Luna\Documents\pantry\backups\pre-key-rotation-2026-09-15.db`
+  (600 rows, foreign keys intact).
+- A new Ed25519 keypair generated in `C:\Users\Luna\Documents\pantry\keys\`.
+  The private key has never been on the server and does not need to be.
+- A 90-day `rw` token minted from it, in `keys\token.txt`. Expires
+  14 Dec 2026.
+- The new public key copied to the box as `/opt/pantry-db/jwt-public.new.pem`,
+  **not yet active**. sqld is still reading `jwt-public.pem` and everything
+  still works.
+
+Fingerprints, so you can tell them apart:
+
+| | |
+|---|---|
+| active now | `a755c02d9248c043` |
+| staged | `484d950c68f23a1d` |
+
+**Blocked on:** writing the token into Vercel. Claude Code's auto mode refuses
+secret-store writes, which is the same wall the phase 1 migration hit. Nothing
+after that step can safely run until it is done - restarting sqld while Vercel
+still holds a token signed by the old key takes the site down and leaves it
+down.
+
+So run these two, and nothing else:
+
+    vercel env rm LIBSQL_AUTH_TOKEN production --yes
+    vercel env add LIBSQL_AUTH_TOKEN production < "C:\Users\Luna\Documents\pantry\keys\token.txt"
+
+Then say so, and the rest - swapping the key, restarting the container,
+redeploying, and proving the old token is dead - can be done in one go. The
+site is down from the restart until the redeploy lands, a minute or two.
+
+Also worth knowing: **the old private key is nowhere on this machine or the
+box.** `.gitignore` has `*.pem` so it never reached git. Nobody can say who
+holds a copy, which is an argument for finishing this rather than against.
+
+And there is a stray file in `/opt/pantry-db/` literally named
+`sudo ss -tlnp | grep -E ':80|:443'` - somebody's fat-fingered command line
+became a filename on 10 Sep. Harmless, worth deleting while you are there.
+
 ## The steps
 
 1. **Generate a new keypair**, on the box:
