@@ -195,6 +195,13 @@ back off takes months. That is a decision about the whole domain.
 
 ## One thing the pen test said that is no longer true
 
+**Done 15 Sep 2026 - see `docs/AUTHZ-2026-09-15.md`.** It found three holes,
+all in recipes: any signed-in account could delete any recipe, the API could
+too with no account at all, and anybody who could SEE a recipe could overwrite
+it. All fixed. The original note follows.
+
+
+
 It skipped authenticated testing on the grounds that the app had "no per-user
 data to confess across". That was true of a two-person pantry in September and
 is not true now: there are accounts, kitchens with roles, follows, blocks,

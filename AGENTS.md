@@ -170,6 +170,19 @@ shows the right amount at the right level - so it needs no marking, unlike the
 expiry guess. `fillFor` is the half that must never lie: it returns null rather
 than a plausible level for an `unspecified` row or one with no pack size.
 
+**Every exported function in a `"use server"` file is a live endpoint.** Not
+"a function the UI calls" - a URL, reachable by anyone who is past the auth
+gate, whether or not a component references it. `removeRecipe` had no
+authorisation at all and nothing in the app called it, which is exactly why
+nobody noticed: it was a way for any of six accounts to delete any recipe by
+id. The owner goes in the `WHERE` clause, never in a caller's `if` - see
+`docs/AUTHZ-2026-09-15.md` - and a function that needs one should require it in
+its signature so the compiler catches the caller that forgets.
+
+**Being allowed to SEE something is not being allowed to CHANGE it.**
+`getRecipe(id, viewer)` answers visibility. Two write paths used it as if it
+answered permission, so anybody could overwrite a recipe shared with them.
+
 ## Before changing the database
 
 1. `node --env-file=.env.local scripts/clone-db.mjs <file>` - copies live into a
