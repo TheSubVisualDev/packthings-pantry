@@ -69,6 +69,25 @@ shopping list leaves it alone if you have any, nutrition skips it rather than
 calling a pinch of salt a hole in the figures. One miss puts salt on the
 shopping list for ever. `npm run check:amounts`.
 
+**A recipe off a video is fetched, never transcribed by a model.** A cooking
+video almost always has the recipe written down beside it - YouTube's
+description, a reel's caption - so `lib/video-import.ts` finds that text and
+hands it to `readRecipeText`, the same reader a paste goes through. Three
+things it knows that are not obvious. YouTube's **web** caption URLs answer
+every request with 200 and an empty body because they now want a token the
+browser mints in JavaScript; the IOS and ANDROID player clients are not asked
+for one, which is why it talks to those. Auto-captions **roll**, repeating each
+line as they scroll, and the repeats arrive as `aAppend` events - joining the
+file naively says everything three times. And a description is mostly advert:
+the one that made `carveFromDescription` necessary had its ingredients on lines
+23 to 36 of sixty and read whole it produced two ingredients and fifty-five
+steps, so the ingredient list is **found** - the longest run of lines stating an
+amount - rather than hoped for. Instagram answers a crawler user-agent with the
+caption in og:description and a logged-out browser with nothing. The fetched
+text lands in the paste box rather than becoming a recipe, because a transcript
+is a machine's guess at speech and the amounts are the half it gets wrong.
+`npm run check:video`.
+
 **"What is this recipe short of" lives in one place.** `recipeShortfall()` in
 `lib/shopping.ts`, used by the add-what's-missing button and by the week
 planner's Shop for it. It was a hundred lines inside a server action, and a
@@ -217,6 +236,7 @@ still there as the way back.
     npm run check:usage       every counted name is one the server accepts
     npm run check:shelf-life  how long food lasts, and the date arithmetic
     npm run check:vessel      what shape a thing is, and whether it has a level
+    npm run check:video       a video link becoming text worth reading
     npm run probe             round-trip time to the database
 
 `scripts/ts-imports.mjs` lets plain node import the project's TypeScript, so a

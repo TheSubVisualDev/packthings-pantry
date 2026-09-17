@@ -2,10 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle, Info, Link2 } from "lucide-react";
 import {
+  fetchRecipeLink,
   readPastedText,
   saveRecipeDocument,
+  type LinkResult,
   type ReadPastedResult,
   type SaveRecipeResult,
 } from "@/app/recipes/actions";
@@ -35,6 +37,10 @@ export function PasteRecipe({ briefing }: { briefing: string }) {
   const [read, setRead] = useState<ReadPastedResult | null>(null);
   const [reading, startReading] = useTransition();
 
+  const [link, setLink] = useState("");
+  const [fetched, setFetched] = useState<LinkResult | null>(null);
+  const [fetching, startFetching] = useTransition();
+
   const [json, setJson] = useState("");
   const [copied, setCopied] = useState(false);
   const [result, setResult] = useState<SaveRecipeResult | null>(null);
@@ -54,7 +60,30 @@ export function PasteRecipe({ briefing }: { briefing: string }) {
   function readIt() {
     setRead(null);
     setResult(null);
-    startReading(async () => setRead(await readPastedText(text)));
+    // The link is passed along so a recipe read off a video keeps it as its
+    // source - including after the text has been corrected in the box, which
+    // is the usual path for a transcript.
+    startReading(async () => setRead(await readPastedText(text, fetched?.url)));
+  }
+
+  /**
+   * Fetches what is written next to a video and puts it in the box.
+   *
+   * It stops there rather than reading it straight through. What comes back
+   * from a description is somebody's own ingredient list; what comes back from
+   * a transcript is a machine's guess at speech, where an amount is often
+   * never said out loud - and both want a human eye before they become a
+   * recipe. The box is that eye.
+   */
+  function fetchIt() {
+    setRead(null);
+    setResult(null);
+    setFetched(null);
+    startFetching(async () => {
+      const found = await fetchRecipeLink(link);
+      setFetched(found);
+      if (found.ok && found.text) setText(found.text);
+    });
   }
 
   /**
@@ -140,6 +169,64 @@ export function PasteRecipe({ briefing }: { briefing: string }) {
             but are not needed, and nothing is saved until you have looked at
             what it made of it.
           </p>
+
+          {/* Fetching a link fills the box below rather than bypassing it.
+              One reader, one place to check what it read. */}
+          <div className="mt-4 rounded-[16px] bg-chip p-4">
+            <h3 className="flex items-center gap-1.5 text-xs font-bold tracking-[0.08em] text-label uppercase">
+              <Link2 className="h-3.5 w-3.5" strokeWidth={3} />
+              Or off a video
+            </h3>
+            <p className="mt-1.5 text-sm font-medium text-muted-foreground">
+              A YouTube link or an Instagram reel. It takes whatever the cook
+              wrote down — the description or the caption — and falls back to
+              the spoken captions when they wrote nothing.
+            </p>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              <input
+                value={link}
+                onChange={(event) => setLink(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && link.trim()) fetchIt();
+                }}
+                inputMode="url"
+                spellCheck={false}
+                placeholder="youtube.com/watch?v=… or instagram.com/reel/…"
+                aria-label="A link to a video"
+                className="min-w-0 flex-1 rounded-[12px] border border-border bg-page px-3.5 py-2.5 text-sm outline-none focus:border-primary"
+              />
+              <button
+                type="button"
+                onClick={fetchIt}
+                disabled={fetching || link.trim().length === 0}
+                className="min-w-[96px] rounded-[12px] bg-ink px-4 py-2.5 text-sm font-extrabold text-background disabled:opacity-40"
+              >
+                {fetching ? "Fetching…" : "Fetch"}
+              </button>
+            </div>
+
+            {fetched && !fetched.ok && (
+              <p role="alert" className="mt-2 text-sm font-bold text-destructive">
+                {fetched.error}
+              </p>
+            )}
+
+            {fetched?.ok && (
+              <p
+                className={`mt-2 text-sm font-semibold ${
+                  fetched.from === "transcript"
+                    ? "text-destructive"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {fetched.from === "transcript"
+                  ? "Nothing was written down, so this is what was said out loud — machine captions, where an amount is the thing most often wrong or missing. Read it through before you read it in."
+                  : `Taken from the ${fetched.from === "caption" ? "caption" : "description"}${
+                      fetched.author ? `, by ${fetched.author}` : ""
+                    }. Written by the cook, so the amounts are theirs — but nothing is saved until you have looked.`}
+              </p>
+            )}
+          </div>
 
           <textarea
             value={text}

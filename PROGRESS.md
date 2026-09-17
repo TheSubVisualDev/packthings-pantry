@@ -8,14 +8,25 @@ timestamp to see how fresh it is.
 **Waiting on you:** re-file report #25 with its screenshot. The picture never
 reached the server and the words on their own do not say what was wrong.
 
-### The two approved reports, parked
+### 17 Sep, a recipe off a video (#26)
 
-#22 (photograph a cupboard, have it become stock) and #26 (a YouTube link
-becoming a recipe) both need a model on the server, which this app has never
-had — its AI story is the MCP server and bring your own Claude. Both stay
-approved and undone until the Claude API is set up. The no-model version of
-#26 — fetch the description and captions, feed them to `lib/recipe-text.ts` —
-is written down here and parked with the rest of it.
+Paste a YouTube link or an Instagram reel into the paste screen and press
+Fetch. It takes what the cook wrote down — the description or the caption —
+and falls back to the spoken captions when they wrote nothing. No model, no
+key, no bill.
+
+The text lands in the paste box rather than becoming a recipe, so you see what
+it found before anything is read. Where it came from is said on the screen,
+and a transcript says so in the alarm colour, because machine captions are
+where an amount goes wrong.
+
+Driven against four real links: a description with the recipe in it (13
+ingredients, amounts and notes intact), a reel (12 ingredients, 9 steps), a
+video with nothing written down (falls to the transcript and says so), and a
+link that is not a video at all.
+
+#22 — photograph a cupboard, have it become stock — is still parked. That one
+really does need a model.
 
 ### 17 Sep, the admin screens
 

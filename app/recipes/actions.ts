@@ -13,6 +13,7 @@ import { deleteRecipe, saveRecipe } from "@/lib/recipe-store";
 import { readRecipeText } from "@/lib/recipe-text";
 import { splitAmount } from "@/lib/units";
 import { record } from "@/lib/usage";
+import { findRecipeText, type FoundIn } from "@/lib/video-import";
 
 export interface SaveRecipeResult {
   ok: boolean;
@@ -133,6 +134,52 @@ export async function removeRecipe(id: number): Promise<void> {
   redirect("/recipes");
 }
 
+export interface LinkResult {
+  ok: boolean;
+  error?: string;
+  /** The text found, put in the box so it can be read, corrected, or thrown out. */
+  text?: string;
+  from?: FoundIn;
+  title?: string;
+  author?: string;
+  url?: string;
+}
+
+/**
+ * Fetches the writing attached to a video link.
+ *
+ * It stops at the text on purpose. The fetched words go into the same box a
+ * paste goes into, where they can be read and corrected before anything is
+ * made of them - which matters most for the case this was asked for, a
+ * transcript, where the words are a machine's guess at speech and the amounts
+ * are the part it gets wrong. Nothing is written; nothing is even parsed until
+ * somebody presses Read it.
+ *
+ * Not counted separately. A link is another way of getting a recipe in by
+ * pasting, `recipe.paste` is recorded when the text is actually read, and a
+ * second name for the same feature would split one count into two.
+ */
+export async function fetchRecipeLink(link: string): Promise<LinkResult> {
+  const session = await requireUser();
+  if (!session.ok) return { ok: false, error: "Sign in first." };
+
+  if (!link.trim()) return { ok: false, error: "Paste a link first." };
+
+  const found = await findRecipeText(link);
+  if (!found.ok || !found.text) {
+    return { ok: false, error: found.error ?? "Nothing to read at that link." };
+  }
+
+  return {
+    ok: true,
+    text: found.text,
+    from: found.from,
+    title: found.title,
+    author: found.author,
+    url: found.url,
+  };
+}
+
 /** What the text reader made of a paste, plus what it would be worth saying. */
 export interface ReadPastedResult {
   ok: boolean;
@@ -162,7 +209,18 @@ export interface ReadPastedResult {
  * saveRecipeDocument like everything else; there is still one definition of
  * what a valid recipe is.
  */
-export async function readPastedText(text: string): Promise<ReadPastedResult> {
+export async function readPastedText(
+  text: string,
+  /**
+   * Where the text came from, when it was fetched rather than typed.
+   *
+   * Set on the document as its source so a recipe read off a video carries the
+   * link home with it. It is an argument rather than something the reader
+   * picks out of the text, because a line saying "Source: …" in a paste is a
+   * line somebody wrote and this is a fact the app already knows.
+   */
+  source?: string,
+): Promise<ReadPastedResult> {
   const context = await currentKitchen();
   if (!context.ok) {
     return {
@@ -185,6 +243,8 @@ export async function readPastedText(text: string): Promise<ReadPastedResult> {
   }
 
   const read = readRecipeText(text);
+  if (source && !read.document.source) read.document.source = source;
+
   const parsed = parseRecipeDocument(
     read.document,
     await getItems(context.kitchen?.id ?? null),
