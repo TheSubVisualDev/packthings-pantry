@@ -32,10 +32,21 @@ Instagram was a different fault wearing the same error — the share sheet's
 `/share/reel/<token>` was being rebuilt into a link to a post that does not
 exist. Both verified against pantry.packthings.fyi, not just locally.
 
-Transcripts are the part that does not survive the move: captions only come
-with the player endpoint, so they work in development and usually not in
-production. Descriptions and captions, which is where amounts are actually
-written, work in both.
+Then two of your videos read as three useless paragraphs, because a cook who
+does this for a living writes "Get the recipe here" and links out. It follows
+that link now and reads the recipe markup on the page: those two give fourteen
+ingredients with nine steps, and fifteen with five. A recipe page pasted
+straight in works the same way.
+
+**Transcripts do not work on the deployed app.** Captions only come with
+YouTube's player endpoint, which refuses a datacentre, and every other caption
+route answers 200 with an empty body. They work locally. In practice it
+matters less than it sounds: a transcript is the worst source of an amount
+there is, and the linked page is the best.
+
+When there is nothing with amounts in it anywhere — a reel captioned "swipe
+for the recipe" — the screen says so instead of making a draft with one
+ingredient in it.
 
 #22 — photograph a cupboard, have it become stock — is still parked. That one
 really does need a model.

@@ -88,8 +88,20 @@ same blob the player would have returned. The player clients are tried first
 anyway, because they are the only route that also carries **captions**:
 YouTube's web caption URLs answer with 200 and an empty body, wanting a token
 the browser mints in JavaScript, while the IOS and ANDROID clients are not
-asked for one. Which means transcripts work in development and are usually
-absent in production, and that is the honest state of it. Auto-captions **roll**, repeating each
+asked for one. Which means transcripts work in development and are **absent in
+production**, and that is the honest state of it: `video.google.com/timedtext`,
+`api/timedtext` bare, with `kind=asr`, and every `fmt` all answer 200 with zero
+bytes. Which is survivable only because of the route that does the real work -
+a cook who does this for a living writes two sentences and "Get the recipe
+here", so when a description carries no ingredient list the links in it are
+followed (not the channel, the playlist, the socials or the Amazon shelf) and
+the page read for schema.org markup, which nearly every food site publishes for
+search engines. It gives amounts as the strings a person typed, so it goes back
+through `readRecipeText` as text rather than being built into a document here.
+Two videos that produced three useless paragraphs now give fourteen ingredients
+and fifteen. Text with no amounts anywhere in it is marked `thin` and the
+screen says so, because a draft with one ingredient called "Recipe by
+@somebody" looks like it worked. Auto-captions **roll**, repeating each
 line as they scroll, and the repeats arrive as `aAppend` events - joining the
 file naively says everything three times. And a description is mostly advert:
 the one that made `carveFromDescription` necessary had its ingredients on lines
