@@ -307,6 +307,28 @@ Method
                 {read.preview.servings}
               </p>
 
+              {/*
+                A recipe with amounts and no method, off a video.
+
+                Nearly always the same story: the cook wrote the list in the
+                description and says the method out loud. The captions are the
+                method, and this server cannot have them - YouTube hands them
+                to a phone and refuses a datacentre, which /api/video-probe
+                confirms route by route. The person watching can have them in
+                two taps, and this box already reads whatever is pasted into
+                it, so the way through is worth spelling out rather than
+                leaving them with a recipe that has no steps.
+              */}
+              {read.preview.steps === 0 && fetched?.url?.includes("youtube.com") && (
+                <p className="mt-2 rounded-[10px] bg-page px-3 py-2 text-xs font-semibold text-muted-foreground">
+                  No method — it is probably only said out loud. Open the
+                  video, press the three dots, then{" "}
+                  <strong className="text-foreground">Show transcript</strong>,
+                  copy it, and paste it under the ingredients above. Read it
+                  again and the steps come with it.
+                </p>
+              )}
+
               <ul className="mt-3 space-y-1 text-sm font-semibold">
                 {read.preview.lines.map((line, index) => (
                   <li key={index} className="break-words">
