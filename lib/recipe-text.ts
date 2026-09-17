@@ -513,7 +513,17 @@ export function readIngredientLine(
    The whole paste
    ------------------------------------------------------------------------- */
 
-const INGREDIENT_HEADING = /^(ingredients?|you(\s+will)?\s+need|shopping list)\b[:\s]*$/i;
+/**
+ * "Ingredients", and the way a caption writes it.
+ *
+ * A reel opens "👇 You'll need (Serves 1-2):" - an emoji, an apostrophe and a
+ * serving count in brackets, none of which the original pattern allowed, so
+ * the one line saying where the list began was read as an ingredient. The
+ * leading run of non-letters covers the emoji and the arrow, the bracket is
+ * optional metadata, and the apostrophe may be either kind or absent.
+ */
+const INGREDIENT_HEADING =
+  /^[^\p{L}]*(ingredients?|you(?:['’]ll|\s+will)?\s+need|shopping list)\b\s*(?:\([^)]*\))?[:\s]*$/iu;
 const METHOD_HEADING =
   /^(method|instructions?|directions?|steps?|preparation|how to (make|cook) it|to (make|cook))\b[:\s]*$/i;
 const NOTES_HEADING = /^(notes?|tips?|to serve|serving suggestions?)\b[:\s]*$/i;
@@ -540,11 +550,45 @@ const SECTION_HEADING = /^(?:for the .{1,40}|(?!\d)[^:\n]{2,40}:)$/i;
  * catches the short ones ("Season and serve"), and the leading-quantity test
  * rescues the long ingredients ("2 x 400g tins of chopped tomatoes, drained").
  */
+/** "1." or "2)" or "Step 3" - a number that counts steps, not grams. */
+const STEP_NUMBER = /^(?:step\s*)?\d{1,2}\s*[.)]\s/i;
+
+/**
+ * A line that opens with a quantity.
+ *
+ * The difference from a step number is one character: "1. Heat the oil" counts
+ * instructions and "1.5 tbsp butter" measures butter, so a digit followed by a
+ * full stop and a space is a step and a digit followed by anything else is an
+ * amount.
+ */
+const LEADING_AMOUNT =
+  /^\s*(?:\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?|[½¼¾⅓⅔⅛])\s*\S/;
+
 function looksLikeStep(line: string): boolean {
-  const words = line.trim().split(/\s+/).length;
+  const trimmed = line.trim();
+  if (STEP_NUMBER.test(trimmed)) return true;
+
+  /**
+   * An amount at the start of the line wins, however long the line is.
+   *
+   * The word count used to win instead, and an ingredient can be long:
+   * "1/2 pack (~250g) lean mince of choice (OR shredded tofu for a vegetarian
+   * version)" is fourteen words, was read as an instruction, and - because
+   * the first step latches the reader into method mode - took the five
+   * ingredients under it along with it. The method of that recipe came out as
+   * a list of its own ingredients.
+   *
+   * The cost is a step that opens with a time, "5 minutes before serving, add
+   * the parsley", read as an ingredient. That happens inside a method, which
+   * is nearly always under a heading, where the heading decides and this is
+   * never asked.
+   */
+  if (LEADING_AMOUNT.test(trimmed)) return false;
+
+  const words = trimmed.split(/\s+/).length;
   if (readNumber(line) && words < 12) return false;
   if (words >= 12) return true;
-  return STEP_VERB.test(line.trim());
+  return STEP_VERB.test(trimmed);
 }
 
 /**
@@ -781,6 +825,25 @@ export function readRecipeText(text: string): ReadResult {
       where = "ingredients";
       stated = true;
       section = null;
+      // "You'll need (Serves 1-2):" carries the one number nobody else on the
+      // page states. Read before the line is thrown away, or the recipe is
+      // silently assumed to feed four.
+      if (servings === null) servings = readServings(line);
+      continue;
+    }
+
+    /**
+     * A note written as a sentence rather than under a heading.
+     *
+     * "*Food Safety Note 🥚👀: Although the risk is considered very low..." is
+     * a paragraph about eggs, and with no bare "Notes" line above it the
+     * reader had nowhere to put it - so it became an ingredient named after
+     * its own first clause, with the rest of the paragraph as its note. The
+     * word "note" before a colon, with prose after it, is the whole tell.
+     */
+    const labelled = line.match(/^[^\p{L}]{0,4}[^:]{0,40}\bnotes?\b[^:]{0,20}:\s*(\S.*)$/iu);
+    if (labelled) {
+      extraNotes.push(labelled[1]);
       continue;
     }
     if (METHOD_HEADING.test(line)) {
@@ -893,9 +956,21 @@ export function readRecipeText(text: string): ReadResult {
      * been read as an ingredient, a long line is kept as prose rather than
      * promoted, and it ends up as the blurb or as notes.
      */
+    /**
+     * A guessed method does not trap a list that starts again.
+     *
+     * The latch below is right for a recipe written straight through, and
+     * wrong for one written in parts: "For the broth" with its list, then
+     * "For the mince" with its own. One misjudged line in the first list used
+     * to swallow every list after it. So when no heading has said where we
+     * are, a line that opens with an amount is still an ingredient - it is the
+     * one shape a method almost never has. Under a heading, the heading
+     * decides and this does not apply.
+     */
     const isStep = stated
       ? where === "steps"
-      : where === "steps" || (ingredientLines.length > 0 && looksLikeStep(line));
+      : (where === "steps" && !LEADING_AMOUNT.test(line)) ||
+        (ingredientLines.length > 0 && looksLikeStep(line));
 
     if (isStep) {
       // Without headings, the method starting is the one transition that does

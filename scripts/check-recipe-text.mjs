@@ -626,6 +626,85 @@ for (const [line, name] of [
 const BARE_MEASURE = readRecipeText("T\n\nPiece\n\nMix it.");
 check("a bare measure word is kept", BARE_MEASURE.document.ingredients[0].item_name, "Piece");
 
+/* --- a recipe written in parts, off a reel --- */
+
+// The shape that broke it: a caption with two ingredient lists under their own
+// sub-headings, one long line in the first, and the method at the bottom. The
+// long line was judged an instruction on word count alone, the first
+// instruction latches the reader into method mode, and everything after it -
+// the whole second list - came out as steps. The method of the recipe was a
+// list of its own ingredients.
+const IN_PARTS = [
+  "POV: One-Pot Lazy Ramen",
+  "You'll need (Serves 1-2):",
+  "For the broth:",
+  "1 tbsp red curry paste",
+  "2 cups chicken stock",
+  "For the mince:",
+  "1/2 pack (~250g) lean mince of choice (OR shredded tofu for a vegetarian version)",
+  "1 tbsp oyster sauce",
+  "1 tbsp dark soy sauce",
+  "*Food Safety Note: always use clean, uncracked eggs and bring the broth to a rolling boil.",
+  "Method:",
+  "Cook the mince until browned.",
+  "Pour in the stock and bring to a boil.",
+].join("\n");
+
+const parts = readRecipeText(IN_PARTS);
+
+check(
+  "a long ingredient line does not become the method",
+  parts.document.ingredients.map((each) => each.item_name),
+  ["Red curry paste", "Chicken stock", "Lean mince of choice", "Oyster sauce", "Dark soy sauce"],
+);
+
+check(
+  "the second list keeps its own section",
+  parts.document.ingredients.map((each) => each.section ?? null),
+  ["For the broth", "For the broth", "For the mince", "For the mince", "For the mince"],
+);
+
+check(
+  "the method is the method",
+  parts.document.steps.map((each) => each.body),
+  ["Cook the mince until browned.", "Pour in the stock and bring to a boil."],
+);
+
+// The heading carries the only serving count in the caption, and reading it as
+// a heading used to throw it away - so a recipe for one or two was silently
+// assumed to feed four.
+// 1 rather than 2: "Serves 1-2" is a range, and a range takes its first
+// number everywhere in this reader - the same rule that reads "2-3 cloves" as
+// two. What is being checked is that the number survives the heading at all,
+// instead of the recipe being silently assumed to feed four.
+check("the serving count survives its heading", parts.document.base_servings, 1);
+
+// A paragraph about eggs, labelled as a note and written as a sentence. With
+// no bare "Notes" line above it, it became an ingredient named after its own
+// first clause.
+check(
+  "a note written as a sentence is a note",
+  (parts.document.notes ?? "").startsWith("always use clean"),
+  true,
+);
+
+// The counter-case for the leading-amount rule: a numbered step is still a
+// step. "1. Heat the oil" counts instructions, "1.5 tbsp butter" measures
+// butter, and one character separates them.
+const NUMBERED_STEPS = readRecipeText(
+  ["Curry", "", "1.5 tbsp butter", "2 onions", "", "1. Heat the oil.", "2. Add the onions."].join("\n"),
+);
+check(
+  "a numbered step is not an ingredient",
+  NUMBERED_STEPS.document.steps.map((each) => each.body),
+  ["Heat the oil.", "Add the onions."],
+);
+check(
+  "and the amounts above it are still ingredients",
+  NUMBERED_STEPS.document.ingredients.map((each) => each.item_name),
+  ["Butter", "Onions"],
+);
+
 if (failures > 0) {
   console.error(`\n${failures} failed`);
   process.exit(1);
