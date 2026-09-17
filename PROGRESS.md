@@ -3,10 +3,37 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 17 Sep 2026 — usage report built, database viewer is a tree
+**Last updated:** 17 Sep 2026 — cooking ungated, shop trip surfaced, planning from a recipe
 **Doing right now:** nothing
 **Waiting on you:** re-file report #25 with its screenshot. The picture never
 reached the server and the words on their own do not say what was wrong.
+
+### 17 Sep, three pieces of friction
+
+**Cooking no longer asks to be let in first.** The Cook button, the ingredient
+ticks and the shopping link all only appeared once a recipe was in the
+cookbook. Press Cook now and it adopts the recipe itself — writing only the
+links it is sure of, so nothing is settled in your name about a shelf you have
+not shopped for yet.
+
+**"Shop for it — 3 things"** is a button on the tonight card instead of a line
+of underlined text, and the shopping-trip strip is on /tonight, which is the
+screen you open in a shop. That strip has said in its own file all along that
+it belonged there.
+
+**A recipe can be planned onto a day from the recipe page** — seven days, your
+own meal names, one tap, and it is waiting on Tonight when the day comes.
+
+A correction to what I said earlier today: the zeros are not all the same kind.
+Everything older than today is already in somebody's cookbook, and six meals
+have been cooked — all before counting started on the 15th. So `cook.start` at
+zero is two quiet days, not a blocked funnel. The gate was still real for a
+recipe that has just arrived, and the three imported today are in nobody's
+cookbook. But `meal_plan` and `pinned_recipes` have never held a row in the
+app's whole life. Those two are the honest zeros.
+
+Page speed is not the problem either: 210–390ms a page, warm, measured against
+production on a phone viewport.
 
 ### 17 Sep, a recipe off a video (#26)
 
