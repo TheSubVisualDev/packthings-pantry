@@ -54,12 +54,18 @@ const LINKS = [
   ["https://www.youtube.com/embed/gq_8e3brwJA", { host: "youtube", id: "gq_8e3brwJA" }],
   ["https://www.youtube.com/live/gq_8e3brwJA", { host: "youtube", id: "gq_8e3brwJA" }],
   ["  https://youtu.be/gq_8e3brwJA  ", { host: "youtube", id: "gq_8e3brwJA" }],
-  ["https://www.instagram.com/reel/CtMXPf7gIB0/", { host: "instagram", code: "CtMXPf7gIB0" }],
-  ["https://instagram.com/reels/CtMXPf7gIB0", { host: "instagram", code: "CtMXPf7gIB0" }],
+  ["https://www.instagram.com/reel/CtMXPf7gIB0/", { host: "instagram", url: "https://www.instagram.com/reel/CtMXPf7gIB0/" }],
+  ["https://instagram.com/reels/CtMXPf7gIB0", { host: "instagram", url: "https://www.instagram.com/reels/CtMXPf7gIB0" }],
   // A reel linked from inside a profile, which is what the app's own share
   // button produces.
-  ["https://www.instagram.com/recipesbyanne/reel/CtMXPf7gIB0/", { host: "instagram", code: "CtMXPf7gIB0" }],
-  ["https://www.instagram.com/p/CtMXPf7gIB0/?img_index=1", { host: "instagram", code: "CtMXPf7gIB0" }],
+  ["https://www.instagram.com/recipesbyanne/reel/CtMXPf7gIB0/", { host: "instagram", url: "https://www.instagram.com/recipesbyanne/reel/CtMXPf7gIB0/" }],
+  // The share sheet's own link, which is a redirect and not a shortcode at
+  // all. Rebuilding it as /reel/<that> produced a link to nothing and a login
+  // wall - the failure that looked like Instagram refusing the app.
+  ["https://www.instagram.com/share/reel/_xY123abcD/", { host: "instagram", url: "https://www.instagram.com/share/reel/_xY123abcD/" }],
+  ["https://www.instagram.com/p/CtMXPf7gIB0/?img_index=1", { host: "instagram", url: "https://www.instagram.com/p/CtMXPf7gIB0/" }],
+  // A mirror domain names a real post, but the fetch goes to instagram.com.
+  ["https://ddinstagram.com/reel/CtMXPf7gIB0/", { host: "instagram", url: "https://www.instagram.com/reel/CtMXPf7gIB0/" }],
 
   // Not videos. The channel page and the search results are the two somebody
   // actually pastes by accident, and an id of the wrong length is the one that

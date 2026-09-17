@@ -23,7 +23,19 @@
 /** Where a link points, once it has been recognised. */
 export type VideoSource =
   | { host: "youtube"; id: string }
-  | { host: "instagram"; code: string };
+  /**
+   * Instagram carries the whole link rather than a code.
+   *
+   * Reconstructing `/reel/<code>/` from a parsed id looked tidier and was
+   * wrong: the share sheet produces `/share/reel/<something>`, where that
+   * something is not a shortcode at all but a token Instagram redirects. Built
+   * back into a /reel/ URL it becomes a link to a post that does not exist,
+   * and the answer is a login wall - which is the same thing the code says
+   * when Instagram is refusing outright, so the failure lied about its own
+   * cause. Fetching what was pasted and following the redirect handles the
+   * share link, the profile-scoped link and the plain one with no cases.
+   */
+  | { host: "instagram"; url: string };
 
 /**
  * Which of the three kinds of text a draft was built from.
@@ -96,12 +108,30 @@ export function identifyVideo(input: string): VideoSource | null {
   }
 
   if (host === "instagram.com" || host === "ddinstagram.com") {
-    // /reel/CODE, /reels/CODE, /p/CODE, and the same three under a profile:
-    // /someone/reel/CODE. The code is the last segment either way.
+    // /reel/CODE, /reels/CODE, /p/CODE, the same three under a profile
+    // (/someone/reel/CODE), and /share/reel/TOKEN from the share sheet. What
+    // is checked is that this names a post at all - which one it is, is
+    // Instagram's business to resolve.
     const parts = url.pathname.split("/").filter(Boolean);
-    const at = parts.findIndex((part) => ["reel", "reels", "p", "tv"].includes(part));
-    const code = at >= 0 ? parts[at + 1] : undefined;
-    return code && INSTAGRAM_CODE.test(code) ? { host: "instagram", code } : null;
+    if (!parts.some((part) => ["reel", "reels", "p", "tv", "share"].includes(part))) {
+      return null;
+    }
+
+    /**
+     * The last segment, not the one after the keyword.
+     *
+     * A share link is /share/reel/<token>, so "the segment after the first
+     * keyword" is the word "reel" - which is four characters, fails the
+     * shortcode test, and made every share link look like something this
+     * cannot read.
+     */
+    const named = parts[parts.length - 1];
+    if (!INSTAGRAM_CODE.test(named)) return null;
+
+    // Rebuilt to instagram.com so a mirror domain cannot send the fetch
+    // somewhere else, but with the path as pasted so a share link still
+    // resolves.
+    return { host: "instagram", url: `https://www.instagram.com${url.pathname}` };
   }
 
   return null;
@@ -492,7 +522,16 @@ export function chooseTrack(tracks: CaptionTrack[]): CaptionTrack | null {
   return pool.find((track) => track.kind !== "asr") ?? pool[0] ?? null;
 }
 
-async function askYouTube(id: string): Promise<PlayerResponse | null> {
+/** What a route came back with, and what to say if none of them did. */
+interface Asked {
+  player: PlayerResponse | null;
+  /** YouTube's own words for the refusal, kept for the message on screen. */
+  refusal: string | null;
+}
+
+async function askYouTube(id: string): Promise<Asked> {
+  let refusal: string | null = null;
+
   for (const client of CLIENTS) {
     try {
       const response = await fetch(
@@ -511,22 +550,94 @@ async function askYouTube(id: string): Promise<PlayerResponse | null> {
       );
       if (!response.ok) continue;
       const player = (await response.json()) as PlayerResponse;
-      if (player.playabilityStatus?.status === "OK") return player;
+      if (player.playabilityStatus?.status === "OK") return { player, refusal: null };
+      refusal ??= player.playabilityStatus?.reason ?? null;
     } catch {
       // Either client may be the one that is refused today. Falling through to
       // the next is the whole reason there are two.
     }
   }
-  return null;
+
+  /**
+   * The page itself, asked for as a link preview.
+   *
+   * This is the route that matters in production and the reason the first two
+   * are not enough. The player endpoint answers a laptop at home and refuses
+   * the same request from a datacentre - which is where this app runs - with
+   * "Sign in to confirm you're not a bot". A crawler asking for the watch page
+   * is the request every chat app makes to draw a link preview, it is answered
+   * from anywhere, and the page it returns still carries the full description
+   * in the same blob the player would have given.
+   */
+  const fromPage = await watchPage(id);
+  if (fromPage) return { player: fromPage, refusal: null };
+
+  return { player: null, refusal };
+}
+
+/** The description out of the watch page, which survives where the API does not. */
+async function watchPage(id: string): Promise<PlayerResponse | null> {
+  try {
+    const response = await fetch(
+      // bpctr and has_verified are what get past the "are you sure" interstitial
+      // rather than a page about it.
+      `https://www.youtube.com/watch?v=${id}&bpctr=9999999999&has_verified=1`,
+      {
+        headers: {
+          "user-agent": "facebookexternalhit/1.1",
+          "accept-language": "en-GB,en;q=0.9",
+        },
+        signal: AbortSignal.timeout(PATIENCE),
+      },
+    );
+    if (!response.ok) return null;
+    const html = await response.text();
+
+    const blob = html.match(
+      /ytInitialPlayerResponse\s*=\s*(\{[\s\S]+?\})\s*;\s*(?:var|const|let|<\/script>)/,
+    );
+    if (blob) {
+      try {
+        const player = JSON.parse(blob[1]) as PlayerResponse;
+        if (player.videoDetails?.title) return player;
+      } catch {
+        // A truncated blob is not a reason to give up on the page - the
+        // preview tags below say less, but they say it reliably.
+      }
+    }
+
+    // Failing that, the preview metadata: a title and the first paragraph or
+    // so of the description. Short, and enough for a reel-length recipe.
+    const described = html.match(
+      /<meta[^>]+(?:property|name)=["']og:description["'][^>]+content=["']([^"']*)["']/i,
+    );
+    const titled = html.match(
+      /<meta[^>]+(?:property|name)=["']og:title["'][^>]+content=["']([^"']*)["']/i,
+    );
+    if (!titled) return null;
+
+    return {
+      videoDetails: {
+        title: decodeEntities(titled[1]),
+        shortDescription: described ? decodeEntities(described[1]) : "",
+      },
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function fetchYouTube(id: string): Promise<Found> {
-  const player = await askYouTube(id);
+  const { player, refusal } = await askYouTube(id);
   if (!player) {
     return {
       ok: false,
-      error:
-        "YouTube would not say anything about that video. It may be private, age-restricted or removed.",
+      // YouTube's own words where there are any. "It may be private" was a
+      // guess, and it sent everybody looking at the wrong thing when the real
+      // answer was that the server had been taken for a robot.
+      error: refusal
+        ? `YouTube refused: "${refusal}"`
+        : "YouTube would not say anything about that video. It may be private, age-restricted or removed.",
     };
   }
 
@@ -586,17 +697,21 @@ async function fetchYouTube(id: string): Promise<Found> {
  * caption is usually the recipe anyway - it is where the ingredient list gets
  * typed, because the video is too fast to read one off.
  */
-async function fetchInstagram(code: string): Promise<Found> {
-  const url = `https://www.instagram.com/reel/${code}/`;
+async function fetchInstagram(url: string): Promise<Found> {
   let html = "";
+  let landed = url;
   try {
     const response = await fetch(url, {
       headers: {
         "user-agent": "facebookexternalhit/1.1",
         "accept-language": "en-GB,en;q=0.9",
       },
+      // A share link is a redirect to the post, so it is followed and the URL
+      // it lands on is the one kept as the recipe's source.
+      redirect: "follow",
       signal: AbortSignal.timeout(PATIENCE),
     });
+    landed = response.url || url;
     html = await response.text();
   } catch {
     return { ok: false, error: "Instagram did not answer. Try again in a moment." };
@@ -616,7 +731,7 @@ async function fetchInstagram(code: string): Promise<Found> {
     return { ok: false, error: "That reel has an empty caption." };
   }
 
-  return { ok: true, ...built, author: author ?? undefined, url };
+  return { ok: true, ...built, author: author ?? undefined, url: landed };
 }
 
 /** The one entry point: a link in, text to read out. */
@@ -632,5 +747,5 @@ export async function findRecipeText(link: string): Promise<Found> {
 
   return source.host === "youtube"
     ? fetchYouTube(source.id)
-    : fetchInstagram(source.code);
+    : fetchInstagram(source.url);
 }
