@@ -9,7 +9,9 @@ import {
   type ApplyResult,
   type ReceiptMatch,
 } from "@/app/pantry/receipt/actions";
+import { addItem } from "@/app/pantry/actions";
 import { prepareReceipt } from "@/lib/scan-image";
+import { UNITS_BY_DIMENSION } from "@/lib/units";
 
 const CARD = "rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]";
 
@@ -281,6 +283,28 @@ export function ReceiptScanner() {
     );
   }
 
+  /**
+   * A line that had nothing to match, now that it does.
+   *
+   * The new row is put into that line's options and chosen, so the receipt
+   * carries on exactly where it was - which is the whole point: the review
+   * screen holds every other line's decision in component state, and sending
+   * somebody to /pantry/add to fix one unknown item threw all of them away.
+   */
+  function created(index: number, item: { id: number; name: string }) {
+    setMatches((current) =>
+      (current ?? []).map((match) =>
+        match.index === index
+          ? {
+              ...match,
+              options: [{ id: item.id, name: item.name, score: 1 }, ...match.options],
+            }
+          : match,
+      ),
+    );
+    setChosen((current) => ({ ...current, [index]: item.id }));
+  }
+
   const unsure = matches.filter((match) => !match.confident);
   const sure = matches.filter((match) => match.confident);
   const picked = matches.filter((match) => chosen[match.index] != null).length;
@@ -328,6 +352,7 @@ export function ReceiptScanner() {
                 onChoose={(id) =>
                   setChosen((current) => ({ ...current, [match.index]: id }))
                 }
+                onCreated={created}
               />
             ))}
           </ul>
@@ -359,6 +384,7 @@ export function ReceiptScanner() {
                   onChoose={(id) =>
                     setChosen((current) => ({ ...current, [match.index]: id }))
                   }
+                  onCreated={created}
                 />
               ))}
             </ul>
@@ -407,11 +433,30 @@ function Row({
   match,
   chosenId,
   onChoose,
+  onCreated,
 }: {
   match: ReceiptMatch;
   chosenId: number | null;
   onChoose: (id: number | null) => void;
+  /** Called with a row this line has just created, to match it against. */
+  onCreated: (index: number, item: { id: number; name: string }) => void;
 }) {
+  /**
+   * Making the missing item here rather than sending somebody to the add form.
+   *
+   * Three fields, because the rest of what the add form asks - tags, shops,
+   * packaging, dates - is not what somebody is doing at this moment. They are
+   * standing over a carrier bag confirming a shop, and the row can be filled
+   * in properly later from the item's own page. It posts to the same `addItem`
+   * the form posts to, so what a valid item is stays written down once.
+   */
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState(match.name);
+  const [newAmount, setNewAmount] = useState(String(match.count || 1));
+  const [newUnit, setNewUnit] = useState("count");
+  const [failed, setFailed] = useState<string | null>(null);
+  const [saving, startSaving] = useTransition();
+
   return (
     <li className="border-t border-border pt-3 first:border-0 first:pt-0">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -439,15 +484,99 @@ function Row({
       )}
 
       {match.options.length === 0 ? (
-        <p className="mt-1.5 text-sm font-semibold text-muted-foreground">
-          Not on your shelves.{" "}
-          <Link
-            href={`/pantry/add?name=${encodeURIComponent(match.name)}`}
-            className="font-bold text-primary underline underline-offset-2"
-          >
-            Add it
-          </Link>
-        </p>
+        adding ? (
+          <div className="mt-2 space-y-2">
+            <input
+              value={newName}
+              onChange={(event) => setNewName(event.target.value)}
+              maxLength={80}
+              aria-label="What to call it"
+              className="w-full rounded-[12px] border border-border bg-page px-3 py-2 text-sm font-semibold outline-none focus:border-primary"
+            />
+            <div className="flex flex-wrap gap-2">
+              <input
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                value={newAmount}
+                onChange={(event) => setNewAmount(event.target.value)}
+                aria-label={`How much ${newName}`}
+                className="w-24 rounded-[12px] border border-border bg-page px-3 py-2 text-sm font-semibold outline-none focus:border-primary"
+              />
+              <select
+                value={newUnit}
+                onChange={(event) => setNewUnit(event.target.value)}
+                aria-label="Unit"
+                className="rounded-[12px] border border-border bg-page px-3 py-2 text-sm font-semibold outline-none focus:border-primary"
+              >
+                {Object.values(UNITS_BY_DIMENSION)
+                  .flat()
+                  .map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+              </select>
+              <button
+                type="button"
+                disabled={saving || !newName.trim()}
+                onClick={() => {
+                  setFailed(null);
+                  startSaving(async () => {
+                    const form = new FormData();
+                    form.set("name", newName.trim());
+                    form.set("quantity", newAmount || "0");
+                    form.set("unit", newUnit);
+                    // Answer rather than redirect: a redirect here would
+                    // unmount the receipt, which is the bug being fixed.
+                    form.set("again", "1");
+
+                    const result = await addItem({}, form);
+                    if (!result.addedId) {
+                      setFailed(result.error ?? "Couldn't add that.");
+                      return;
+                    }
+                    onCreated(match.index, {
+                      id: result.addedId,
+                      name: newName.trim(),
+                    });
+                    setAdding(false);
+                  });
+                }}
+                className="rounded-[12px] bg-primary px-3 py-2 text-xs font-extrabold text-primary-foreground disabled:opacity-40"
+              >
+                {saving ? "Adding…" : "Add to shelves"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAdding(false);
+                  setFailed(null);
+                }}
+                className="rounded-[12px] px-3 py-2 text-xs font-bold text-muted-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+            {failed && (
+              <p role="alert" className="text-xs font-bold text-destructive">
+                {failed}
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="mt-1.5 text-sm font-semibold text-muted-foreground">
+            Not on your shelves.{" "}
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="font-bold text-primary underline underline-offset-2"
+            >
+              Add it
+            </button>
+          </p>
+        )
       ) : (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {match.options.map((option) => {

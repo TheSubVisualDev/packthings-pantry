@@ -32,6 +32,15 @@ export interface AddItemState {
    * form can say what it saved and clear itself.
    */
   added?: string;
+  /**
+   * The row that was created, for a caller that has to point at it.
+   *
+   * The receipt reader uses this: a line with nothing on the shelves to match
+   * used to be a link out to /pantry/add, which unmounted the review screen
+   * and threw away every other decision on the receipt. It posts the same
+   * fields to the same action instead and keeps the id it gets back.
+   */
+  addedId?: number;
 }
 
 /**
@@ -276,7 +285,7 @@ export async function addItem(
 
   // Unpacking a bag: stay on the form rather than making a round trip to the
   // shelf and back through four stages for every tin.
-  if (String(formData.get("again") ?? "") === "1") return { added: name };
+  if (String(formData.get("again") ?? "") === "1") return { added: name, addedId: itemId };
 
   /**
    * Back to the shelf, which is on /tonight now.

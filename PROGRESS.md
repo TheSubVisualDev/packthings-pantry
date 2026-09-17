@@ -3,18 +3,38 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 15 Sep 2026 — P7 decided and built, shelf life built
+**Last updated:** 17 Sep 2026 — photos fixed, friction audit worked through
 **Doing right now:** nothing
-**Waiting on you:** how the swipe sensitivity actually feels in the hand. The
-thresholds were guessed with a mouse and a thumb is not a mouse.
+**Waiting on you:** re-file report #25 with its screenshot. The picture never
+reached the server and the words on their own do not say what was wrong.
 
 ### Two things to press when you next open it
 
-1. **Stock → "Date the 34 with no date"**, under the list. It will date 29 of
-   them and decline salt, sugar, MSG and the Nerds. Every date it writes is
-   marked as a guess and says "probably"; type over any of them to correct it.
-2. **The bell**, top right. @darpy cooked your Red Pepper & Carrot Soup on the
-   11th, which is real news the app had no way of telling you at the time.
+1. **A bug report with a picture on it.** Every report since 14 Sep lost its
+   photo silently - reports 7 to 11 have one, 12 to 25 have none. The reset of
+   the file picker moved above the line that reads the files, and a FileList
+   empties when you clear the input. Driven end to end in Chromium and WebKit
+   before and after.
+2. **Scan something you already own.** It adds a sealed pack now rather than
+   pouring the contents into the open one, which is what it did.
+
+### 17 Sep, the friction audit
+
+An unbiased pass over the app came back with twelve points of friction; you
+approved eleven and left ingredient drag-reordering alone.
+
+Built: barcode restocking goes through PACK_SQL (and the panel's "in stock"
+figures count the whole shelf); undo survives the toast, on /cooked and on
+the recipe, for a day; the receipt reader adds a missing item in place
+instead of navigating away and losing the receipt; a guessed date is marked
+in the edit form and can be asked for one item at a time; the new-pack prompt
+offers the standard life; the add form has "Add another" and points at the
+receipt reader; the untracked-amount checkbox comes before the fields it
+skips; the receipt reader has a progress bar; quick-adjust errors say which
+item; and the shop filter for Running Low is one rule in one query.
+
+Not looked at in a browser: the two receipt-reader changes, which need a real
+receipt to reach. Everything else was photographed.
 
 ### 15 Sep, in one line
 
