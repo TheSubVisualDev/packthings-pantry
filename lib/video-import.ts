@@ -929,8 +929,28 @@ async function askYouTube(id: string): Promise<Asked> {
   return { player: null, refusal };
 }
 
-/** The description out of the watch page, which survives where the API does not. */
+/**
+ * The description out of the watch page, which survives where the API does
+ * not.
+ *
+ * Asked for twice, as two different readers. The crawler is answered from
+ * anywhere and gets a page trimmed for a link preview; a browser gets the
+ * whole thing, including the blob with the full description in it. Which of
+ * them YouTube is willing to serve a datacentre varies by the hour, so both
+ * are tried before anybody is told no.
+ */
 async function watchPage(id: string): Promise<PlayerResponse | null> {
+  for (const agent of [
+    "facebookexternalhit/1.1",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36",
+  ]) {
+    const player = await watchPageAs(id, agent);
+    if (player) return player;
+  }
+  return null;
+}
+
+async function watchPageAs(id: string, agent: string): Promise<PlayerResponse | null> {
   try {
     const response = await fetch(
       // bpctr and has_verified are what get past the "are you sure" interstitial
@@ -938,7 +958,7 @@ async function watchPage(id: string): Promise<PlayerResponse | null> {
       `https://www.youtube.com/watch?v=${id}&bpctr=9999999999&has_verified=1`,
       {
         headers: {
-          "user-agent": "facebookexternalhit/1.1",
+          "user-agent": agent,
           "accept-language": "en-GB,en;q=0.9",
         },
         signal: AbortSignal.timeout(PATIENCE),
@@ -972,7 +992,7 @@ async function watchPage(id: string): Promise<PlayerResponse | null> {
 
     return {
       videoDetails: {
-        title: decodeEntities(titled[1]),
+        title: decodeEntities(titled[1]).replace(/\s*-\s*YouTube$/, ""),
         shortDescription: described ? decodeEntities(described[1]) : "",
       },
     };
@@ -986,12 +1006,20 @@ async function fetchYouTube(id: string): Promise<Found> {
   if (!player) {
     return {
       ok: false,
-      // YouTube's own words where there are any. "It may be private" was a
-      // guess, and it sent everybody looking at the wrong thing when the real
-      // answer was that the server had been taken for a robot.
+      /**
+       * YouTube's own words, and then the way out.
+       *
+       * "It may be private" was a guess that sent everybody looking at the
+       * wrong thing when the answer was that the server had been taken for a
+       * robot - which it is, from a datacentre, unpredictably and by the hour.
+       * Nothing this app can do fixes that. But the person asking is holding a
+       * device YouTube is perfectly happy to talk to, they can see the
+       * description on it, and this reads a recipe page pasted straight in -
+       * so the message says so rather than stopping at "no".
+       */
       error: refusal
-        ? `YouTube refused: "${refusal}"`
-        : "YouTube would not say anything about that video. It may be private, age-restricted or removed.",
+        ? `YouTube refused: "${refusal}". It does that to servers, not to you — open the video, and if the description has a link to the full recipe, paste that link here instead.`
+        : "YouTube would not say anything about that video. It may be private, age-restricted or removed — or the description has a link to the recipe, which you can paste here instead.",
     };
   }
 
