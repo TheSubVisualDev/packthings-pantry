@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db";
 import { requireKitchenRole, requireUser } from "@/lib/session";
 import { getRecipe } from "@/lib/queries";
 import { rate } from "@/lib/recipe-store";
-import { resolveWithLinks } from "@/lib/cookbook";
+import { addToCookbook, isInCookbook, resolveWithLinks } from "@/lib/cookbook";
 import { indexStock } from "@/lib/pantry-match";
 import { resolveAmount, scaleQuantity } from "@/lib/units";
 import { ADJUST_SQL } from "@/lib/containers";
@@ -122,6 +122,30 @@ export async function cookRecipe(
   const access = await requireKitchenRole("editor");
   if (!access.ok) {
     return { ok: false, error: access.error, opened: [], applied: [], flagged: [], skipped: [] };
+  }
+
+  /**
+   * Cooking a recipe adopts it, rather than requiring that first.
+   *
+   * The Cook button used to appear only once a recipe was in the cookbook, and
+   * until then the panel said so and offered the other button. In a month of
+   * counting, recipes were opened fourteen times, written or pasted ten, and
+   * cooked zero times - with zero presses of Add to cookbook, which is the
+   * door the other zero was behind. Two counts, one cause: the app's central
+   * action was gated on a word nobody had reason to learn.
+   *
+   * So pressing Cook links the ingredients to these shelves and gets on with
+   * it. The confident lines link as they always did; the ambiguous ones are
+   * deliberately left unwritten - see skipUncertain - so the resolver below
+   * places them and flags what it cannot, rather than a silent decision being
+   * recorded on somebody's behalf at the stove.
+   *
+   * Not counted as `recipe.save`. That name means the button was pressed, and
+   * a count that includes presses nobody made answers a different question
+   * than the one it is read as answering.
+   */
+  if (!(await isInCookbook(access.kitchen.id, recipeId))) {
+    await addToCookbook(access.kitchen.id, recipeId, access.user.id, [], true);
   }
 
   const tx = await getDb().transaction("write");

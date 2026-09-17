@@ -114,6 +114,26 @@ export async function addToCookbook(
   recipeId: number,
   userId: number,
   choices: LinkChoice[] = [],
+  /**
+   * Write only the links this is sure of, and leave the rest unrecorded.
+   *
+   * For adoption that nobody asked for - pressing Cook on a recipe that was
+   * never added - because of what a written row means. A row with a null
+   * item_id says "asked, and this kitchen has none", and cooking treats that
+   * as settled: nothing comes off the shelf, now or ever.
+   *
+   * That is a fine answer to give when somebody was actually asked. Written on
+   * their behalf it is a decision made in their name, and a wrong one as soon
+   * as the shelf changes: adopt a recipe while the cupboard is empty, buy the
+   * cucumber, cook it, and the cucumber stays on the shelf for ever because
+   * the app recorded "there is no cucumber here" the day before. Silently
+   * under-deducting is the bug AGENTS.md keeps a count of.
+   *
+   * No row at all means never asked, so the cook resolves the line afresh
+   * every time and flags what it cannot place - the same path a line added by
+   * a later edit takes.
+   */
+  onlyConfident = false,
 ): Promise<{ ok: boolean; linked: number; asked: number }> {
   const proposed = await proposeLinks(kitchenId, recipeId);
   const decided = new Map(choices.map((choice) => [choice.ingredient_id, choice.item_id]));
@@ -132,6 +152,12 @@ export async function addToCookbook(
       const itemId = decided.has(line.ingredient.id)
         ? decided.get(line.ingredient.id)!
         : (line.item?.id ?? null);
+
+      // Nobody answered this one and nobody was asked, so it is left for the
+      // cook to resolve rather than recorded as a decision in their name.
+      if (onlyConfident && itemId === null && !decided.has(line.ingredient.id)) {
+        continue;
+      }
 
       /**
        * A row is written even when the answer is "nothing", because a null

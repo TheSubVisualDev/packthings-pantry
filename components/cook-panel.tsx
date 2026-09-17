@@ -496,7 +496,7 @@ export function CookPanel({
           a cooking checklist, not a stock report, and one line saying so costs
           less than inventing a third visual language for them.
         */}
-        {hasKitchen && inCookbook && (
+        {hasKitchen && (
           <p className="mb-2 text-xs font-semibold text-muted-foreground print:hidden">
             Ticked ones come off your shelves when you cook. Untick anything you
             left out.
@@ -523,7 +523,7 @@ export function CookPanel({
                   className="border-b border-border px-4 py-3.5 last:border-b-0 sm:px-5"
                 >
                   <div className="flex items-center justify-between gap-3">
-                  {hasKitchen && inCookbook && (
+                  {hasKitchen && (
                     <button
                       type="button"
                       role="checkbox"
@@ -628,7 +628,7 @@ export function CookPanel({
           </div>
         )}
 
-      {hasKitchen && inCookbook ? (
+      {hasKitchen ? (
         /**
          * The cook button follows you down the ingredient list.
          *
@@ -669,13 +669,13 @@ export function CookPanel({
         <p className="text-center text-xs font-semibold text-muted-foreground print:hidden">
           Stock moves when you press this, not before. Untick anything you did
           not use.
+          {/* Said once, on a recipe that is not in the cookbook yet, because
+              cooking puts it there and somebody should not discover that
+              afterwards. It is a consequence, not a question - the whole point
+              of this change is that nothing is asked at the stove. */}
+          {!inCookbook && " Cooking it also adds it to your cookbook."}
         </p>
         </>
-      ) : hasKitchen ? (
-        <p className="rounded-[14px] bg-chip px-4 py-3.5 text-center text-sm font-semibold text-muted-foreground">
-          Add it to your cookbook below and this becomes Cook. That is where the
-          ingredients get linked to your shelves.
-        </p>
       ) : (
         <p className="rounded-[14px] bg-chip px-4 py-3.5 text-center text-sm font-semibold text-muted-foreground">
           Cooking takes things off a shelf, so it needs{" "}
