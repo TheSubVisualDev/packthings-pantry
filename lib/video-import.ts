@@ -35,7 +35,19 @@ export type VideoSource =
    * cause. Fetching what was pasted and following the redirect handles the
    * share link, the profile-scoped link and the plain one with no cases.
    */
-  | { host: "instagram"; url: string };
+  | { host: "instagram"; url: string }
+  /**
+   * An ordinary web page, which is where a lot of cooking videos keep the
+   * actual recipe.
+   *
+   * The video that made this necessary has a 330-character description - two
+   * sentences about the dish and a link to the cook's own site - and no
+   * captions at all, so there was nothing to read and nothing to fall back to.
+   * The page behind that link had the recipe in schema.org markup: fourteen
+   * ingredients, nine steps, exact. Reached by following a link in a
+   * description, or pasted straight into the box.
+   */
+  | { host: "page"; url: string };
 
 /**
  * Which of the three kinds of text a draft was built from.
@@ -46,7 +58,7 @@ export type VideoSource =
  * transcript is a machine's guess at speech, where "two teaspoons" and "two
  * tablespoons" sound similar and an amount is often never said at all.
  */
-export type FoundIn = "description" | "caption" | "transcript";
+export type FoundIn = "description" | "caption" | "transcript" | "page";
 
 export interface Found {
   ok: boolean;
@@ -58,6 +70,16 @@ export interface Found {
   author?: string;
   /** The canonical link, for the recipe's source field. */
   url?: string;
+  /**
+   * Text that was found but has no ingredient list in it.
+   *
+   * A reel captioned "now making - butter halloumi curry, recipe by
+   * @somebody" produced a draft with one ingredient called "Recipe by
+   * @somebody", which is worse than nothing: it looks like the import worked.
+   * The words are still handed over - they are what there is, and the box is
+   * editable - but the screen says plainly that no amounts were in them.
+   */
+  thin?: boolean;
 }
 
 /* -------------------------------------------------------------------------
@@ -134,7 +156,10 @@ export function identifyVideo(input: string): VideoSource | null {
     return { host: "instagram", url: `https://www.instagram.com${url.pathname}` };
   }
 
-  return null;
+  // Anything else public is treated as a page that might have a recipe marked
+  // up in it - which is what "Get the recipe here" points at, and is also
+  // worth accepting when somebody pastes the link straight in.
+  return isPublic(url) ? { host: "page", url: url.toString() } : null;
 }
 
 /* -------------------------------------------------------------------------
@@ -209,6 +234,12 @@ export function decodeEntities(text: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&nbsp;/g, " ")
     .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    // Instagram writes every emoji and every curly apostrophe as a hex
+    // reference: &#x1f35b; for the curry and &#x2019; for "don't". Left
+    // undecoded they are sixteen literal characters in the middle of a word.
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
+      String.fromCodePoint(Number.parseInt(code, 16)),
+    )
     .replace(/&amp;/g, "&");
 }
 
@@ -233,12 +264,27 @@ export function captionFromPage(html: string): { caption: string; author: string
     ? decodeEntities(titled[1]).split(/\s+on Instagram/i)[0].trim() || null
     : null;
 
-  const stripped = caption.match(
-    // [\s\S] rather than the s flag: a caption is many lines and the build
-    // targets a JavaScript older than dotAll.
-    /^[\d.,KkMm]+\s+likes?,\s+[\d.,KkMm]+\s+comments?\s+-\s+[^:]+:\s*([\s\S]*)$/,
+  /**
+   * The label Instagram welds to the front of the caption, which is written
+   * two ways.
+   *
+   * On one post it is "13K likes, 118 comments - someone on June 7, 2023:" and
+   * on the next it is only "someone on May 28, 2025:". Matching the first
+   * shape alone left the second one intact, so the recipe's name came out as
+   * "baboon.amsterdam on May 28, 2025: "Craving comfort?". Stripped in two
+   * passes, because the counts are optional and the byline is not.
+   *
+   * [\s\S] rather than the s flag throughout: a caption is many lines and the
+   * build targets a JavaScript older than dotAll.
+   */
+  caption = caption.replace(
+    /^[\d.,KkMm]+\s+likes?,\s*[\d.,KkMm]+\s+comments?\s*[-–—]\s*/,
+    "",
   );
-  if (stripped) caption = stripped[1];
+  const byline = caption.match(
+    /^[^:\n]{1,120}\s+on\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}:\s*([\s\S]*)$/,
+  );
+  if (byline) caption = byline[1];
 
   /**
    * The caption itself is then quoted, and the closing quote is not the last
@@ -452,6 +498,198 @@ export function assemble(found: {
 }
 
 /* -------------------------------------------------------------------------
+   The recipe on a page, in the markup search engines read
+   ------------------------------------------------------------------------- */
+
+interface JsonLdRecipe {
+  name?: string;
+  recipeYield?: unknown;
+  recipeIngredient?: unknown;
+  recipeInstructions?: unknown;
+  description?: string;
+}
+
+/** Tags out, entities decoded: JSON-LD carries HTML inside its strings. */
+function plain(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return decodeEntities(value.replace(/<[^>]+>/g, " "))
+    .replace(/\s+/g, " ")
+    // A tag is replaced with a space so words either side do not run together,
+    // which leaves "golden ." wherever the emphasis ended a sentence.
+    .replace(/\s+([.,;:!?])/g, "$1")
+    // WordPress's recipe plugin doubles its brackets - "1 onion ((1½ cups))" -
+    // and the reader takes the outer pair as the note and leaves the inner one
+    // welded to the name: "Thai red curry paste )". One pair is what was meant.
+    .replace(/\(\(/g, "(")
+    .replace(/\)\)/g, ")")
+    .trim();
+}
+
+/**
+ * Steps, however the site chose to write them.
+ *
+ * Three shapes are all legal and all common: a bare string, a HowToStep with
+ * the words in `text`, and a HowToSection holding a list of steps under a
+ * heading. A reader that handles only the first gets an empty method from half
+ * the internet.
+ */
+function stepsFrom(value: unknown, depth = 0): string[] {
+  if (depth > 3 || !value) return [];
+  if (typeof value === "string") {
+    const text = plain(value);
+    return text ? [text] : [];
+  }
+  if (Array.isArray(value)) return value.flatMap((each) => stepsFrom(each, depth + 1));
+
+  const node = value as { "@type"?: unknown; text?: unknown; name?: unknown; itemListElement?: unknown };
+  if (node.itemListElement) return stepsFrom(node.itemListElement, depth + 1);
+  const text = plain(node.text) || plain(node.name);
+  return text ? [text] : [];
+}
+
+/** Every Recipe node in a page, wherever the site buried it. */
+function recipesIn(html: string): JsonLdRecipe[] {
+  const found: JsonLdRecipe[] = [];
+
+  for (const block of html.matchAll(
+    /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+  )) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(block[1]);
+    } catch {
+      // One unparseable block is not a reason to abandon the page: sites
+      // routinely ship several and only one of them is the recipe.
+      continue;
+    }
+
+    const queue = [parsed];
+    // @graph is how most plugins publish, with the recipe as one node among a
+    // dozen describing the site, the author and the breadcrumbs.
+    while (queue.length > 0) {
+      const node = queue.shift();
+      if (Array.isArray(node)) {
+        queue.push(...node);
+        continue;
+      }
+      if (!node || typeof node !== "object") continue;
+
+      const record = node as Record<string, unknown>;
+      if (Array.isArray(record["@graph"])) queue.push(...record["@graph"]);
+
+      const type = record["@type"];
+      const named = Array.isArray(type) ? type.join(" ") : String(type ?? "");
+      if (/\brecipe\b/i.test(named)) found.push(record as JsonLdRecipe);
+    }
+  }
+
+  return found;
+}
+
+/**
+ * A recipe page turned back into the plain text the reader takes.
+ *
+ * Deliberately not parsed into a document here. schema.org gives amounts as
+ * the strings a person typed - "2½ tablespoons grapeseed oil, divided" - which
+ * is exactly what `readRecipeText` already reads, including the half symbol,
+ * the note in brackets and the refusal to invent an amount that is not there.
+ * Building a document directly would be a second reader, and the count of bugs
+ * caused by second copies is the thing AGENTS.md keeps.
+ */
+export function recipeTextFromPage(html: string): string | null {
+  for (const recipe of recipesIn(html)) {
+    const ingredients = (Array.isArray(recipe.recipeIngredient) ? recipe.recipeIngredient : [])
+      .map(plain)
+      .filter(Boolean);
+    if (ingredients.length === 0) continue;
+
+    const steps = stepsFrom(recipe.recipeInstructions);
+    const name = plain(recipe.name);
+
+    // recipeYield is "4", ["4"], "4 servings" or ["2", "2 Servings"] depending
+    // on the plugin. The first number in it is the only part worth keeping.
+    const yields = Array.isArray(recipe.recipeYield)
+      ? recipe.recipeYield.map(plain).join(" ")
+      : plain(recipe.recipeYield);
+    const serves = yields.match(/\d+/)?.[0];
+
+    return [
+      ...(name ? [name, ""] : []),
+      ...(serves ? [`Serves ${serves}`, ""] : []),
+      "Ingredients",
+      ...ingredients,
+      ...(steps.length > 0 ? ["", "Method", ...steps] : []),
+    ].join("\n");
+  }
+
+  return null;
+}
+
+/**
+ * The links in a description that might be the recipe.
+ *
+ * A description is mostly links and almost none of them are it: the channel,
+ * a playlist, three socials, an Amazon shelf. What is left after those is
+ * usually the cook's own site, which is where "Get the recipe here" points -
+ * and that page is the best source there is, better than the description and
+ * far better than a transcript, because it is the recipe written out to be
+ * followed.
+ */
+const NOT_THE_RECIPE =
+  /(^|\.)(youtube\.com|youtu\.be|instagram\.com|facebook\.com|fb\.me|twitter\.com|x\.com|tiktok\.com|threads\.net|pinterest\.[a-z.]+|patreon\.com|amazon\.[a-z.]+|amzn\.to|payhip\.com|linktr\.ee|ko-fi\.com|buymeacoffee\.com|spotify\.com|discord\.gg|bit\.ly|reddit\.com)$/i;
+
+export function recipeLinksIn(description: string): string[] {
+  const links: string[] = [];
+
+  for (const match of description.matchAll(/https?:\/\/[^\s<>"')\]]+/g)) {
+    // Trailing punctuation belongs to the sentence, not the address.
+    const raw = match[0].replace(/[.,;:!?]+$/, "");
+    let url: URL;
+    try {
+      url = new URL(raw);
+    } catch {
+      continue;
+    }
+    if (NOT_THE_RECIPE.test(url.hostname.replace(/^www\./, ""))) continue;
+    if (!isPublic(url)) continue;
+    if (!links.includes(url.toString())) links.push(url.toString());
+  }
+
+  return links;
+}
+
+/**
+ * Whether an address is somewhere on the internet rather than inside this
+ * network.
+ *
+ * This fetches a URL that arrived from outside - out of a description, or
+ * typed into the box - which is the shape of request that gets used to make a
+ * server read things only the server can reach. Nothing here needs to talk to
+ * anything private, so nothing private is allowed.
+ */
+export function isPublic(url: URL): boolean {
+  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) {
+    return false;
+  }
+  if (host === "::1" || host.startsWith("fc") || host.startsWith("fd")) return false;
+  if (!host.includes(".")) return false; // a bare machine name is on this network
+
+  const four = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (four) {
+    const [a, b] = four.slice(1).map(Number);
+    if (a === 10 || a === 127 || a === 0) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+    if (a === 169 && b === 254) return false; // the cloud metadata address
+  }
+
+  return true;
+}
+
+/* -------------------------------------------------------------------------
    Fetching
    ------------------------------------------------------------------------- */
 
@@ -644,9 +882,36 @@ async function fetchYouTube(id: string): Promise<Found> {
   const details = player.videoDetails ?? {};
   const description = details.shortDescription ?? "";
 
-  // The transcript is only fetched when the description cannot carry the
-  // recipe on its own - it is a second round trip and the slower half of the
-  // wait, and most cooking channels write the ingredients out.
+  /**
+   * The page the description points at, when the description itself is a
+   * blurb.
+   *
+   * This is the common case for anybody who cooks for a living: two sentences
+   * about the dish and "Get the recipe here". Two videos in a row read as
+   * three useless paragraphs before this existed, and both of them had
+   * fourteen or fifteen exact ingredients sitting one link away. It is tried
+   * before the transcript because a recipe written out to be followed beats a
+   * machine's guess at speech every time - and after the description, because
+   * a cook who wrote the list under their own video should not have a third
+   * party's page preferred over it.
+   */
+  if (!carveFromDescription(description)) {
+    for (const link of recipeLinksIn(description).slice(0, 2)) {
+      const page = await fetchPage(link);
+      if (page.ok && page.text) {
+        return {
+          ...page,
+          // The video's own title, because a site's own name for the recipe
+          // is sometimes an SEO sentence and the video is what was watched.
+          title: details.title,
+          author: details.author,
+        };
+      }
+    }
+  }
+
+  // The transcript is only fetched when nothing written can carry the recipe -
+  // it is another round trip and the slower half of the wait.
   let transcript = "";
   if (!carveFromDescription(description)) {
     const track = chooseTrack(
@@ -682,6 +947,9 @@ async function fetchYouTube(id: string): Promise<Found> {
     title: details.title,
     author: details.author,
     url: `https://www.youtube.com/watch?v=${id}`,
+    // A transcript never states its amounts as a list, so it is never called
+    // thin - the screen has a louder thing to say about it already.
+    thin: built.from === "description" && !carveFromDescription(description),
   };
 }
 
@@ -726,12 +994,84 @@ async function fetchInstagram(url: string): Promise<Found> {
     };
   }
 
+  /**
+   * A caption that names the dish and points elsewhere.
+   *
+   * Half of cooking Instagram writes "recipe on my blog" or credits another
+   * account, and the recipe is on a page one link away - the same shape as a
+   * YouTube description that is only a blurb, so it gets the same treatment
+   * before falling back to the words themselves.
+   */
+  const hasList = carveFromDescription(caption) !== null;
+  if (!hasList) {
+    for (const link of recipeLinksIn(caption).slice(0, 2)) {
+      const page = await fetchPage(link);
+      if (page.ok && page.text) return { ...page, author: author ?? undefined };
+    }
+  }
+
   const built = assemble({ caption });
   if (!built) {
     return { ok: false, error: "That reel has an empty caption." };
   }
 
-  return { ok: true, ...built, author: author ?? undefined, url: landed };
+  return {
+    ok: true,
+    ...built,
+    author: author ?? undefined,
+    url: landed,
+    thin: !hasList,
+  };
+}
+
+/**
+ * A page with a recipe marked up in it.
+ *
+ * Fetched as an ordinary browser rather than as a crawler: a food blog serves
+ * the same page to both, and the browser user-agent is the one that gets
+ * through the anti-scraping in front of some of them.
+ */
+async function fetchPage(url: string): Promise<Found> {
+  let html = "";
+  let landed = url;
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36",
+        "accept-language": "en-GB,en;q=0.9",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(PATIENCE),
+    });
+    if (!response.ok) return { ok: false, error: `That page answered ${response.status}.` };
+
+    // Re-checked after the redirects: a public address that forwards to a
+    // private one is how the check above gets walked around.
+    landed = response.url || url;
+    try {
+      if (!isPublic(new URL(landed))) {
+        return { ok: false, error: "That link leads somewhere this will not follow." };
+      }
+    } catch {
+      return { ok: false, error: "That link leads somewhere this will not follow." };
+    }
+
+    html = await response.text();
+  } catch {
+    return { ok: false, error: "That page did not answer." };
+  }
+
+  const text = recipeTextFromPage(html);
+  if (!text) {
+    return {
+      ok: false,
+      error:
+        "That page has no recipe marked up in it. Copy the ingredients and method and paste them below instead.",
+    };
+  }
+
+  return { ok: true, text, from: "page", url: landed };
 }
 
 /** The one entry point: a link in, text to read out. */
@@ -741,11 +1081,11 @@ export async function findRecipeText(link: string): Promise<Found> {
     return {
       ok: false,
       error:
-        "That is not a link this can read. YouTube videos and shorts, and Instagram reels.",
+        "That is not a link this can read. A YouTube video, an Instagram reel, or a page with a recipe on it.",
     };
   }
 
-  return source.host === "youtube"
-    ? fetchYouTube(source.id)
-    : fetchInstagram(source.url);
+  if (source.host === "youtube") return fetchYouTube(source.id);
+  if (source.host === "instagram") return fetchInstagram(source.url);
+  return fetchPage(source.url);
 }

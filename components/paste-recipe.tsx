@@ -29,6 +29,15 @@ import {
  * end at the same saveRecipeDocument, so a pasted recipe is validated exactly
  * like a typed one.
  */
+/** Whose page it was, for the line that says where the text came from. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "the linked page";
+  }
+}
+
 export function PasteRecipe({ briefing }: { briefing: string }) {
   const router = useRouter();
   const [how, setHow] = useState<"text" | "json">("text");
@@ -178,9 +187,10 @@ export function PasteRecipe({ briefing }: { briefing: string }) {
               Or off a video
             </h3>
             <p className="mt-1.5 text-sm font-medium text-muted-foreground">
-              A YouTube link or an Instagram reel. It takes whatever the cook
-              wrote down — the description or the caption — and falls back to
-              the spoken captions when they wrote nothing.
+              A YouTube link, an Instagram reel, or a recipe page. It takes
+              whatever the cook wrote down — the description, the caption, or
+              the page a &ldquo;full recipe here&rdquo; link points at — and
+              falls back to the spoken captions when they wrote nothing.
             </p>
             <div className="mt-2.5 flex flex-wrap gap-2">
               <input
@@ -214,16 +224,27 @@ export function PasteRecipe({ briefing }: { briefing: string }) {
             {fetched?.ok && (
               <p
                 className={`mt-2 text-sm font-semibold ${
-                  fetched.from === "transcript"
+                  fetched.from === "transcript" || fetched.thin
                     ? "text-destructive"
                     : "text-muted-foreground"
                 }`}
               >
+                {fetched.thin && fetched.from !== "transcript" && (
+                  <>
+                    No ingredient list in it — the cook has put the recipe in a
+                    comment, in the video itself, or on a site this cannot see.
+                    What there is, is below.{" "}
+                  </>
+                )}
                 {fetched.from === "transcript"
-                  ? "Nothing was written down, so this is what was said out loud — machine captions, where an amount is the thing most often wrong or missing. Read it through before you read it in."
-                  : `Taken from the ${fetched.from === "caption" ? "caption" : "description"}${
-                      fetched.author ? `, by ${fetched.author}` : ""
-                    }. Written by the cook, so the amounts are theirs — but nothing is saved until you have looked.`}
+                  ? "Nothing was written down and nothing was linked, so this is what was said out loud — machine captions, where an amount is the thing most often wrong or missing. Read it through before you read it in."
+                  : fetched.from === "page"
+                    ? `The description was a blurb, so this came from the recipe page it links to${
+                        fetched.url ? ` (${hostOf(fetched.url)})` : ""
+                      } — written out to be cooked from.`
+                    : `Taken from the ${fetched.from === "caption" ? "caption" : "description"}${
+                        fetched.author ? `, by ${fetched.author}` : ""
+                      }. Written by the cook, so the amounts are theirs — but nothing is saved until you have looked.`}
               </p>
             )}
           </div>

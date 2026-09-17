@@ -143,6 +143,8 @@ export interface LinkResult {
   title?: string;
   author?: string;
   url?: string;
+  /** Text with no ingredient list in it - handed over, but said out loud. */
+  thin?: boolean;
 }
 
 /**
@@ -177,6 +179,7 @@ export async function fetchRecipeLink(link: string): Promise<LinkResult> {
     title: found.title,
     author: found.author,
     url: found.url,
+    thin: found.thin,
   };
 }
 

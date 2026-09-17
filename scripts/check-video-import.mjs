@@ -23,6 +23,8 @@ import {
   assemble,
   captionFromPage,
   carveFromDescription,
+  recipeLinksIn,
+  recipeTextFromPage,
   chooseTrack,
   decodeEntities,
   identifyVideo,
@@ -74,9 +76,22 @@ const LINKS = [
   ["https://www.youtube.com/results?search_query=curry", null],
   ["https://www.youtube.com/watch?v=tooshort", null],
   ["https://www.instagram.com/recipesbyanne/", null],
-  ["https://example.com/recipes/curry", null],
   ["not a url at all", null],
   ["", null],
+
+  // Anything else public is a page that might have a recipe marked up in it.
+  ["https://example.com/recipes/curry", { host: "page", url: "https://example.com/recipes/curry" }],
+
+  // Not somewhere on the internet. This fetches addresses that arrive from
+  // outside, so the ones that only this server can reach are refused - and
+  // 169.254.169.254 is the cloud metadata service, which is the one that
+  // matters.
+  ["http://localhost:3000/admin", null],
+  ["http://127.0.0.1/", null],
+  ["http://169.254.169.254/latest/meta-data/", null],
+  ["http://192.168.1.1/", null],
+  ["http://10.0.0.5/", null],
+  ["file:///etc/passwd", null],
 ];
 
 for (const [link, want] of LINKS) {
@@ -155,6 +170,22 @@ check(
     '<meta property="og:description" content="2 likes, 0 comments - anne on June 7, 2023: &quot;Boursin pasta #dinner&quot;. " />',
   ).caption,
   "Boursin pasta #dinner",
+);
+
+// The byline without a like count in front of it, which is the other shape
+// Instagram serves - and the one that made a recipe called
+// "baboon.amsterdam on May 28, 2025: "Craving comfort?". The emoji and the
+// curly apostrophe arrive as hex references and are sixteen literal
+// characters if nobody decodes them.
+check(
+  "the byline alone is stripped, and hex entities are characters",
+  captionFromPage(
+    '<meta property="og:title" content="BABOON &#x2022; KITCHENS on Instagram: &quot;x&quot;" /><meta property="og:description" content="baboon.amsterdam on May 28, 2025: &quot;Craving comfort? &#x1f35b;\ndon&#x2019;t forget the roti&quot;. " />',
+  ),
+  {
+    caption: "Craving comfort? 🍛\ndon’t forget the roti",
+    author: "BABOON • KITCHENS",
+  },
 );
 
 check(
@@ -275,6 +306,97 @@ check("a blurb with no captions is still better than nothing", assemble({
 }).from, "description");
 
 check("nothing written anywhere is nothing", assemble({ title: "Curry" }), null);
+
+/* -- the recipe on a linked page ------------------------------------------- */
+
+// How a food blog actually ships it: one ld+json block, a @graph of a dozen
+// nodes describing the site and the author, and the recipe somewhere inside.
+// Instructions arrive as HowToStep objects and the amounts as the strings a
+// person typed, which is what readRecipeText already reads.
+const RECIPE_PAGE = `<html><head>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[
+ {"@type":"WebSite","name":"Evergreen Kitchen"},
+ {"@type":"Person","name":"Somebody"},
+ {"@type":["Recipe","NewsArticle"],"name":"Easy Halloumi Curry","recipeYield":["4","4 servings"],
+  "recipeIngredient":["2½ tablespoons grapeseed oil, divided","1 medium yellow onion, diced ((1½ cups))","4 to 6 tablespoons curry paste ((see note 1))"],
+  "recipeInstructions":[{"@type":"HowToStep","text":"Cut the halloumi into 2cm cubes."},{"@type":"HowToStep","text":"Fry until <b>golden</b>."}]}
+]}</script>
+</head></html>`;
+
+check(
+  "the recipe is found inside a @graph and written back out as text",
+  recipeTextFromPage(RECIPE_PAGE),
+  `Easy Halloumi Curry
+
+Serves 4
+
+Ingredients
+2½ tablespoons grapeseed oil, divided
+1 medium yellow onion, diced (1½ cups)
+4 to 6 tablespoons curry paste (see note 1)
+
+Method
+Cut the halloumi into 2cm cubes.
+Fry until golden.`,
+);
+
+// The other two legal shapes for instructions. A reader that handles only
+// HowToStep gets an empty method from half the internet.
+check(
+  "steps as bare strings and as a section both read",
+  recipeTextFromPage(`<script type="application/ld+json">{"@type":"Recipe","name":"X","recipeIngredient":["1 onion"],"recipeInstructions":[{"@type":"HowToSection","name":"For the sauce","itemListElement":[{"@type":"HowToStep","text":"Simmer it."}]},"Serve."]}</script>`),
+  `X
+
+Ingredients
+1 onion
+
+Method
+Simmer it.
+Serve.`,
+);
+
+check(
+  "a page with no recipe in it says so rather than inventing one",
+  recipeTextFromPage("<html><script type=\"application/ld+json\">{\"@type\":\"Article\",\"name\":\"X\"}</script></html>"),
+  null,
+);
+
+check(
+  "one unparseable block does not lose the recipe in the next one",
+  recipeTextFromPage(`<script type="application/ld+json">{ this is not json }</script><script type="application/ld+json">{"@type":"Recipe","name":"Y","recipeIngredient":["2 eggs"]}</script>`),
+  `Y
+
+Ingredients
+2 eggs`,
+);
+
+/* -- which link in a description is the recipe ----------------------------- */
+
+const DESCRIPTION_WITH_LINKS = `This easy Halloumi Curry is made with coconut milk.
+
+Get the recipe here: https://evergreenkitchen.ca/halloumi-curry/
+
+Subscribe: https://www.youtube.com/c/somebody
+Instagram: https://www.instagram.com/somebody
+My knives: https://amzn.to/3xyz`;
+
+check(
+  "the cook's own site is the link worth following",
+  recipeLinksIn(DESCRIPTION_WITH_LINKS),
+  ["https://evergreenkitchen.ca/halloumi-curry/"],
+);
+
+check(
+  "a full stop ending the sentence is not part of the address",
+  recipeLinksIn("Recipe at https://example.com/curry."),
+  ["https://example.com/curry"],
+);
+
+check(
+  "a link into this network is not followed",
+  recipeLinksIn("see http://169.254.169.254/latest/meta-data/ and http://localhost/admin"),
+  [],
+);
 
 /* -- which caption track --------------------------------------------------- */
 
