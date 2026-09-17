@@ -304,9 +304,17 @@ export function captionFromPage(html: string): { caption: string; author: string
    Choosing between what was found
    ------------------------------------------------------------------------- */
 
-/** A line that states an amount, which is what an ingredient list is made of. */
+/**
+ * A line that states an amount, which is what an ingredient list is made of.
+ *
+ * The dash matters. A popular way to write a list is "400g (14oz) - Spaghetti"
+ * and "4 - Garlic Cloves, Thinly Sliced", and without it the lines with a unit
+ * matched while the lines with only a number did not - so a list of nine broke
+ * into runs of three and two, the longest run won, and six ingredients were
+ * read as method steps.
+ */
 const AMOUNT_LINE =
-  /^[-*••\s]*(?:\d+[\d.,/\s]*|½|¼|¾|⅓|⅔|a|an|one|two|three|four)\s*(?:x\s*)?[a-z]/i;
+  /^[-*••\s]*(?:\d+[\d.,/\s]*|½|¼|¾|⅓|⅔|a|an|one|two|three|four)\s*(?:x\s*)?(?:[-–—:]\s*)?[a-z(]/i;
 
 /**
  * A line that is there to sell something rather than to say how to cook.
@@ -383,7 +391,20 @@ export function stripNoise(text: string): string {
  * Three lines is the floor. Two could be a sentence with a number in it.
  */
 export function carveFromDescription(text: string): string | null {
-  const lines = stripNoise(text).split(/\r?\n/);
+  const tidied = stripNoise(text);
+
+  /**
+   * A description that says "Ingredients" is carved the way a page is.
+   *
+   * The longest-run rule is a guess made when nothing says where the list is;
+   * a heading is not a guess. Chef Jack Ovens writes "Ingredients - " over
+   * nine lines, three of which state a number and a dash rather than a unit,
+   * and the guess found a run of three and read the remaining six as method.
+   */
+  const stated = carveFromPage(tidied);
+  if (stated) return stated;
+
+  const lines = tidied.split(/\r?\n/);
 
   let bestFrom = -1;
   let bestTo = -1;
@@ -626,13 +647,26 @@ export function textFromHtmlBody(html: string): string {
     .trim();
 }
 
-/** Where a recipe stops and the page's furniture starts again. */
+/**
+ * Where a recipe stops and the page's furniture starts again.
+ *
+ * "Notes" is on the list because what follows it is prose about the dish, and
+ * prose sitting under an ingredient list is read as more ingredients. Losing a
+ * note costs a sentence somebody can retype; keeping it costs the list.
+ */
 const AFTER_THE_RECIPE =
-  /^(comments?|ratings?|reviews?|related|you (might|may) also|more (recipes|like)|nutrition|leave a|sign in|log in|subscribe|newsletter|shop|about the author|previous|next)\b/i;
+  /^(comments?|ratings?|reviews?|related|notes?|tips?|you (might|may) also|more (recipes|like)|nutrition|leave a|sign in|log in|subscribe|newsletter|shop|about the author|previous|next)\b/i;
 
-const INGREDIENTS_HEADING = /^ingredients?\b[:\s]*$/i;
+/**
+ * A heading, including the way a YouTube description writes one.
+ *
+ * "Ingredients - " with a trailing dash is as common as "Ingredients:" and was
+ * not recognised, which threw away the one thing on the page that says where
+ * the list begins.
+ */
+const INGREDIENTS_HEADING = /^ingredients?\b[:\-–—\s]*$/i;
 const METHOD_HEADING =
-  /^(directions?|methods?|instructions?|steps?|preparation|how to make)\b[:\s]*$/i;
+  /^(directions?|methods?|instructions?|steps?|preparation|how to make)\b[:\-–—\s]*$/i;
 
 /**
  * A recipe page carved by its own headings.
