@@ -212,3 +212,76 @@ export async function unusedActions(days: number): Promise<string[]> {
   const seen = new Set((await usageByAction(days)).map((row) => row.action));
   return ACTIONS.filter((action) => !seen.has(action));
 }
+
+export interface DayCount {
+  day: string;
+  count: number;
+  people: number;
+}
+
+/**
+ * Events per day, with the quiet days present as zeroes.
+ *
+ * SQLite only returns days something happened on, and a bar chart drawn
+ * straight off that result draws Tuesday next to Friday at equal width and
+ * calls it a week - the gap is the reading. So the window is generated here
+ * and the counts are joined onto it.
+ *
+ * `date(created_at)` and not a date built in Node, for the reason
+ * `usageByAction` gives: the rows carry sqld's UTC CURRENT_TIMESTAMP.
+ */
+export async function usageByDay(days: number): Promise<DayCount[]> {
+  const span = Math.max(1, Math.floor(days));
+  const result = await getDb().execute({
+    sql: `SELECT date(created_at) AS day,
+                 COUNT(*)                AS count,
+                 COUNT(DISTINCT user_id) AS people
+            FROM usage_events
+           WHERE created_at >= datetime('now', ?)
+        GROUP BY day`,
+    args: [`-${span} days`],
+  });
+
+  const counted = new Map(
+    (plainRows(result) as unknown as DayCount[]).map((row) => [row.day, row]),
+  );
+
+  const out: DayCount[] = [];
+  const today = new Date();
+  for (let back = span - 1; back >= 0; back -= 1) {
+    const at = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - back),
+    );
+    const day = at.toISOString().slice(0, 10);
+    out.push(counted.get(day) ?? { day, count: 0, people: 0 });
+  }
+  return out;
+}
+
+export interface UsageSpan {
+  events: number;
+  people: number;
+  first_at: string | null;
+  last_at: string | null;
+}
+
+/**
+ * When counting started, which every number on the report has to be read
+ * against. A zero from a feature nobody has opened and a zero from a tracker
+ * that has been running for two days are the same figure and different news.
+ */
+export async function usageSpan(): Promise<UsageSpan> {
+  const result = await getDb().execute(
+    `SELECT COUNT(*)                AS events,
+            COUNT(DISTINCT user_id) AS people,
+            MIN(created_at)         AS first_at,
+            MAX(created_at)         AS last_at
+       FROM usage_events`,
+  );
+  return (plainRows(result) as unknown as UsageSpan[])[0] ?? {
+    events: 0,
+    people: 0,
+    first_at: null,
+    last_at: null,
+  };
+}

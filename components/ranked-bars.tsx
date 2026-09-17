@@ -13,13 +13,16 @@ import Link from "next/link";
  * the end of each bar rather than on an axis, because there are ten numbers
  * and no reason to make anybody measure them against a ruler.
  *
- * Every row is a link. A statistic you cannot click is one you cannot check.
+ * Every row is a link where there is somewhere to go. A statistic you cannot
+ * click is one you cannot check - but an action name on the usage report has
+ * no page behind it, and a link to nowhere in particular is worse than none,
+ * so `href` is optional and a row without one is drawn as plain text.
  */
 export interface RankedRow {
   key: string;
   label: string;
   value: number;
-  href: string;
+  href?: string;
   /** A quiet second line - a date, usually. */
   meta?: string;
 }
@@ -35,11 +38,14 @@ export function RankedBars({ rows, unit }: { rows: RankedRow[]; unit: string }) 
     <ul className="space-y-2">
       {rows.map((row) => {
         const share = most === 0 ? 0 : (row.value / most) * 100;
+        const Row = row.href ? Link : "div";
         return (
           <li key={row.key}>
-            <Link
-              href={row.href}
-              className="block rounded-[10px] py-1 transition-colors hover:bg-chip"
+            <Row
+              // TypeScript cannot see that href is present exactly when Row is
+              // Link; the conditional above is the proof.
+              {...({ href: row.href } as { href: string })}
+              className={`block rounded-[10px] py-1 ${row.href ? "transition-colors hover:bg-chip" : ""}`}
               title={`${row.label}: ${row.value} ${unit}`}
             >
               <div className="flex items-baseline justify-between gap-3">
@@ -65,7 +71,7 @@ export function RankedBars({ rows, unit }: { rows: RankedRow[]; unit: string }) 
                   {row.meta}
                 </span>
               )}
-            </Link>
+            </Row>
           </li>
         );
       })}

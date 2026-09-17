@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Bell, Database, FlaskConical, Inbox } from "lucide-react";
+import { BarChart3, Bell, Database, FlaskConical, Inbox } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { getDb, plainRows } from "@/lib/db";
 import { connectionProtocol } from "@/lib/db";
@@ -42,7 +42,8 @@ export default async function AdminPage() {
         (SELECT COUNT(*) FROM items) AS items,
         (SELECT COUNT(*) FROM recipes) AS recipes,
         (SELECT COUNT(*) FROM cook_events WHERE undone_at IS NULL) AS cooks,
-        (SELECT COUNT(*) FROM invites WHERE redeemed_by IS NULL AND expires_at > CURRENT_TIMESTAMP) AS invites
+        (SELECT COUNT(*) FROM invites WHERE redeemed_by IS NULL AND expires_at > CURRENT_TIMESTAMP) AS invites,
+        (SELECT COUNT(*) FROM usage_events WHERE created_at >= datetime('now', '-7 days')) AS taps
     `),
     getDb().execute("SELECT COUNT(*) AS n FROM reports WHERE status = 'new'"),
     getDb().execute("SELECT COUNT(*) AS n FROM push_subscriptions WHERE failed_at IS NULL"),
@@ -88,6 +89,19 @@ export default async function AdminPage() {
               <span className="block text-sm font-extrabold">Database</span>
               <span className="block text-sm font-medium text-muted-foreground">
                 Browse, query, correct a cell
+              </span>
+            </span>
+          </Link>
+
+          <Link href="/admin/usage" className={CARD}>
+            <BarChart3 className="mt-0.5 h-5 w-5 shrink-0 text-primary" strokeWidth={2.5} />
+            <span className="min-w-0">
+              <span className="block text-sm font-extrabold">Usage</span>
+              <span className="block text-sm font-medium text-muted-foreground">
+                {n.taps > 0
+                  ? `${n.taps} taps this week`
+                  : "Nothing counted this week"}
+                {" · and what nobody touched"}
               </span>
             </span>
           </Link>
