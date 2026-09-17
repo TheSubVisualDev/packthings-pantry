@@ -12,7 +12,6 @@ import { getShops } from "@/lib/shops";
 import { getTrip } from "@/lib/trip";
 import { TripStrip } from "@/components/trip-strip";
 import { PrintButton } from "@/components/print-button";
-import { suggestionsForShop } from "./restock-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -45,16 +44,16 @@ export default async function ShoppingPage({
   const [lines, restock, profiles, shops, trip] = kitchen
     ? await Promise.all([
         getList({ kitchen: kitchen.id }, filter),
-        getRestockSuggestions(kitchen.id),
+        getRestockSuggestions(kitchen.id, filter),
         getItemProfiles(kitchen.id),
         getShops(kitchen.id),
         getTrip(kitchen.id),
       ])
     : [await getList({ owner: context.user.id }, null), [], [], [], null];
   const todo = lines.filter((line) => !line.bought_at).length;
-  // Running Low never got the shop filter getRestockSuggestions doesn't take
-  // one, so it's narrowed here instead - see restock-filter.ts.
-  const restockInShop = suggestionsForShop(restock, filter);
+  // Narrowed by the query rather than again out here: the shop rule is
+  // getList's, and one of it.
+  const restockInShop = restock;
 
   return (
     <>

@@ -16,7 +16,6 @@ import {
 import { scaleQuantity } from "@/lib/units";
 import { getLinks } from "@/lib/cookbook";
 import { indexStock } from "@/lib/pantry-match";
-import { suggestionsForShop } from "./restock-filter";
 import { record } from "@/lib/usage";
 
 export interface ListResult {
@@ -232,10 +231,7 @@ export async function addRestock(filter?: string | null): Promise<ListResult> {
   const access = await requireKitchenRole("editor");
   if (!access.ok) return { ok: false, error: access.error };
 
-  const suggestions = suggestionsForShop(
-    await getRestockSuggestions(access.kitchen.id),
-    filter ?? null,
-  );
+  const suggestions = await getRestockSuggestions(access.kitchen.id, filter ?? null);
   if (suggestions.length === 0) {
     return { ok: false, error: "Nothing is below its target." };
   }

@@ -227,7 +227,10 @@ export interface RestockSuggestion {
  */
 export async function getRestockSuggestions(
   kitchenId: number,
+  shop?: string | null,
 ): Promise<RestockSuggestion[]> {
+  const filter = shop?.trim() || null;
+
   const result = await getDb().execute({
     sql: `SELECT i.id AS item_id, i.name, ps.name AS shop, i.pack_size, i.pack_unit,
                  i.canonical_unit,
@@ -246,8 +249,23 @@ export async function getRestockSuggestions(
                 AND s.bought_at IS NULL
                 AND LOWER(s.item_name) = LOWER(i.name)
             )
+            -- The same predicate getList applies to the list above it, word
+            -- for word: something nobody has assigned to a shop survives every
+            -- filter, and something assigned survives the shops it is assigned
+            -- to. It was a second, narrower copy in the page - preferred shop
+            -- only - so standing in Tesco, a thing you buy at Tesco could be
+            -- on the list and missing from Running Low underneath it.
+            AND (
+              ? IS NULL
+              OR NOT EXISTS (SELECT 1 FROM item_shops isx WHERE isx.item_id = i.id)
+              OR EXISTS (
+                SELECT 1 FROM item_shops isx
+                JOIN shops sh ON sh.id = isx.shop_id
+                WHERE isx.item_id = i.id AND LOWER(sh.name) = LOWER(?)
+              )
+            )
           ORDER BY ps.name IS NULL, ps.name COLLATE NOCASE, i.name COLLATE NOCASE`,
-    args: [kitchenId],
+    args: [kitchenId, filter, filter],
   });
 
   return (result.rows as unknown as Omit<RestockSuggestion, "packs">[]).map(
