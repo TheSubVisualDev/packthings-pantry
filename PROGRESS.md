@@ -25,6 +25,18 @@ ingredients, amounts and notes intact), a reel (12 ingredients, 9 steps), a
 video with nothing written down (falls to the transcript and says so), and a
 link that is not a video at all.
 
+Then it failed for you on the deployed app while working here, twice over.
+YouTube's player endpoint answers a laptop and refuses a datacentre; it asks
+for the watch page as a link preview now, which is answered from anywhere.
+Instagram was a different fault wearing the same error — the share sheet's
+`/share/reel/<token>` was being rebuilt into a link to a post that does not
+exist. Both verified against pantry.packthings.fyi, not just locally.
+
+Transcripts are the part that does not survive the move: captions only come
+with the player endpoint, so they work in development and usually not in
+production. Descriptions and captions, which is where amounts are actually
+written, work in both.
+
 #22 — photograph a cupboard, have it become stock — is still parked. That one
 really does need a model.
 

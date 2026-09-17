@@ -72,11 +72,24 @@ shopping list for ever. `npm run check:amounts`.
 **A recipe off a video is fetched, never transcribed by a model.** A cooking
 video almost always has the recipe written down beside it - YouTube's
 description, a reel's caption - so `lib/video-import.ts` finds that text and
-hands it to `readRecipeText`, the same reader a paste goes through. Three
-things it knows that are not obvious. YouTube's **web** caption URLs answer
-every request with 200 and an empty body because they now want a token the
-browser mints in JavaScript; the IOS and ANDROID player clients are not asked
-for one, which is why it talks to those. Auto-captions **roll**, repeating each
+hands it to `readRecipeText`, the same reader a paste goes through. Four
+things it knows that are not obvious. **This cannot be done in the browser**,
+however much it looks like it should be: youtube.com and instagram.com send no
+CORS headers, so a client-side fetch is refused before it is read and `no-cors`
+returns an opaque response of zero readable characters - measured, in Chromium,
+both sites, three routes. The only endpoint that answers cross-origin is
+YouTube's oEmbed, which carries a title and a thumbnail and no description. So
+it is a server fetch, and the server has its own problem: **YouTube's player
+endpoint answers a laptop and refuses a datacentre**, which is where this
+deploys, so the feature worked locally and nowhere else. The route that is
+answered from anywhere is the watch page asked for as a link preview - a
+crawler user-agent - and the page still carries the full description in the
+same blob the player would have returned. The player clients are tried first
+anyway, because they are the only route that also carries **captions**:
+YouTube's web caption URLs answer with 200 and an empty body, wanting a token
+the browser mints in JavaScript, while the IOS and ANDROID clients are not
+asked for one. Which means transcripts work in development and are usually
+absent in production, and that is the honest state of it. Auto-captions **roll**, repeating each
 line as they scroll, and the repeats arrive as `aAppend` events - joining the
 file naively says everything three times. And a description is mostly advert:
 the one that made `carveFromDescription` necessary had its ingredients on lines
