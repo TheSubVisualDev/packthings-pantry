@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { setExpiry, setShelfLife } from "@/app/pantry/actions";
+import { guessExpiry, setExpiry, setShelfLife } from "@/app/pantry/actions";
+import { dateInDays, shelfLifeFor } from "@/lib/shelf-life";
 import type { OpenedPack } from "@/app/recipes/[id]/actions";
 
 /**
@@ -28,6 +29,16 @@ import type { OpenedPack } from "@/app/recipes/[id]/actions";
 export function NewPackDates({ opened }: { opened: OpenedPack[] }) {
   const [saved, setSaved] = useState<Record<number, string>>({});
   const [keeps, setKeeps] = useState<Record<number, string>>({});
+  /**
+   * Dates that came from the shelf-life table rather than from the packet.
+   *
+   * Kept apart from `saved` because the two are not the same kind of fact and
+   * the screen has to keep saying so. They also take different routes to the
+   * database: a typed date goes through setExpiry, which clears the estimated
+   * marking - that is how somebody corrects a guess - so a guess must never be
+   * written by pretending to be one.
+   */
+  const [guessed, setGuessed] = useState<Record<number, string>>({});
   const [, startTransition] = useTransition();
 
   // Only the ones nobody has answered for. An item that already knows how long
@@ -56,7 +67,7 @@ export function NewPackDates({ opened }: { opened: OpenedPack[] }) {
             <input
               type="date"
               aria-label={`Date on the new ${pack.item_name}`}
-              value={saved[pack.item_id] ?? ""}
+              value={saved[pack.item_id] ?? guessed[pack.item_id] ?? ""}
               onChange={(event) => {
                 const value = event.target.value;
                 setSaved((current) => ({ ...current, [pack.item_id]: value }));
@@ -69,6 +80,47 @@ export function NewPackDates({ opened }: { opened: OpenedPack[] }) {
               }}
               className="rounded-[12px] border border-border bg-background px-3 py-2 text-sm font-semibold outline-none focus:border-primary"
             />
+            {(() => {
+              /*
+                The estimate offered, not applied.
+
+                This is the one moment the packet is in somebody's hand, so a
+                real date beats a guess and the blank field asks for it first.
+                But most packs get nothing typed, and the rescue engine is dark
+                without a date at all - so the standard life is offered beside
+                the field for the things the table recognises, one tap, and
+                marked as a guess in the row it writes.
+              */
+              if (saved[pack.item_id]) return null;
+              const standard = shelfLifeFor(pack.item_name);
+              if (!standard || standard.keeps === null) return null;
+              const applied = guessed[pack.item_id];
+
+              return applied ? (
+                <span className="basis-full text-xs font-semibold text-muted-foreground">
+                  Guessed from {standard.label} — type over it if the packet says
+                  otherwise.
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    startTransition(async () => {
+                      const result = await guessExpiry(pack.item_id);
+                      if (result.ok && result.date) {
+                        setGuessed((current) => ({
+                          ...current,
+                          [pack.item_id]: result.date as string,
+                        }));
+                      }
+                    });
+                  }}
+                  className="rounded-[12px] bg-background px-3 py-2 text-xs font-extrabold"
+                >
+                  Probably {dateInDays(standard.keeps)}
+                </button>
+              );
+            })()}
           </li>
         ))}
       </ul>

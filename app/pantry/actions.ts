@@ -990,6 +990,73 @@ export async function setExpiry(
   return { ok: true, message: "Saved." };
 }
 
+export interface GuessResult {
+  ok: boolean;
+  error?: string;
+  /** The date written, 'YYYY-MM-DD'. Absent when only a shelf life was known. */
+  date?: string;
+  /** What the name was taken to be, so the screen can say whose guess it is. */
+  basis?: string;
+}
+
+/**
+ * Guesses the dates for one item, on request.
+ *
+ * The same rule as estimateExpiry, which does the whole kitchen at once, and
+ * deliberately the same writes: the date is marked `expiry_estimated` so it
+ * can never pass for one read off a packet, and an existing date or shelf life
+ * is left alone - COALESCE, not overwrite. What is different is the moment. A
+ * guess is wanted while you are looking at the one thing that has no date, and
+ * making somebody leave the item, run the bulk button over forty-seven rows
+ * and come back is a detour to answer a question about one.
+ *
+ * An unrecognised food says so rather than inventing a fortnight: a blank
+ * invites a correction and a confident wrong number does not.
+ */
+export async function guessExpiry(itemId: number): Promise<GuessResult> {
+  const access = await requireKitchenRole("editor");
+  if (!access.ok) return { ok: false, error: access.error };
+
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return { ok: false, error: "Unknown item" };
+  }
+
+  const found = await getDb().execute({
+    sql: "SELECT id, name FROM items WHERE id = ? AND kitchen_id = ?",
+    args: [itemId, access.kitchen.id],
+  });
+  const item = found.rows[0] as unknown as { id: number; name: string } | undefined;
+  if (!item) return { ok: false, error: "That item is gone" };
+
+  const guess = shelfLifeFor(item.name);
+  if (!guess) {
+    return { ok: false, error: `Nothing standard known for ${item.name}.` };
+  }
+
+  const date = guess.keeps !== null ? dateInDays(guess.keeps) : null;
+  if (date === null && guess.openFor === null) {
+    return { ok: false, error: `Nothing standard known for ${item.name}.` };
+  }
+
+  await getDb().execute({
+    sql: `UPDATE items
+             SET expiry_date = COALESCE(expiry_date, ?),
+                 expiry_estimated = CASE
+                   WHEN expiry_date IS NULL AND ? IS NOT NULL THEN 1
+                   ELSE expiry_estimated
+                 END,
+                 shelf_life_days = COALESCE(shelf_life_days, ?),
+                 updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND kitchen_id = ?`,
+    args: [date, date, guess.openFor, item.id, access.kitchen.id],
+  });
+
+  revalidatePath("/pantry");
+  revalidatePath(`/pantry/item/${itemId}`);
+  revalidatePath("/tonight");
+  return { ok: true, ...(date ? { date } : {}), basis: guess.label };
+}
+
 /**
  * Puts a date on everything that has never had one.
  *

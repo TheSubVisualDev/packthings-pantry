@@ -1,8 +1,10 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   deleteItem,
+  guessExpiry,
   setOpened,
   updateItem,
   type ItemResult,
@@ -40,6 +42,19 @@ export function ItemDetail({
   const [opened, setOpenedLocal] = useState(item.opened_at);
   const [openError, setOpenError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  /**
+   * What the per-item guess said, once it has been asked.
+   *
+   * The button is offered for anything with no date rather than only for food
+   * the table recognises, because the alternative is asking the server on
+   * every render of every item to decide whether to draw a button. An
+   * unrecognised food answers plainly and nothing is written.
+   */
+  const [guessNote, setGuessNote] = useState<string | null>(null);
+  // Its own transition: sharing the delete button's would have it say
+  // "Deleting…" while the shelf-life table is being consulted.
+  const [guessing, startGuessing] = useTransition();
+  const router = useRouter();
   // Delete still shows progress - a destructive action should wait and say so.
   const [busy, startTransition] = useTransition();
 
@@ -304,6 +319,13 @@ export function ItemDetail({
             <div>
               <label htmlFor="expiry_date" className={LABEL}>
                 Date on the packet
+                {/* The summary above is careful to say a guess is a guess and
+                    this field was not, so a date the app invented sat in an
+                    input looking exactly like one somebody had read off a
+                    packet. Same rule, said where it is being edited. */}
+                {item.expiry_estimated === 1 && item.expiry_date && (
+                  <span className="ml-1.5 normal-case opacity-70">(guessed)</span>
+                )}
               </label>
               <input
                 id="expiry_date"
@@ -312,6 +334,40 @@ export function ItemDetail({
                 defaultValue={item.expiry_date ?? ""}
                 className={FIELD}
               />
+
+              {!item.expiry_date && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={guessing}
+                    onClick={() => {
+                      setGuessNote(null);
+                      startGuessing(async () => {
+                        const guessed = await guessExpiry(item.id);
+                        if (!guessed.ok) {
+                          setGuessNote(guessed.error ?? "No guess for this one.");
+                          return;
+                        }
+                        setGuessNote(
+                          guessed.date
+                            ? `Guessed from ${guessed.basis} — correct it if you know better.`
+                            : `Took it as ${guessed.basis}.`,
+                        );
+                        // The field is uncontrolled and the marking is
+                        // server-rendered, so the new date only shows once the
+                        // page has been re-read.
+                        router.refresh();
+                      });
+                    }}
+                    className="rounded-[12px] bg-chip px-3 py-2 text-xs font-extrabold disabled:opacity-50"
+                  >
+                    {guessing ? "Working it out…" : "Guess it"}
+                  </button>
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    {guessNote ?? "How long this usually keeps, marked as a guess."}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
