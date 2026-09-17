@@ -34,6 +34,14 @@ export function ReceiptScanner() {
   // language data. Silence would read as a hang - which is precisely what the
   // server-side version turned out to be.
   const [progress, setProgress] = useState<string | null>(null);
+  /**
+   * How far along, 0 to 1, or null for the steps that cannot say.
+   *
+   * Separate from the words rather than parsed back out of them: straightening
+   * the photo and matching against the shelves have no percentage, and a bar
+   * that invents one for them is a bar that lies twice per scan.
+   */
+  const [fraction, setFraction] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reading, startReading] = useTransition();
   const [saving, startSaving] = useTransition();
@@ -45,6 +53,7 @@ export function ReceiptScanner() {
     startReading(async () => {
       try {
         setProgress("Straightening it out…");
+        setFraction(null);
         const canvas = await prepareReceipt(file);
 
         // Imported here rather than at the top so the recogniser and its
@@ -56,8 +65,10 @@ export function ReceiptScanner() {
             const percent = Math.round(message.progress * 100);
             if (message.status === "recognizing text") {
               setProgress(`Reading it — ${percent}%`);
+              setFraction(message.progress);
             } else if (message.status.includes("loading language")) {
               setProgress(`Getting ready — ${percent}% (first time only)`);
+              setFraction(message.progress);
             }
           },
         });
@@ -79,6 +90,7 @@ export function ReceiptScanner() {
         }
 
         setProgress("Matching it to your shelves…");
+        setFraction(null);
         const result = await matchReceipt(text);
         if (!result.ok || !result.matches) {
           setError(result.error ?? "Couldn't read that.");
@@ -97,6 +109,7 @@ export function ReceiptScanner() {
         );
       } finally {
         setProgress(null);
+        setFraction(null);
       }
     });
   }
@@ -226,9 +239,38 @@ export function ReceiptScanner() {
         </p>
 
         {progress && (
-          <p className="mt-3 text-sm font-bold text-primary" role="status">
-            {progress}
-          </p>
+          <div className="mt-3">
+            <p className="text-sm font-bold text-primary" role="status">
+              {progress}
+            </p>
+            {/*
+              A bar as well as the words, because of where this is used: in a
+              car park or a kitchen doorway, phone in one hand, holding a
+              receipt - and small grey type in daylight is the first thing to
+              stop being readable. A shape moving across the screen survives
+              conditions the sentence does not.
+            */}
+            <div
+              className="mt-2 h-2 overflow-hidden rounded-full bg-chip"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              {...(fraction === null
+                ? {}
+                : { "aria-valuenow": Math.round(fraction * 100) })}
+              aria-label={progress}
+            >
+              <div
+                className={`h-full rounded-full bg-primary ${
+                  // The steps with no percentage still have to look like work
+                  // is happening, so the bar sweeps rather than sitting at a
+                  // number it does not know.
+                  fraction === null ? "w-1/3 animate-pulse" : "transition-[width] duration-300"
+                }`}
+                style={fraction === null ? undefined : { width: `${Math.round(fraction * 100)}%` }}
+              />
+            </div>
+          </div>
         )}
         {error && (
           <p role="alert" className="mt-3 text-sm font-bold text-destructive">

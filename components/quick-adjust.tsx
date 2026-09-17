@@ -72,7 +72,10 @@ export function QuickAdjust({ items }: { items: Item[] }) {
   function apply(item: Item, direction: 1 | -1) {
     const amount = Number(amountFor(item));
     if (!Number.isFinite(amount) || amount <= 0) {
-      setError("Enter an amount greater than zero.");
+      // Named, because this list is used a row at a time with a moving thumb
+      // and the message appears at the top of the page: a bare sentence leaves
+      // you working out which of six rows you were on.
+      setError(`Enter an amount greater than zero for ${item.name}.`);
       return;
     }
 
@@ -101,7 +104,7 @@ export function QuickAdjust({ items }: { items: Item[] }) {
           const base = now ? { ...item, quantity: now.quantity, sealed_count: now.sealedCount } : item;
           return { ...current, [item.id]: applyDelta(base, -delta) };
         });
-        setError(result.error ?? "Couldn't adjust that.");
+        setError(`${item.name}: ${result.error ?? "couldn't adjust that."}`);
         return;
       }
 

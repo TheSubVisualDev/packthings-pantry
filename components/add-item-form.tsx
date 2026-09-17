@@ -414,6 +414,25 @@ export function AddItemForm({
         className={`space-y-4 ${stage === 1 ? "advance" : ""}`}
       >
       {/*
+        The way out of this stage, before the fields it lets you skip.
+
+        It sat at the bottom, under the vessel, the number and the unit - so
+        the person whose honest answer is "there is some, I am not counting it"
+        had to scroll past everything they were trying to avoid to find the box
+        that avoids it. Half the rows in this kitchen are that answer.
+      */}
+      <label className="flex items-center gap-2.5 text-sm font-bold">
+        <input
+          type="checkbox"
+          name="unspecified"
+          checked={unspecified}
+          onChange={(event) => setUnspecified(event.target.checked)}
+          className="h-4 w-4 accent-[var(--color-primary)]"
+        />
+        Don&apos;t track how much of this there is
+      </label>
+
+      {/*
         How much, asked the way somebody holding the thing can answer.
 
         The number stays - it is still the field that posts, and typing one is
@@ -521,17 +540,6 @@ export function AddItemForm({
           </p>
         </div>
       )}
-
-      <label className="flex items-center gap-2.5 text-sm font-bold">
-        <input
-          type="checkbox"
-          name="unspecified"
-          checked={unspecified}
-          onChange={(event) => setUnspecified(event.target.checked)}
-          className="h-4 w-4 accent-[var(--color-primary)]"
-        />
-        Don&apos;t track how much of this there is
-      </label>
 
       </div>
 
