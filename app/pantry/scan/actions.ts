@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { ADJUST_SQL, PACK_SQL, totalOnHand } from "@/lib/containers";
 import { getDb } from "@/lib/db";
 import { cleanProductName, rankItems, STRONG_MATCH } from "@/lib/match";
 import { isBarcode, lookupOpenFoodFacts, type PackSize } from "@/lib/off";
@@ -88,8 +89,13 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
    * `kitchen_products` is what this kitchen decided it means.
    */
   const stored = await getDb().execute({
+    // The whole shelf, not the open container: "500ml in stock" while two
+    // sealed bottles stand behind it is the same misreading of `quantity`
+    // that stockOnePack exists to stop writing.
     sql: `SELECT p.name, p.brand, p.pack_size, p.pack_unit, kp.item_id,
-                 i.name AS item_name, i.quantity AS item_quantity, i.canonical_unit
+                 i.name AS item_name, i.quantity AS item_quantity, i.canonical_unit,
+                 i.sealed_count AS item_sealed, i.pack_size AS item_pack,
+                 i.unspecified AS item_unspecified
           FROM products p
           LEFT JOIN kitchen_products kp
             ON kp.barcode = p.barcode AND kp.kitchen_id = ?
@@ -108,6 +114,9 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
         item_name: string | null;
         item_quantity: number | null;
         canonical_unit: string | null;
+        item_sealed: number | null;
+        item_pack: number | null;
+        item_unspecified: number | null;
       }
     | undefined;
 
@@ -130,7 +139,8 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
         linked: {
           id: row.item_id,
           name: row.item_name,
-          quantity: row.item_quantity ?? 0,
+          quantity:
+            (row.item_sealed ?? 0) * (row.item_pack ?? 0) + (row.item_quantity ?? 0),
           unit: row.canonical_unit ?? "",
         },
         known: true,
@@ -189,7 +199,8 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
       suggestions: ranked.slice(0, 4).map(({ item, score }) => ({
         id: item.id,
         name: item.name,
-        quantity: item.quantity,
+        // What is on the shelf, sealed packs included.
+        quantity: totalOnHand(item) ?? item.quantity,
         unit: item.canonical_unit,
         score,
         confident: score >= STRONG_MATCH,
@@ -212,6 +223,59 @@ export async function lookupBarcode(barcode: string): Promise<ScanResult> {
         location: best?.location ?? "",
       },
     },
+  };
+}
+
+/**
+ * Puts one bought pack of something onto an item's shelf.
+ *
+ * Buying is PACK_SQL's job. Both scan paths used to do `quantity = quantity + ?`
+ * with the pack size, which is the fourth instance of the bug this codebase
+ * keeps count of: `quantity` is the OPEN container, so scanning a second bottle
+ * of a 500ml oil left the row claiming 1000ml open - a bottle fuller than a
+ * bottle. The vessel clamps that to "Full", so the shelf looked right while the
+ * split underneath it was not, and the row only came good again the next time
+ * something went through ADJUST_SQL.
+ *
+ * A row with no pack size has no containers to count, so the amount goes onto
+ * the total through ADJUST_SQL instead - still the shared statement rather than
+ * arithmetic of our own.
+ *
+ * Returns what is now on the shelf in total, because "500ml in stock" after
+ * scanning a second bottle is the same lie in words.
+ */
+async function stockOnePack(
+  kitchenId: number,
+  itemId: number,
+  packCanonical: number,
+): Promise<{ total: number; quantity: number; sealedCount: number } | null> {
+  const db = getDb();
+
+  const existing = await db.execute({
+    sql: "SELECT pack_size FROM items WHERE id = ? AND kitchen_id = ?",
+    args: [itemId, kitchenId],
+  });
+  const packSize = (existing.rows[0] as unknown as { pack_size: number | null } | undefined)
+    ?.pack_size;
+  const packaged = packSize !== null && packSize !== undefined && packSize > 0;
+
+  const result = await db.execute(
+    packaged
+      ? { sql: PACK_SQL, args: [1, itemId, kitchenId] }
+      : { sql: ADJUST_SQL, args: [packCanonical, itemId, kitchenId] },
+  );
+
+  const row = result.rows[0] as unknown as
+    | { quantity: number; sealed_count: number; pack_size: number | null }
+    | undefined;
+  // No row means the item is unspecified - "there is some" - which ADJUST_SQL
+  // excludes on purpose, because there is no number there to add to.
+  if (!row) return null;
+
+  return {
+    total: row.sealed_count * (row.pack_size ?? 0) + row.quantity,
+    quantity: row.quantity,
+    sealedCount: row.sealed_count,
   };
 }
 
@@ -294,12 +358,11 @@ export async function linkBarcode(
     if (packCanonical === null) {
       return { ok: false, error: "Linked, but the pack size doesn't fit that item's unit." };
     }
-    const updated = await db.execute({
-      sql: `UPDATE items SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ? AND kitchen_id = ? RETURNING quantity`,
-      args: [packCanonical, itemId, access.kitchen.id],
-    });
-    quantity = (updated.rows[0] as unknown as { quantity: number }).quantity;
+    const stocked = await stockOnePack(access.kitchen.id, itemId, packCanonical);
+    if (!stocked) {
+      return { ok: false, error: "Linked, but that item isn't measured, so a pack can't be added." };
+    }
+    quantity = stocked.total;
   }
 
   /**
@@ -344,17 +407,16 @@ export async function restockBarcode(
   if (!row) return { ok: false, error: "That barcode isn't linked to anything yet." };
   if (!row.pack_size) return { ok: false, error: "No pack size on record - use Quick adjust." };
 
-  const updated = await getDb().execute({
-    sql: `UPDATE items SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ? AND kitchen_id = ? RETURNING quantity`,
-    args: [row.pack_size, row.item_id, access.kitchen.id],
-  });
+  const stocked = await stockOnePack(access.kitchen.id, row.item_id, row.pack_size);
+  if (!stocked) {
+    return { ok: false, error: "That item isn't measured, so a pack can't be added." };
+  }
 
   revalidatePath("/pantry");
   revalidatePath("/recipes");
   return {
     ok: true,
-    quantity: (updated.rows[0] as unknown as { quantity: number }).quantity,
+    quantity: stocked.total,
     added: row.pack_size,
     unit: row.canonical_unit,
   };
