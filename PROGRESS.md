@@ -3,10 +3,30 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 17 Sep 2026 — photos fixed, friction audit worked through
+**Last updated:** 17 Sep 2026 — usage report built, database viewer is a tree
 **Doing right now:** nothing
 **Waiting on you:** re-file report #25 with its screenshot. The picture never
 reached the server and the words on their own do not say what was wrong.
+
+### 17 Sep, the admin screens
+
+`/admin/usage` exists. Everything `lib/usage.ts` could already answer and
+nothing ever asked it: what gets pressed, by how many people, on which screen,
+day by day over 7, 30 or 90 days — and underneath, the names that have never
+once fired, which is the half worth reading. The date counting started sits
+next to that list, because the tracker only went in on 15 Sep and a zero from
+two days is not a zero from a month.
+
+As of today: 39 taps, 4 people, 7 of the 18 names used. `recipe.open`,
+`stock.adjust` and `stock.open` are nearly all of it. `cook.start` has never
+fired, which is the one to watch.
+
+`/admin/db` is a tree now — table, then its columns and rows, then a row's
+cells. The old strip of pills answered "show me this table" and never showed
+the shape of the database at all. A branch costs a round trip when you open
+it and nothing before; the URL follows the last one opened, so the screen is
+still a screen you can send. The query box, the locked columns and the
+ask-first delete are unchanged.
 
 ### Two things to press when you next open it
 

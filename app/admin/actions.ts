@@ -3,9 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import {
+  columnsOf,
   deleteRow,
+  readTable,
   runQuery,
   updateCell,
+  type ColumnInfo,
+  type Page,
   type QueryResult,
 } from "@/lib/admin-db";
 import {
@@ -72,6 +76,42 @@ export async function moveReport(
 /* -------------------------------------------------------------------------
    The database
    ------------------------------------------------------------------------- */
+
+export interface Branch {
+  ok: boolean;
+  error?: string;
+  columns?: ColumnInfo[];
+  page?: Page;
+}
+
+/**
+ * One table's shape and a page of its rows, fetched when its branch opens.
+ *
+ * The tree lists every table up front because the count is the interesting
+ * part of a table you have not opened - but reading all of them would be
+ * forty queries to Nuremberg to draw a screen where thirty-nine branches are
+ * shut. So a branch costs a round trip at the moment somebody asks for it,
+ * and nothing before.
+ */
+export async function openTable(
+  table: string,
+  offset = 0,
+  limit = 25,
+): Promise<Branch> {
+  const gate = await admin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+
+  // The name arrives from the browser and goes into SQL, so it is checked
+  // against sqlite_master rather than trusted - readTable and columnsOf both
+  // ask, and both answer empty for a table that is not there.
+  const [columns, page] = await Promise.all([
+    columnsOf(table),
+    readTable(table, limit, offset),
+  ]);
+  if (columns.length === 0) return { ok: false, error: "No such table." };
+
+  return { ok: true, columns, page };
+}
 
 export async function query(sql: string): Promise<QueryResult> {
   const gate = await admin();
