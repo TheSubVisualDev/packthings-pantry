@@ -9,6 +9,8 @@ import { PrintButton } from "@/components/print-button";
 import { RecipeVisibility } from "@/components/recipe-visibility";
 import { RemixButton } from "@/components/remix-button";
 import { CookbookButton } from "@/components/cookbook-button";
+import { PlanItButton } from "@/components/plan-it-button";
+import { addDays, getSlots, isoDate, shortDay } from "@/lib/plan";
 import { getLinks, isInCookbook, resolveWithLinks } from "@/lib/cookbook";
 import { RecipeTags } from "@/components/recipe-tags";
 import { derivedTags, getTagsByRecipe, suggestTags } from "@/lib/recipe-tags";
@@ -78,6 +80,7 @@ export default async function RecipePage({
     kitchenTags,
     recipeTagsByRecipe,
     links,
+    slots,
   ] =
     await Promise.all([
     recipe.author_id ? getUser(recipe.author_id) : null,
@@ -94,7 +97,23 @@ export default async function RecipePage({
     getTags(kitchen?.id ?? null),
     getTagsByRecipe([recipeId]),
     getLinks(kitchen?.id ?? null, recipeId),
+    // The kitchen's own meal names, for planning this onto a day from here.
+    kitchen ? getSlots(kitchen.id) : Promise.resolve([]),
   ]);
+
+  /**
+   * The week ahead, labelled here rather than in the browser.
+   *
+   * Dates in the planner are days, not instants - `fromIso` pins to noon
+   * because midnight UTC is the previous evening in London on the morning the
+   * clocks go forward - so the days are built with the same helpers the
+   * planner uses rather than a second set in a client component.
+   */
+  const startOfPlanning = isoDate(new Date());
+  const nextSevenDays = Array.from({ length: 7 }, (_, ahead) => {
+    const date = addDays(startOfPlanning, ahead);
+    return { date, ...shortDay(date), today: ahead === 0 };
+  });
 
   const forkedAuthor =
     forkedFrom && forkedFrom.id !== recipe.author_id ? forkedFrom : null;
@@ -429,8 +448,17 @@ export default async function RecipePage({
             and remix controls: it is the thing to do with a recipe you have
             just found, and those are things to do with one you already keep. */}
         {kitchen && kitchen.role !== "viewer" && (
-          <div className="mt-5 print:hidden">
+          <div className="mt-5 space-y-2 print:hidden">
             <CookbookButton recipeId={recipe.id} inCookbook={inCookbook} />
+            {/* Under it, because "I want this on Thursday" is the other thing
+                you decide while reading a recipe, and until now it could only
+                be said on a different screen - which is why the planner has
+                never had a meal put in it. */}
+            <PlanItButton
+              recipeId={recipe.id}
+              slots={slots}
+              days={nextSevenDays}
+            />
           </div>
         )}
 

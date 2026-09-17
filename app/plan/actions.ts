@@ -70,6 +70,15 @@ export async function putInSlot(input: {
   recipeId?: number | null;
   note?: string | null;
   servings?: number | null;
+  /**
+   * Which screen the decision was made on.
+   *
+   * The count was hardcoded to /plan, which was true while the planner was the
+   * only way in. Planning from the recipe you are reading is the other way,
+   * and the two want telling apart - "where does planning actually happen" is
+   * the question the page column exists to answer.
+   */
+  from?: string;
 }): Promise<PlanResult> {
   const gate = await access();
   if (!gate.ok) return { ok: false, error: gate.error };
@@ -89,10 +98,11 @@ export async function putInSlot(input: {
     servings: input.servings ?? null,
   });
 
-  record("plan.set", gate.user.id, "/plan");
+  record("plan.set", gate.user.id, input.from ?? "/plan");
 
   revalidatePath("/plan");
   revalidatePath("/tonight");
+  if (input.recipeId) revalidatePath(`/recipes/${input.recipeId}`);
   return { ok: true };
 }
 
