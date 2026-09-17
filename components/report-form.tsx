@@ -85,12 +85,24 @@ export function ReportForm({ from }: { from: string | null }) {
 
   async function addPhotos(chosen: FileList | null) {
     if (!chosen) return;
+
+    /**
+     * Taken out of the FileList before the picker is reset, and that order is
+     * the whole point.
+     *
+     * A FileList is live: clearing `input.value` empties the very object that
+     * was handed to this function, so a reset done first leaves nothing to
+     * read and every photo is silently dropped. It happened - the reset moved
+     * to the top of the function while fixing the 403, and no bug report
+     * carried a picture for three days without anybody seeing an error.
+     */
+    const chosenFiles = Array.from(chosen);
     if (picker.current) picker.current.value = "";
 
     setShrinking(true);
     try {
       const added = await Promise.all(
-        Array.from(chosen)
+        chosenFiles
           .slice(0, 4)
           .map(async (original) => {
             const file = await downscale(original);
