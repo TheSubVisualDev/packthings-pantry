@@ -10,7 +10,9 @@ import { nearlyThere, rankTonight } from "@/lib/tonight";
 import { RecipeFilters } from "@/components/recipe-filters";
 import { currentKitchen } from "@/lib/session";
 import { getPlanned, isoDate, getSlots } from "@/lib/plan";
+import { getTrip } from "@/lib/trip";
 import { ShelfView } from "@/components/shelf-view";
+import { TripStrip } from "@/components/trip-strip";
 import { getItems } from "@/lib/queries";
 import { getLocations } from "@/lib/kitchens";
 import { inStock } from "@/lib/containers";
@@ -50,7 +52,7 @@ export default async function TonightPage({
 
   const today = isoDate(new Date());
 
-  const [facts, myTags, plannedToday, slots, items, places] = await Promise.all([
+  const [facts, myTags, plannedToday, slots, items, places, trip] = await Promise.all([
     getTonightFacts(kitchen.id, context.user.id),
     getRecipeTags(context.user.id),
     /**
@@ -81,6 +83,10 @@ export default async function TonightPage({
      */
     getItems(kitchen.id),
     getLocations(kitchen.id),
+    /** What this kitchen is shopping for, if anything. Same reasoning: a
+        seventh trip in parallel costs nothing and answers a question this
+        screen is asked in a shop. */
+    getTrip(kitchen.id),
   ]);
 
   /**
@@ -205,6 +211,25 @@ export default async function TonightPage({
         <p className="mb-5 text-sm font-semibold text-muted-foreground">
           Ranked on what expires soonest, what you have, and what you had recently.
         </p>
+
+        {/*
+          The trip, where the trip strip was always meant to be.
+
+          Its own file says it belongs in "the same slot the Tonight suggestion
+          uses, because they are answers to the same question" - and it was
+          rendered on /pantry and /pantry/list and never here, which is the
+          front door and the screen somebody opens in a shop. A trip you cannot
+          see from the first screen is a trip you have to go looking for.
+
+          Above the suggestions rather than instead of them: a trip is a
+          decision already taken, and the ranked ideas underneath stay useful
+          for the night it falls through.
+        */}
+        {trip && (
+          <div className="mb-4 print:hidden">
+            <TripStrip trip={trip} />
+          </div>
+        )}
 
         <RecipeFilters
           tags={myTags.map((each) => each.name)}

@@ -163,7 +163,12 @@ export function TonightCard({
 
       {suggestion.missing.length > 0 && (
         <div className="mt-2">
-          <AddShortfallButton recipeId={suggestion.id} servings={servings} />
+          <AddShortfallButton
+            recipeId={suggestion.id}
+            servings={servings}
+            missing={suggestion.missing.length}
+            tone="button"
+          />
         </div>
       )}
     </article>
