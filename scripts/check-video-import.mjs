@@ -23,6 +23,8 @@ import {
   assemble,
   captionFromPage,
   carveFromDescription,
+  carveFromPage,
+  textFromHtmlBody,
   recipeLinksIn,
   recipeTextFromPage,
   chooseTrack,
@@ -367,6 +369,70 @@ check(
   `Y
 
 Ingredients
+2 eggs`,
+);
+
+/* -- a page whose markup is a shell --------------------------------------- */
+
+// Squarespace declares a Recipe with an empty recipeIngredient and types the
+// list into the page body, so a reader that trusts the markup finds a recipe
+// with nothing in it. The body is the fallback, and it has to be carved by its
+// own headings rather than by the longest run of amounts: a real page has the
+// pickles, then the sauce, then the burger, and the longest run is one of the
+// three. That is how a burger recipe came back with nine ingredients.
+const BODY = `Share & Save
+
+Ingredients
+Homemade Dill Pickles:
+5 pickling cucumbers, thinly sliced
+1 cup (240mL) white distilled vinegar
+2 Tbsp (25g) granulated sugar
+Homemade Burger Sauce:
+3/4 cup (180g) mayonnaise
+1 tsp (4g) granulated sugar
+Pinch of MSG
+
+Directions
+Homemade Dill Pickles:
+In a small saucepan, combine the vinegar, water and sugar.
+Pack the cucumber slices into a clean heat-proof jar.
+
+Comments & Ratings
+Already have an account? Sign in`;
+
+check(
+  "every section is kept, and the page's furniture is not",
+  carveFromPage(BODY),
+  `Ingredients
+Homemade Dill Pickles:
+5 pickling cucumbers, thinly sliced
+1 cup (240mL) white distilled vinegar
+2 Tbsp (25g) granulated sugar
+Homemade Burger Sauce:
+3/4 cup (180g) mayonnaise
+1 tsp (4g) granulated sugar
+Pinch of MSG
+
+Method
+Homemade Dill Pickles:
+In a small saucepan, combine the vinegar, water and sugar.
+Pack the cucumber slices into a clean heat-proof jar.`,
+);
+
+check(
+  "the word Ingredients with no list under it is not a recipe",
+  carveFromPage(`Ingredients
+Coming soon
+
+Comments`),
+  null,
+);
+
+check(
+  "block tags become the line breaks the carve works in",
+  textFromHtmlBody("<nav>Recipes</nav><h2>Ingredients</h2><ul><li>1 onion</li><li>2 eggs</li></ul><script>var x = 1</script>"),
+  `Ingredients
+1 onion
 2 eggs`,
 );
 

@@ -517,8 +517,20 @@ const INGREDIENT_HEADING = /^(ingredients?|you(\s+will)?\s+need|shopping list)\b
 const METHOD_HEADING =
   /^(method|instructions?|directions?|steps?|preparation|how to (make|cook) it|to (make|cook))\b[:\s]*$/i;
 const NOTES_HEADING = /^(notes?|tips?|to serve|serving suggestions?)\b[:\s]*$/i;
-/** "For the sauce", "For the topping:" - a section within either half. */
-const SECTION_HEADING = /^for the .{1,40}$/i;
+/**
+ * "For the sauce", "For the topping:" - a section within either half.
+ *
+ * And the other way people write the same thing: a short line that is only a
+ * name and a colon. A recipe page off a video had "Homemade Dill Pickles:",
+ * "Homemade Burger Sauce:" and "Burger + Assembly:" between its three lists,
+ * and each one became an ingredient with no amount - a shopping list with
+ * "Homemade Burger Sauce" on it, which is the thing being made.
+ *
+ * It must be the whole line and end there: "Note: chill overnight" has words
+ * after the colon and is a note, not a heading. A leading digit is refused
+ * because that is an amount, and a heading is never an amount.
+ */
+const SECTION_HEADING = /^(?:for the .{1,40}|(?!\d)[^:\n]{2,40}:)$/i;
 
 /**
  * Whether a line looks like something to do rather than something to buy.

@@ -596,6 +596,104 @@ function recipesIn(html: string): JsonLdRecipe[] {
  * Building a document directly would be a second reader, and the count of bugs
  * caused by second copies is the thing AGENTS.md keeps.
  */
+/**
+ * A page as the words on it, in the order they are read.
+ *
+ * The fallback for a site whose markup is a shell. Squarespace publishes a
+ * Recipe node with an empty `recipeIngredient` - the type is declared, the
+ * ingredients are typed into the page body as ordinary paragraphs - and a
+ * reader that trusts the markup finds a recipe with nothing in it and gives
+ * up, which is how a burger recipe with twenty amounts in plain sight came
+ * back as "no ingredient list in it".
+ *
+ * Block tags become newlines because the carve works in lines, and a page
+ * flattened to one line has no ingredient list in it by definition.
+ */
+export function textFromHtmlBody(html: string): string {
+  return decodeEntities(
+    html
+      // The parts of a page that are never the recipe and are full of words
+      // that look like one - a nav full of "Recipes", a footer, a comment form.
+      .replace(/<(script|style|noscript|svg|nav|header|footer|form|template)\b[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|li|tr|h[1-6]|section|article|blockquote)>/gi, "\n")
+      .replace(/<[^>]+>/g, " "),
+  )
+    .split("\n")
+    .map((line) => line.replace(/[ \t ]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** Where a recipe stops and the page's furniture starts again. */
+const AFTER_THE_RECIPE =
+  /^(comments?|ratings?|reviews?|related|you (might|may) also|more (recipes|like)|nutrition|leave a|sign in|log in|subscribe|newsletter|shop|about the author|previous|next)\b/i;
+
+const INGREDIENTS_HEADING = /^ingredients?\b[:\s]*$/i;
+const METHOD_HEADING =
+  /^(directions?|methods?|instructions?|steps?|preparation|how to make)\b[:\s]*$/i;
+
+/**
+ * A recipe page carved by its own headings.
+ *
+ * `carveFromDescription` takes the longest single run of amount lines, which
+ * is right for a description and wrong here: a real recipe page has the
+ * pickles, then the sauce, then the burger, each under its own sub-heading,
+ * and the longest run is one of the three. The burger recipe came back with
+ * nine ingredients and no method because of exactly that.
+ *
+ * A page says where its list starts, though. "Ingredients" and "Directions"
+ * are on the page as headings, so everything between them is the list -
+ * sub-headings included, which the reader already groups - and everything
+ * after the second one is the method, until the page turns back into comments
+ * and related posts.
+ */
+export function carveFromPage(text: string): string | null {
+  const lines = text.split("\n");
+
+  const start = lines.findIndex((line) => INGREDIENTS_HEADING.test(line.trim()));
+  if (start === -1) return null;
+
+  let method = -1;
+  let end = lines.length;
+  for (let at = start + 1; at < lines.length; at += 1) {
+    const line = lines[at].trim();
+    if (method === -1 && METHOD_HEADING.test(line)) {
+      method = at;
+      continue;
+    }
+    if (AFTER_THE_RECIPE.test(line)) {
+      end = at;
+      break;
+    }
+  }
+
+  const ingredients = lines
+    .slice(start + 1, method === -1 ? end : method)
+    .map((line) => line.trim())
+    .filter((line) => line && !isNoise(line));
+
+  // Three amounts, the same floor as everywhere else: a page can have the word
+  // Ingredients on it and no list under it - a category page, or a card that
+  // loads its list with JavaScript this never runs.
+  if (ingredients.filter(statesAnAmount).length < 3) return null;
+
+  const steps =
+    method === -1
+      ? []
+      : lines
+          .slice(method + 1, end)
+          .map((line) => line.trim())
+          .filter((line) => line && !isNoise(line));
+
+  return [
+    "Ingredients",
+    ...ingredients,
+    ...(steps.length > 0 ? ["", "Method", ...steps] : []),
+  ].join("\n");
+}
+
 export function recipeTextFromPage(html: string): string | null {
   for (const recipe of recipesIn(html)) {
     const ingredients = (Array.isArray(recipe.recipeIngredient) ? recipe.recipeIngredient : [])
@@ -622,7 +720,25 @@ export function recipeTextFromPage(html: string): string | null {
     ].join("\n");
   }
 
-  return null;
+  /**
+   * No usable markup, so the page itself - carved exactly the way a YouTube
+   * description is, because the problem is the same one. A blog post is a
+   * recipe wrapped in a story about the recipe, a nav, a comment form and
+   * four adverts, and the ingredient list is still the longest run of lines
+   * that state an amount.
+   */
+  const body = textFromHtmlBody(html);
+  const carved = carveFromPage(body) ?? carveFromDescription(body);
+  if (!carved) return null;
+
+  // The page's own title, since the markup that named the recipe was the part
+  // that let us down.
+  const titled = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const name = titled
+    ? decodeEntities(titled[1]).replace(/\s+/g, " ").split(/\s+[|—-]\s+/)[0].trim()
+    : "";
+
+  return name ? `${name}\n\n${carved}` : carved;
 }
 
 /**
