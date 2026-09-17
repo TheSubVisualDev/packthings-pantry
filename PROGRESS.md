@@ -48,6 +48,18 @@ When there is nothing with amounts in it anywhere — a reel captioned "swipe
 for the recipe" — the screen says so instead of making a draft with one
 ingredient in it.
 
+A page whose markup is an empty shell — Squarespace declares a Recipe and
+leaves the ingredients out of it — is read from the body instead, carved by
+its own Ingredients and Directions headings. Joshua Weissman's burger gives 42
+ingredients and 16 steps, both burgers, every section kept. Two lines in it
+are section titles the reader takes for unmeasured ingredients ("Smash
+Burger", "Thick and Juicy Burger"); delete them in the editor.
+
+YouTube's bot check on a datacentre comes and goes — four videos through, the
+fifth refused. It asks the page as a crawler and then as a browser, and when
+everything is refused it tells you to paste the recipe link out of the
+description, which this reads directly.
+
 #22 — photograph a cupboard, have it become stock — is still parked. That one
 really does need a model.
 

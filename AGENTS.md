@@ -101,7 +101,26 @@ through `readRecipeText` as text rather than being built into a document here.
 Two videos that produced three useless paragraphs now give fourteen ingredients
 and fifteen. Text with no amounts anywhere in it is marked `thin` and the
 screen says so, because a draft with one ingredient called "Recipe by
-@somebody" looks like it worked. Auto-captions **roll**, repeating each
+@somebody" looks like it worked. **Markup can be a shell**: Squarespace
+declares a Recipe with an empty `recipeIngredient` and types the list into the
+page body, so the body is flattened to lines and carved by its own
+"Ingredients" and "Directions" headings - by the longest run of amounts, as a
+description is carved, a page with pickles, sauce and burger under three
+sub-headings gives you one of the three. And **the bot check is a mood, not a
+fact**: the same video went through from production four times and was refused
+the fifth with "Sign in to confirm you're not a bot", so the page is asked for
+as a crawler and then as a browser, and the refusal message tells the person to
+paste the recipe link from the description instead - which works, because a
+recipe page pasted in is read directly.
+
+**Client-side fetching cannot rescue any of this**, and it is the first idea
+everybody has. Measured in Chromium: the watch page and the player endpoint
+are both refused cross-origin (`text/plain` to dodge the preflight is refused
+too), a caption URL **from the player endpoint** is readable - 359k characters,
+so the transport is not the problem - and the caption URL from the watch page
+returns 200 and zero bytes to the browser exactly as it does to the server.
+The only working caption URL comes from the one endpoint neither the browser
+nor a datacentre can call. There is nothing to hand to the client. Auto-captions **roll**, repeating each
 line as they scroll, and the repeats arrive as `aAppend` events - joining the
 file naively says everything three times. And a description is mostly advert:
 the one that made `carveFromDescription` necessary had its ingredients on lines
