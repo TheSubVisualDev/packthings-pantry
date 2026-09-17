@@ -23,6 +23,15 @@ import {
 
 export interface AddItemState {
   error?: string;
+  /**
+   * The name of what was just added, when the form asked to stay put.
+   *
+   * Adding normally ends in a redirect to the shelf, which is right for one
+   * thing and wrong for a bag of eleven: it costs a page load and four stages
+   * to get back. "Add another" posts `again` and gets this instead, so the
+   * form can say what it saved and clear itself.
+   */
+  added?: string;
 }
 
 /**
@@ -264,6 +273,11 @@ export async function addItem(
   revalidatePath("/pantry");
   revalidatePath("/tonight");
   revalidatePath("/recipes");
+
+  // Unpacking a bag: stay on the form rather than making a round trip to the
+  // shelf and back through four stages for every tin.
+  if (String(formData.get("again") ?? "") === "1") return { added: name };
+
   /**
    * Back to the shelf, which is on /tonight now.
    *

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { shortDate } from "@/lib/dates";
+import { UndoCook } from "@/components/undo-cook";
 import type { CookedEntry } from "@/lib/queries";
 
 /**
@@ -29,17 +30,25 @@ export function CookHistory({ entries }: { entries: CookedEntry[] }) {
             className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm font-semibold"
           >
             <span>{shortDate(entry.cooked_at)}</span>
-            <span className="text-muted-foreground">
-              for {entry.servings}
-              {entry.cooked_by_name ? ` · ${entry.cooked_by_name}` : ""}
-              {/* A cook that left things out is a different cook. Saying so
-                  is the point of ticking - otherwise the log claims you used
-                  the whole recipe every time. */}
-              {entry.skipped.length > 0 && (
-                <span title={entry.skipped.join(", ")}>
-                  {" "}
-                  &middot; without {entry.skipped.length}
-                </span>
+            <span className="flex items-center gap-2 text-muted-foreground">
+              <span>
+                for {entry.servings}
+                {entry.cooked_by_name ? ` · ${entry.cooked_by_name}` : ""}
+                {/* A cook that left things out is a different cook. Saying so
+                    is the point of ticking - otherwise the log claims you used
+                    the whole recipe every time. */}
+                {entry.skipped.length > 0 && (
+                  <span title={entry.skipped.join(", ")}>
+                    {" "}
+                    &middot; without {entry.skipped.length}
+                  </span>
+                )}
+              </span>
+              {/* The same undo /cooked offers, on the page you are most
+                  likely to be standing on when you realise - you came back to
+                  the recipe. */}
+              {entry.undoable && (
+                <UndoCook id={entry.id} recipeName={entry.recipe_name} />
               )}
             </span>
           </li>

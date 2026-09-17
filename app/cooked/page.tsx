@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
+import { UndoCook } from "@/components/undo-cook";
 import { getCookedLog, getNeglected } from "@/lib/queries";
 import { shortDate } from "@/lib/dates";
 import { currentKitchen } from "@/lib/session";
@@ -113,11 +114,11 @@ export default async function CookedPage() {
             {log.map((entry) => (
               <li
                 key={entry.id}
-                className="border-b border-border last:border-b-0"
+                className="flex items-center gap-2 border-b border-border pr-3 last:border-b-0"
               >
                 <Link
                   href={`/recipes/${entry.recipe_id}`}
-                  className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-5 py-3.5 hover:bg-chip"
+                  className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-5 py-3.5 hover:bg-chip"
                 >
                   <span className="min-w-0 font-bold break-words">
                     {entry.recipe_name}
@@ -130,6 +131,11 @@ export default async function CookedPage() {
                     {entry.cooked_by_name ? ` · ${entry.cooked_by_name}` : ""}
                   </span>
                 </Link>
+                {/* Beside the row rather than inside the link, because a
+                    button inside an anchor is a tap that means two things. */}
+                {entry.undoable && (
+                  <UndoCook id={entry.id} recipeName={entry.recipe_name} />
+                )}
               </li>
             ))}
           </ul>

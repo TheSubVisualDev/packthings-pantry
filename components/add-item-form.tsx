@@ -97,6 +97,17 @@ export function AddItemForm({
   );
   const [name, setName] = useState(prefill.name ?? "");
   const [unspecified, setUnspecified] = useState(false);
+  /** What was saved a moment ago, when the form was asked to stay put. */
+  const [added, setAdded] = useState<string | null>(null);
+  /**
+   * Bumped per "add another", and used as the form element's key.
+   *
+   * Half the fields here are uncontrolled - the dates, the pack size, the chip
+   * pickers - so clearing the React state would leave the last tin's paperwork
+   * sitting in the DOM. Remounting the form is what empties those, and it is
+   * the only way to do it without a ref and an effect.
+   */
+  const [round, setRound] = useState(0);
 
   /**
    * What the kitchen reckons, from the name alone.
@@ -291,10 +302,46 @@ export function AddItemForm({
   const canLeave =
     stage === 0 ? name.trim().length > 0 : stage === 1 ? unspecified || amount.trim() !== "" : true;
 
+  /**
+   * Clearing the form after an "add another", once per answer from the server.
+   *
+   * Adjusted during render rather than in an effect - the pattern React
+   * documents for "state that has to follow something that changed", and the
+   * one the compiler's lint allows. Watched by object identity rather than by
+   * the name, because `useActionState` hands back a new object every
+   * submission and two tins of the same beans in a row would otherwise look
+   * like no answer at all.
+   *
+   * Where it lives is kept, and so is the shop: unpacking a bag is one
+   * cupboard at a time, and retyping "Larder" eleven times is the thing this
+   * button exists to stop.
+   */
+  const [lastAnswer, setLastAnswer] = useState(state);
+  if (state !== lastAnswer) {
+    setLastAnswer(state);
+    if (state.added) {
+      setAdded(state.added);
+      setRound((current) => current + 1);
+      setName("");
+      setAmount("");
+      setUnspecified(false);
+      setPackedOverride(null);
+      setStage(0);
+      setTouched((current) => ({
+        ...(current.location ? { location: true } : {}),
+        ...(current.shops ? { shops: true } : {}),
+      }));
+      setOverrides((current) => ({
+        ...(current.location === undefined ? {} : { location: current.location }),
+        ...(current.shops === undefined ? {} : { shops: current.shops }),
+      }));
+    }
+  }
+
   const last = stage === STAGES.length - 1;
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form key={round} action={formAction} className="space-y-4">
       {/* One segment per question, the same shape the cook screen uses for
           steps - a form with a known number of screens should say how many. */}
       <div className="flex gap-1">
@@ -316,6 +363,28 @@ export function AddItemForm({
           {STAGES[stage].hint}
         </p>
       </div>
+
+      {added && stage === 0 && (
+        <p className="rounded-[14px] bg-chip p-3 text-sm font-bold" role="status">
+          {added} is on the shelf.{" "}
+          <span className="font-semibold text-muted-foreground">
+            The cupboard and the shop are still filled in.
+          </span>
+        </p>
+      )}
+
+      {/* A whole shop is not eleven trips through this form, and nothing here
+          said so - the receipt reader was a thing you had to already know
+          about. Only on the first screen, and only before anything is typed. */}
+      {stage === 0 && !name && !added && (
+        <p className="text-sm font-semibold text-muted-foreground">
+          Putting away a whole shop?{" "}
+          <Link href="/pantry/receipt" className="font-bold text-foreground underline underline-offset-2">
+            Read the receipt instead
+          </Link>
+          .
+        </p>
+      )}
 
       {prefill.barcode && (
         <input type="hidden" name="barcode" value={prefill.barcode} />
@@ -778,14 +847,28 @@ export function AddItemForm({
           away rather than mutated under the click.
         */}
         {last ? (
-          <button
-            key="add"
-            type="submit"
-            disabled={pending}
-            className="h-14 flex-1 rounded-[14px] bg-primary px-4 text-[15px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
-          >
-            {pending ? "Adding…" : "Add to pantry"}
-          </button>
+          <>
+            {/* Posts the same form with `again`, which is what tells the
+                server to answer rather than redirect to the shelf. */}
+            <button
+              key="again"
+              type="submit"
+              name="again"
+              value="1"
+              disabled={pending}
+              className="h-14 rounded-[14px] bg-chip px-4 text-[15px] font-extrabold disabled:opacity-60"
+            >
+              Add another
+            </button>
+            <button
+              key="add"
+              type="submit"
+              disabled={pending}
+              className="h-14 flex-1 rounded-[14px] bg-primary px-4 text-[15px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
+            >
+              {pending ? "Adding…" : "Add to pantry"}
+            </button>
+          </>
         ) : (
           <button
             key="next"

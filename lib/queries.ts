@@ -638,6 +638,19 @@ export interface CookedEntry {
   cooked_by_name: string | null;
   /** Lines the cook said they did not use. Empty for an ordinary cook. */
   skipped: string[];
+  /**
+   * Whether undo is still offered for this one, decided by the database.
+   *
+   * A day. Undo puts the ingredients back on the shelf, and a shelf a
+   * fortnight on is not the shelf they came off - restoring 600g of flour to a
+   * bag that has since been finished and replaced writes a number that was
+   * never true. Same night, or the morning after, it is exactly right.
+   *
+   * Decided in SQL rather than from the browser's clock, because the two
+   * disagree and a button that appears on one device and not another is worse
+   * than no button.
+   */
+  undoable: boolean;
 }
 
 /**
@@ -661,7 +674,8 @@ export async function getCookedLog(
   const result = await getDb().execute({
     sql: `SELECT c.id, c.recipe_id, r.name AS recipe_name, c.servings, c.cooked_at,
                  u.handle AS cooked_by_handle, u.display_name AS cooked_by_name,
-                 c.skipped
+                 c.skipped,
+                 c.cooked_at > datetime('now', '-1 day') AS undoable
           FROM cook_events c
           JOIN recipes r ON r.id = c.recipe_id
           LEFT JOIN users u ON u.id = c.cooked_by
@@ -671,14 +685,18 @@ export async function getCookedLog(
           LIMIT ?`,
     args: [kitchenId, recipeId ?? null, recipeId ?? null, limit],
   });
-  return (result.rows as unknown as (Omit<CookedEntry, "skipped"> & { skipped: string | null })[]).map(
-    (row) => ({
-      ...row,
-      // Parsed here rather than at every reader. A row written before the
-      // column existed, and one where nothing was skipped, both read as [].
-      skipped: row.skipped ? (JSON.parse(row.skipped) as string[]) : [],
-    }),
-  );
+  return (
+    result.rows as unknown as (Omit<CookedEntry, "skipped" | "undoable"> & {
+      skipped: string | null;
+      undoable: number;
+    })[]
+  ).map((row) => ({
+    ...row,
+    // Parsed here rather than at every reader. A row written before the
+    // column existed, and one where nothing was skipped, both read as [].
+    skipped: row.skipped ? (JSON.parse(row.skipped) as string[]) : [],
+    undoable: row.undoable === 1,
+  }));
 }
 
 export interface Neglected {
