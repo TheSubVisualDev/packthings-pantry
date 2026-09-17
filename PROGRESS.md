@@ -8,6 +8,15 @@ timestamp to see how fresh it is.
 **Waiting on you:** re-file report #25 with its screenshot. The picture never
 reached the server and the words on their own do not say what was wrong.
 
+### The two approved reports, parked
+
+#22 (photograph a cupboard, have it become stock) and #26 (a YouTube link
+becoming a recipe) both need a model on the server, which this app has never
+had — its AI story is the MCP server and bring your own Claude. Both stay
+approved and undone until the Claude API is set up. The no-model version of
+#26 — fetch the description and captions, feed them to `lib/recipe-text.ts` —
+is written down here and parked with the rest of it.
+
 ### 17 Sep, the admin screens
 
 `/admin/usage` exists. Everything `lib/usage.ts` could already answer and
