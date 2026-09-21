@@ -359,6 +359,23 @@ li > button:not(:disabled):active {
  * frame just sits 14px low and 3% small, which is not a bug anybody would
  * report. Losing the fade is the trade.
  */
+/**
+ * Before adding `.stagger` to something: does anything inside it use
+ * `position: fixed`?
+ *
+ * `both` leaves the final transform on every child for ever - measured at
+ * rest as matrix(1.00003, 0, 0, 1.00003, 0, -0.014), which is near enough to
+ * identity to be invisible and is emphatically not `none`. A transformed
+ * element becomes the containing block for its fixed descendants, so a Sheet
+ * inside a staggered row stops being measured against the viewport. Tried it
+ * on the item page: the overlay that should have covered 402x874 rendered at
+ * 362x40, tucked inside the card it was declared in.
+ *
+ * The existing users are all fine and it is worth knowing why - `cook-panel`
+ * and `week-plan` both own a Sheet, and in both it is a sibling of the
+ * staggered container rather than a descendant. That is the rule: the list
+ * staggers, the thing that opens over it lives outside the list.
+ */
 .stagger > * {
   animation: stagger-rise var(--settle) var(--spring) both;
 }
