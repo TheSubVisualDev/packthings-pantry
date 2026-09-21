@@ -56,7 +56,7 @@ export default async function NotificationsPage() {
         </p>
 
         {items.length === 0 ? (
-          <div className="rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+          <div className="rise rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             <p className="text-[15px] font-extrabold">Nothing yet.</p>
             <p className="mt-1 text-sm font-semibold text-muted-foreground">
               Share a recipe and this is where you hear that somebody made it.
@@ -69,7 +69,7 @@ export default async function NotificationsPage() {
             </Link>
           </div>
         ) : (
-          <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+          <ul className="stagger overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             {items.map((item) => (
               <li
                 key={item.id}

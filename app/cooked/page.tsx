@@ -110,7 +110,7 @@ export default async function CookedPage() {
             </Link>
           </div>
         ) : (
-          <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+          <ul className="stagger overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             {log.map((entry) => (
               <li
                 key={entry.id}

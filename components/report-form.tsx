@@ -152,7 +152,7 @@ export function ReportForm({ from }: { from: string | null }) {
 
   if (result?.ok) {
     return (
-      <div className="rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+      <div className="rise rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
           <Check className="h-6 w-6" strokeWidth={3} />
         </div>

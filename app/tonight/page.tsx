@@ -312,7 +312,7 @@ export default async function TonightPage({
             and it is exactly what happens when the only recipe you have is the
             one you planned. */}
         {!best && plannedForToday.length > 0 ? null : !best ? (
-          <div className="rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+          <div className="rise rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             <p className="text-sm font-semibold text-muted-foreground">
               {filtered
                 ? "Nothing in your cookbook matches that."

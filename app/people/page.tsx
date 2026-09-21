@@ -37,7 +37,7 @@ export default async function PeoplePage() {
             .
           </p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="stagger space-y-2">
             {people.map((person) => (
               <li key={person.id}>
                 <Link

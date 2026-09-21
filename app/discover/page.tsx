@@ -280,7 +280,7 @@ export default async function DiscoverPage({
           shownTrusted.length === 0 &&
           shownFeed.length === 0 &&
           rest.length === 0 && (
-            <div className="rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+            <div className="rise rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
               <p className="text-[15px] font-extrabold">
                 Nothing here is a full shelf right now.
               </p>

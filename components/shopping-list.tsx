@@ -302,7 +302,7 @@ export function ShoppingList({
           that said on its own page. Both leave the line where it is until
           the next put-away, so nothing is lost by ignoring this. */}
       {leftBehind.length > 0 && (
-        <ul className="space-y-2">
+        <ul className="stagger space-y-2">
           {leftBehind.map((line) => (
             <li
               key={`${line.reason}-${line.name}`}
@@ -354,7 +354,7 @@ export function ShoppingList({
                   {shop}
                 </h2>
               )}
-              <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              <ul className="stagger overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
                 {shopLines.map(row)}
               </ul>
             </section>

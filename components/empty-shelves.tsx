@@ -19,7 +19,7 @@ export function EmptyShelves() {
   ];
 
   return (
-    <div className="rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+    <div className="rise rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
       <PackageOpen
         className="mx-auto h-10 w-10 text-muted-foreground/50"
         strokeWidth={1.8}

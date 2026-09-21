@@ -171,7 +171,7 @@ export default async function KitchensPage({
 
           <section className={CARD}>
             <h2 className={LABEL}>Your kitchens</h2>
-            <ul className="mt-3 mb-4 space-y-1.5">
+            <ul className="stagger mt-3 mb-4 space-y-1.5">
               {kitchens.map((entry) => (
                 <li key={entry.id} className="text-sm font-semibold">
                   {entry.name}

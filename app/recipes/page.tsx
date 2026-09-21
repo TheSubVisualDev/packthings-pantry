@@ -220,7 +220,7 @@ export default async function RecipesPage({
         />
 
         {shown.length === 0 ? (
-          <div className="rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+          <div className="rise rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             <p className="text-sm font-semibold text-muted-foreground">
               {searched || filtered ? "Nothing here matches that." : empty.line}
             </p>

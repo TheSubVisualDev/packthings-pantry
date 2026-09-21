@@ -35,7 +35,7 @@ export function ExpiringSoon({ rescues }: { rescues: Rescue[] }) {
         </span>
       </div>
 
-      <div className="flex items-stretch gap-2">
+      <div className="stagger flex items-stretch gap-2">
         {shown.map(({ item }) => {
           // Destructive only when it has actually gone. "Tomorrow" is a plan,
           // not a failure, and colouring it red makes the real ones invisible.

@@ -38,6 +38,20 @@ export function RecipeLike({
   const [count, setCount] = useState(likes);
   const [pending, startTransition] = useTransition();
 
+  /**
+   * Counts the likes, not the unlikes.
+   *
+   * A press that agrees with something should feel like one; taking it back
+   * should not get the same little celebration, and animating both made the
+   * button read as a toggle rather than as a reaction. It also stays at 0 on
+   * first render so a recipe you liked last week does not re-congratulate you
+   * every time the page opens.
+   */
+  const [cheers, setCheers] = useState(0);
+
+  /** Every press, including taking one back - the figure moved either way. */
+  const [moves, setMoves] = useState(0);
+
   return (
     <button
       type="button"
@@ -56,6 +70,8 @@ export function RecipeLike({
           const next = !liked;
           setLike(next);
           setCount((c) => c + (next ? 1 : -1));
+          setMoves((n) => n + 1);
+          if (next) setCheers((n) => n + 1);
 
           const result = await setLiked(recipeId, next);
           if (!result.ok) {
@@ -73,14 +89,22 @@ export function RecipeLike({
       }`}
     >
       <Heart
-        className="h-5 w-5"
+        key={cheers}
+        className={`h-5 w-5${cheers > 0 ? " tick" : ""}`}
         // Filled once you've liked it, so the state reads at a glance and the
         // button does not need a word beside it to say which way round it is.
         fill={liked ? "currentColor" : "none"}
         strokeWidth={2.5}
       />
       {count > 0 && (
-        <span className="pr-0.5 text-sm font-extrabold tabular-nums">{count}</span>
+        <span
+          key={moves}
+          className={`pr-0.5 text-sm font-extrabold tabular-nums${
+            moves > 0 ? " tick" : ""
+          }`}
+        >
+          {count}
+        </span>
       )}
     </button>
   );

@@ -265,6 +265,16 @@ export function CookPanel({
   const reduceMotion = useReducedMotion();
 
   const [servings, setServings] = useState(lastServings ?? baseServings);
+
+  // Counts presses, not the number, so the readout animates on every one of
+  // them. Starts at 0 so the panel does not open with the figure jumping.
+  const [servingTicks, setServingTicks] = useState(0);
+  const changeServings = (next: (v: number) => number) =>
+    setServings((v) => {
+      const to = next(v);
+      if (to !== v) setServingTicks((n) => n + 1);
+      return to;
+    });
   const [result, setResult] = useState<CookResult | null>(null);
   const [undone, setUndone] = useState<UndoResult | null>(null);
   const [deadline, setDeadline] = useState(0);
@@ -428,19 +438,27 @@ export function CookPanel({
             <button
               type="button"
               aria-label="Fewer servings"
-              onClick={() => setServings((v) => Math.max(1, v - 1))}
+              onClick={() => changeServings((v) => Math.max(1, v - 1))}
               className="flex min-h-11 min-w-11 items-center justify-center text-2xl leading-none text-primary disabled:opacity-30"
               disabled={servings <= 1}
             >
               &minus;
             </button>
-            <span className="tabular-nums">
+            {/* Same tick as the stock stepper, for the same reason: the count
+                used to swap in place, so a press that scaled the whole
+                ingredient list looked like a press that missed. Keyed on a
+                count rather than on the value because 3 -> 2 -> 3 is two
+                presses and both of them moved something. */}
+            <span
+              key={servingTicks}
+              className={`tabular-nums${servingTicks > 0 ? " tick" : ""}`}
+            >
               {servings} {servings === 1 ? "serving" : "servings"}
             </span>
             <button
               type="button"
               aria-label="More servings"
-              onClick={() => setServings((v) => Math.min(50, v + 1))}
+              onClick={() => changeServings((v) => Math.min(50, v + 1))}
               className="flex min-h-11 min-w-11 items-center justify-center text-2xl leading-none text-primary disabled:opacity-30"
               disabled={servings >= 50}
             >
@@ -450,7 +468,7 @@ export function CookPanel({
           {servings !== baseServings && (
             <button
               type="button"
-              onClick={() => setServings(baseServings)}
+              onClick={() => changeServings(() => baseServings)}
               className="shrink-0 text-sm font-semibold text-muted-foreground hover:text-foreground"
             >
               Reset

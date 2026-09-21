@@ -67,7 +67,7 @@ export default async function ExpiringPage() {
             written any down.
           </p>
         ) : (
-          <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+          <ul className="stagger overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             {rescues.map(({ item, recipes }) => {
               // Destructive only once it has actually gone. "Tomorrow" is a
               // plan, not a failure, and colouring it red makes the real ones

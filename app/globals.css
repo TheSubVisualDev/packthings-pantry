@@ -245,6 +245,13 @@ li > button:not(:disabled):active {
  * Arriving.
  *
  * Rising while fading, on the spring, so a panel arrives rather than appears.
+ *
+ * It fades from opacity 0 with `both`, which is exactly what `.stagger` had to
+ * stop doing - see the long note below it. The difference is the delay: the
+ * rows there share a 234ms start past the tenth and can lose the race on a
+ * busy first paint, leaving a row invisible for ever. This has no delay, so it
+ * gets its frame. Which means the rule for using it: one panel, on its own,
+ * never a list and never with a delay on it.
  */
 @keyframes rise {
   from {
