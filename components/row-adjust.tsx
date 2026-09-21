@@ -41,6 +41,17 @@ export function RowAdjust({
   const [, startTransition] = useTransition();
 
   /**
+   * How many times the figure has moved, used only to restart its animation.
+   *
+   * Counted rather than watched, because two taps can land on the same number
+   * - down 100 then up 100 - and a value that ends where it started still
+   * moved and should still say so. Starts at 0 so the first render is silent:
+   * the stepper has its own entrance and does not need the number arriving
+   * separately on top of it.
+   */
+  const [ticks, setTicks] = useState(0);
+
+  /**
    * How many replies are still owed.
    *
    * The server answers with an absolute quantity, which is only safe to adopt
@@ -51,6 +62,23 @@ export function RowAdjust({
 
   const shown = { ...item, ...local, sealed_count: local.sealedCount };
 
+  /**
+   * Move the figure, and say so unless it did not actually move.
+   *
+   * The server's reply usually confirms exactly what the optimistic update
+   * already showed, and animating that would fire a second time for a number
+   * nobody saw change. So the tick is spent on a real difference rather than
+   * on every write.
+   */
+  function moveTo(next: { quantity: number; sealedCount: number }) {
+    // Compared out here rather than inside the updater: React may call an
+    // updater twice in development, and counting from in there would double.
+    if (next.quantity !== local.quantity || next.sealedCount !== local.sealedCount) {
+      setTicks((n) => n + 1);
+    }
+    setLocal(next);
+  }
+
   function apply(direction: 1 | -1) {
     const size = Number(amount);
     if (!Number.isFinite(size) || size <= 0) {
@@ -60,7 +88,7 @@ export function RowAdjust({
     setError(null);
 
     const delta = size * direction;
-    setLocal(applyDelta(shown, delta));
+    moveTo(applyDelta(shown, delta));
     inFlight.current += 1;
 
     startTransition(async () => {
@@ -69,11 +97,11 @@ export function RowAdjust({
       if (!result.ok) {
         setError(result.error ?? "Couldn't change that.");
         // Put it back: the shelf did not move, so the number must not either.
-        setLocal({ quantity: item.quantity, sealedCount: item.sealed_count });
+        moveTo({ quantity: item.quantity, sealedCount: item.sealed_count });
         return;
       }
       if (inFlight.current === 0 && result.quantity !== undefined) {
-        setLocal({
+        moveTo({
           quantity: result.quantity,
           sealedCount: result.sealedCount ?? local.sealedCount,
         });
@@ -84,7 +112,7 @@ export function RowAdjust({
   function useItAll() {
     const total = local.sealedCount * (item.pack_size ?? 0) + local.quantity;
     if (total <= 0) return;
-    setLocal({ quantity: 0, sealedCount: 0 });
+    moveTo({ quantity: 0, sealedCount: 0 });
     startTransition(async () => {
       await adjustItem(item.id, -total);
     });
@@ -103,7 +131,19 @@ export function RowAdjust({
         </button>
 
         <div className="min-w-0 flex-1 text-center">
-          <div className="font-mono text-[17px] font-bold tabular-nums">
+          {/*
+            Keyed on the count so the node remounts and the animation runs
+            again - re-applying a class does not restart one that is already
+            going, and holding the + button is exactly when it needs to.
+            `tabular-nums` is what stops the row shuffling as digits change
+            width underneath it, and matters more now the figure moves.
+          */}
+          <div
+            key={ticks}
+            className={`font-mono text-[17px] font-bold tabular-nums${
+              ticks > 0 ? " tick" : ""
+            }`}
+          >
             {describeStock(shown)}
           </div>
           <label className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-bold text-muted-foreground">

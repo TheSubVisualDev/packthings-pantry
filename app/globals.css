@@ -294,6 +294,36 @@ li > button:not(:disabled):active {
 }
 
 /**
+ * A number reacting to having been changed.
+ *
+ * Deliberately not `.pop`, which fades a thing in from scale(0.6) because it
+ * was not there a moment ago. A quantity IS there - fading it out and back
+ * reads as a reload, as though the figure had been re-fetched rather than
+ * edited. Squashing and springing it in place reads as the same number, moved.
+ *
+ * The stepper on board `1t` had no animation at all, which meant that on the
+ * most-used control in the app a tap that worked and a tap that did nothing
+ * looked identical. --spring-snap overshoots to 1.37, so 0.86 -> 1 peaks at
+ * about 1.05: enough to catch at arm length without the row appearing to jump.
+ *
+ * Restarted by remounting the node rather than by toggling the class, because
+ * a running CSS animation does not restart when the class is re-applied and
+ * the second of two fast taps would otherwise show nothing.
+ */
+@keyframes tick {
+  from {
+    transform: scale(0.86);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.tick {
+  animation: tick var(--settle) var(--spring-snap) both;
+}
+
+/**
  * A list dealing itself out.
  *
  * Each row a beat behind the one above it. Done with nth-child rather than a
