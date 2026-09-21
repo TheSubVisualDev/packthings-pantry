@@ -527,7 +527,12 @@ export function CookPanel({
                 {section.name}
               </h3>
             )}
-            <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+            {/* stagger: the ingredient list is the most-read list in the app
+                and arrived all at once. It does not re-fire when the servings
+                change - React keeps the same rows, and a CSS animation runs on
+                mount, not on re-render - which is what makes it safe on a list
+                that recomputes every amount on every press. */}
+            <ul className="stagger overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
               {section.entries.map(({ line, swap, display, status }) => {
                 const amount = splitAmount(
                   display,
