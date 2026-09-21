@@ -35,7 +35,7 @@ export function RankedBars({ rows, unit }: { rows: RankedRow[]; unit: string }) 
   const most = Math.max(...rows.map((row) => row.value));
 
   return (
-    <ul className="space-y-2">
+    <ul className="stagger space-y-2">
       {rows.map((row) => {
         const share = most === 0 ? 0 : (row.value / most) * 100;
         const Row = row.href ? Link : "div";
@@ -61,7 +61,7 @@ export function RankedBars({ rows, unit }: { rows: RankedRow[]; unit: string }) 
                   an empty bar still reads as a row rather than as nothing. */}
               <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-chip">
                 <div
-                  className="h-full rounded-full bg-primary"
+                  className="draw-bar h-full rounded-full bg-primary"
                   style={{ width: `${Math.max(share, 2)}%` }}
                 />
               </div>

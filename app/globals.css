@@ -407,6 +407,36 @@ li > button:not(:disabled):active {
 }
 
 /**
+ * A bar drawing itself from its own left edge.
+ *
+ * For the rankings on the stats page, which arrived at full length - so the
+ * one thing a bar chart is for, the comparison between lengths, was over
+ * before anybody's eye reached it.
+ *
+ * scaleX rather than width: animating width lays the page out again on every
+ * frame, and these sit inside a list that is staggering at the same moment.
+ * The bar keeps its own width and is squashed to nothing to start with, which
+ * the compositor does on its own.
+ *
+ * Transform only, and for the reason `.stagger` is - a bar that never gets
+ * its frame is a bar at full length, which is the truth. One that had faded
+ * would be a row with a number beside an empty track.
+ */
+@keyframes draw-bar {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.draw-bar {
+  transform-origin: left center;
+  animation: draw-bar var(--settle) var(--ease-out) both;
+}
+
+/**
  * Between pages.
  *
  * `@view-transition { navigation: auto }` was here and did nothing at all: it

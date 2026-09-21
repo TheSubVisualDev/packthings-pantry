@@ -60,7 +60,14 @@ export function PlanItButton({
       >
         {done ? (
           <>
-            <Check className="h-4 w-4 shrink-0 text-primary" strokeWidth={3} />
+            {/* pop: the tick was not there a moment ago, which is the one
+                thing this button has to say. It is a client state change with
+                no delay on it, so unlike a staggered row it always gets its
+                frame and can safely fade in. */}
+            <Check
+              className="pop h-4 w-4 shrink-0 text-primary"
+              strokeWidth={3}
+            />
             Planned for {done}
           </>
         ) : (
