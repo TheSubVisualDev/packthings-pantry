@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { notFound, redirect } from "next/navigation";
 import { ItemDetail } from "@/components/item-detail";
 import { Packaging } from "@/components/packaging";
@@ -59,12 +59,11 @@ export default async function ItemPage({
       <SiteHeader active="none" />
 
       <main className="mx-auto w-full max-w-[560px] px-5 py-7 pb-32 sm:px-9">
-        <Link
-          href="/tonight"
+        <BackLink
+          href="/tonight#shelf"
+          label="The shelf"
           className="text-sm font-semibold text-muted-foreground hover:text-foreground"
-        >
-          ← The shelf
-        </Link>
+        />
 
         <div className="mt-3 space-y-3">
           {/*

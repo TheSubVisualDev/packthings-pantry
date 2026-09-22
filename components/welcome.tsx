@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
-  BookOpenText, Boxes, Check, ChevronLeft, Compass, UtensilsCrossed,
+  BookOpenText, Check, Plus, ChevronLeft, Compass, UtensilsCrossed,
 } from "lucide-react";
 import {
   addStaples, finishWelcome, howYouCook, nameKitchen, type WelcomeResult,
@@ -292,15 +292,19 @@ export function Welcome({
             That is everything.
           </h1>
           <p className="mt-1 mb-4 text-[15px] leading-relaxed font-medium text-muted-foreground">
-            Four tabs along the bottom. That is the whole app.
+            Three tabs and a plus along the bottom. That is the whole app.
           </p>
 
+          {/* Said four tabs, Stock first, for a week after Stock stopped
+              being one - the first thing a new person was told about the
+              app described a button that was not there. The shelf is under
+              Tonight now, so it is described there. */}
           <ul className="space-y-2">
             {[
-              { Icon: Boxes, name: "Stock", what: "What is in, what is running out, what is about to go off." },
-              { Icon: UtensilsCrossed, name: "Tonight", what: "What to cook, ranked on what you have and what needs using." },
+              { Icon: UtensilsCrossed, name: "Tonight", what: "What to cook, ranked on what you have and what needs using - and under it, the shelf: what is in and what is running out." },
               { Icon: BookOpenText, name: "Cookbook", what: "Your recipes. Paste one in as it is written and it gets picked apart." },
               { Icon: Compass, name: "Discover", what: "What everyone else is cooking." },
+              { Icon: Plus, name: "The plus", what: "Everything that puts something in: an item, a barcode, a receipt, a recipe." },
             ].map(({ Icon, name: tab, what }) => (
               <li
                 key={tab}

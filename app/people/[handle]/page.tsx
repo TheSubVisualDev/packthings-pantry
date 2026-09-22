@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { notFound, redirect } from "next/navigation";
 import { Avatar } from "@/components/avatar";
 import { BlockButton } from "@/components/block-button";
@@ -47,12 +47,11 @@ export default async function ProfilePage({
       <SiteHeader active="discover" />
 
       <div className="mx-auto w-full max-w-[900px] px-5 pt-6 pb-32 sm:px-9 sm:py-7">
-        <Link
+        <BackLink
           href="/people"
+          label="People"
           className="text-sm font-semibold text-muted-foreground hover:text-foreground"
-        >
-          ← People
-        </Link>
+        />
 
         <div className="mt-3 flex items-center gap-4">
           <Avatar

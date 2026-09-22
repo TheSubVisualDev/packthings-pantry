@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BackLink } from "@/components/back-link";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
@@ -37,12 +38,11 @@ export default async function CookedPage() {
       <SiteHeader active="recipes" meta={`${log.length} cooks`} />
 
       <main className="mx-auto w-full max-w-[640px] px-5 py-7 pb-32 sm:px-9">
-        <Link
+        <BackLink
           href="/recipes"
+          label="Cookbook"
           className="text-sm font-semibold text-muted-foreground hover:text-foreground"
-        >
-          ← Recipes
-        </Link>
+        />
         <h1 className="mt-2 mb-1 text-[26px] font-extrabold tracking-[-0.02em]">
           Cooked
         </h1>

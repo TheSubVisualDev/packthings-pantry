@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { redirect } from "next/navigation";
 import { RecipeEditor } from "@/components/recipe-editor";
 import { SiteHeader } from "@/components/site-header";
@@ -28,12 +28,11 @@ export default async function NewRecipePage() {
     <>
       <SiteHeader active="recipes" />
       <main className="mx-auto w-full max-w-[720px] px-5 py-7 pb-32 sm:px-9 lg:max-w-[1280px]">
-        <Link
+        <BackLink
           href="/recipes"
+          label="Cookbook"
           className="text-sm font-semibold text-muted-foreground hover:text-foreground"
-        >
-          &larr; Recipes
-        </Link>
+        />
         <h1 className="mt-2 mb-6 text-[26px] font-extrabold tracking-[-0.02em]">
           New recipe
         </h1>

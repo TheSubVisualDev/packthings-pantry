@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BackLink } from "@/components/back-link";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { QuickAdjust } from "@/components/quick-adjust";
@@ -45,12 +46,11 @@ export default async function AdjustPage({
     <>
       <SiteHeader active="none" meta={`${items.length} items`} />
       <main className="mx-auto w-full max-w-[640px] px-5 py-7 pb-32">
-        <Link
-          href="/tonight"
+        <BackLink
+          href="/tonight#shelf"
+          label="The shelf"
           className="text-sm font-semibold text-muted-foreground hover:text-foreground"
-        >
-          ← The shelf
-        </Link>
+        />
         <h1 className="mt-2 mb-1 text-[26px] font-extrabold tracking-[-0.02em]">
           {narrowed ? "Adjust these" : "Quick adjust"}
         </h1>

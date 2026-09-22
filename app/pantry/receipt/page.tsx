@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { redirect } from "next/navigation";
 import { ReceiptScanner } from "@/components/receipt-scanner";
 import { SiteHeader } from "@/components/site-header";
@@ -22,12 +22,11 @@ export default async function ReceiptPage() {
       <SiteHeader active="none" />
 
       <main className="mx-auto w-full max-w-[560px] px-5 py-7 pb-32 sm:px-9">
-        <Link
-          href="/tonight"
+        <BackLink
+          href="/tonight#shelf"
+          label="The shelf"
           className="text-sm font-semibold text-muted-foreground hover:text-foreground"
-        >
-          ← The shelf
-        </Link>
+        />
         <h1 className="mt-2 mb-1 text-[26px] font-extrabold tracking-[-0.02em]">
           Scan a receipt
         </h1>

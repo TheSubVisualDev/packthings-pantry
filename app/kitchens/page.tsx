@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BackLink } from "@/components/back-link";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DeleteKitchen } from "@/components/delete-kitchen";
@@ -192,9 +193,7 @@ export default async function KitchensPage({
         </div>
 
         <p className="mt-6 text-sm font-semibold text-muted-foreground">
-          <Link href="/tonight" className="underline underline-offset-2">
-            ← Back to the pantry
-          </Link>
+          <BackLink href="/tonight" label="Tonight" className="underline underline-offset-2" />
         </p>
       </main>
     </>

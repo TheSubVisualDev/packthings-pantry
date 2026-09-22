@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BackLink } from "@/components/back-link";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ShopFilter } from "@/components/shop-filter";
@@ -62,12 +63,11 @@ export default async function ShoppingPage({
       <SiteHeader active="none" meta={`${todo} on the list`} />
 
       <main className="mx-auto w-full max-w-[560px] px-5 py-7 pb-32 sm:px-9">
-        <Link
+        <BackLink
           href={kitchen ? "/pantry" : "/recipes"}
+          label={kitchen ? "The shelf" : "Cookbook"}
           className="text-sm font-semibold text-muted-foreground hover:text-foreground print:hidden"
-        >
-          {kitchen ? "← Stock" : "← Recipes"}
-        </Link>
+        />
         <div className="mt-2 mb-1 flex items-center justify-between gap-3">
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">Shopping</h1>
           <PrintButton label="On paper" />

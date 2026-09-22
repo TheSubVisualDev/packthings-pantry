@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
+import { BackLink } from "@/components/back-link";
 import { RecipeMenu } from "@/components/recipe-menu";
 import { RecipeLike } from "@/components/recipe-like";
 import { PrintButton } from "@/components/print-button";
@@ -292,13 +293,14 @@ export default async function RecipePage({
           )}
 
           <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4 print:hidden">
-            <Link
+            {/* Back to wherever the recipe was opened from - Tonight, more
+                often than not - rather than always to the cookbook. */}
+            <BackLink
               href="/recipes"
-              aria-label="Back to your cookbook"
+              label="Cookbook"
+              icon={<ArrowLeft className="h-5 w-5" strokeWidth={2.5} />}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-white/85 text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.18)] backdrop-blur"
-            >
-              <ArrowLeft className="h-5 w-5" strokeWidth={2.5} />
-            </Link>
+            />
 
             <div className="flex items-center gap-2">
               {/* Where the first look happens. It was at the bottom of the

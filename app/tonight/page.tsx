@@ -376,7 +376,10 @@ export default async function TonightPage({
           bar.
         */}
         {onShelf.length > 0 && (
-          <section className="mt-9">
+          // An id so "← The shelf" can land here rather than on the recipe
+          // card above it. scroll-mt clears the header it would otherwise
+          // tuck under.
+          <section id="shelf" className="mt-9 scroll-mt-4">
             <div className="mb-3 flex items-baseline justify-between gap-3">
               <h2 className="text-[19px] font-extrabold tracking-[-0.01em]">
                 On the shelf

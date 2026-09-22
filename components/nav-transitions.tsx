@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { forgetDeparture, noteArrival, noteDeparture } from "@/components/back-link";
 
 /**
  * Every internal link in the app, animated, from one place.
@@ -71,14 +72,19 @@ export function NavTransitions() {
   useEffect(() => {
     arrived.current?.();
     arrived.current = null;
+    noteArrival(pathname);
   }, [pathname]);
+
+  useEffect(() => {
+    window.addEventListener("popstate", forgetDeparture);
+    return () => window.removeEventListener("popstate", forgetDeparture);
+  }, []);
 
   useEffect(() => {
     function onClick(event: MouseEvent) {
       // Everything that means "not a plain left click": a new tab, a
       // middle click, a modifier held. The browser does those better.
       if (
-        event.defaultPrevented ||
         event.button !== 0 ||
         event.metaKey ||
         event.ctrlKey ||
@@ -125,6 +131,17 @@ export function NavTransitions() {
        */
       if (to.pathname === location.pathname) return;
 
+      /*
+        Before the defaultPrevented and motion checks: next/link prevents the
+        default on every click it handles itself, and reduced motion is a
+        preference about animation, not about history. A click some component
+        swallowed for its own purposes - opening a sheet - notes a departure
+        that never happens, which is harmless: nothing arrives, and a back
+        link on this page ignores a "came from" that is this page.
+      */
+      noteDeparture(location.pathname + location.search, to.pathname);
+      if (event.defaultPrevented) return;
+
       if (
         !document.startViewTransition ||
         window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -134,7 +151,9 @@ export function NavTransitions() {
 
       event.preventDefault();
 
-      const target = to.pathname + to.search;
+      // The hash too: "/tonight#shelf" is a back link that means the shelf,
+      // not the recipe card at the top of the page.
+      const target = to.pathname + to.search + to.hash;
       document.documentElement.dataset.navDir = directionBetween(
         location.pathname,
         to.pathname,

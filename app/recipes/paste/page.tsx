@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BackLink } from "@/components/back-link";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PasteRecipe } from "@/components/paste-recipe";
@@ -68,12 +69,11 @@ export default async function PasteRecipePage() {
     <>
       <SiteHeader active="recipes" />
       <main className="mx-auto w-full max-w-[720px] px-5 py-7 pb-32 sm:px-9">
-        <Link
+        <BackLink
           href="/recipes"
+          label="Cookbook"
           className="text-sm font-semibold text-muted-foreground hover:text-foreground"
-        >
-          &larr; Recipes
-        </Link>
+        />
         <h1 className="mt-2 text-[26px] font-extrabold tracking-[-0.02em]">
           Paste a recipe
         </h1>
