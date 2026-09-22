@@ -88,8 +88,12 @@ export function RecipeLike({
             : "bg-card text-foreground"
       }`}
     >
+      {/* Keys named, not bare counters: the heart and the figure are
+          siblings, both counters start at 0, and two siblings keyed 0 is a
+          duplicate key on every recipe with a like - which React says may
+          duplicate or drop one of them. */}
       <Heart
-        key={cheers}
+        key={`heart-${cheers}`}
         className={`h-5 w-5${cheers > 0 ? " tick" : ""}`}
         // Filled once you've liked it, so the state reads at a glance and the
         // button does not need a word beside it to say which way round it is.
@@ -98,7 +102,7 @@ export function RecipeLike({
       />
       {count > 0 && (
         <span
-          key={moves}
+          key={`count-${moves}`}
           className={`pr-0.5 text-sm font-extrabold tabular-nums${
             moves > 0 ? " tick" : ""
           }`}
