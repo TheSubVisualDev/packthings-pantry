@@ -1,4 +1,4 @@
-import { fillFor, tintFor, vesselFor } from "@/lib/vessel";
+import { fillFor, shortAmount, tintFor, vesselFor } from "@/lib/vessel";
 import { daysUntil } from "@/lib/dates";
 import type { Item } from "@/lib/types";
 import { CAPS, CRIMPS, PATHS, SPAN } from "@/components/vessel-shapes";
@@ -46,7 +46,19 @@ export function ShelfVessel({ item, size = 44 }: { item: Item; size?: number }) 
   const left = item.expiry_date ? daysUntil(item.expiry_date) : null;
   const urgent = left !== null && left <= 0 && item.expiry_estimated !== 1;
 
-  const outline = fill === null ? FADE : urgent ? ALARM : INK;
+  /**
+   * No level is two different facts, and they were drawn as one.
+   *
+   * `unspecified` is "there is some, nobody said how much" - a genuine blank,
+   * dashed with a ?. The other is an amount with no pack size to measure it
+   * against: Unsalted butter, 410g, drawn as a ? under a line saying nobody
+   * had said the amount, while the stock list said 410g. That one is drawn
+   * solid and carries its amount instead, because the amount IS known.
+   */
+  const unknown = fill === null && item.unspecified === 1;
+  const amount = fill === null && !unknown ? shortAmount(item) : null;
+
+  const outline = unknown ? FADE : urgent ? ALARM : INK;
 
   /**
    * Counted things are drawn as that many things.
@@ -108,9 +120,11 @@ export function ShelfVessel({ item, size = 44 }: { item: Item; size?: number }) 
       height={Math.round((size / 60) * 76)}
       role="img"
       aria-label={
-        fill === null
+        unknown
           ? `${item.name}, amount not recorded`
-          : `${item.name}, about ${Math.round(fill * 100)} per cent full`
+          : amount !== null
+            ? `${item.name}, ${amount}`
+            : `${item.name}, about ${Math.round(fill! * 100)} per cent full`
       }
       className="block"
     >
@@ -151,7 +165,7 @@ export function ShelfVessel({ item, size = 44 }: { item: Item; size?: number }) 
         stroke={outline}
         strokeWidth={urgent ? 3 : 2.5}
         strokeLinejoin="round"
-        strokeDasharray={fill === null ? "6 5" : undefined}
+        strokeDasharray={unknown ? "6 5" : undefined}
       />
       {CAPS[kind] && <path d={CAPS[kind]} fill={outline} />}
       {CRIMPS[kind] && (
@@ -162,7 +176,7 @@ export function ShelfVessel({ item, size = 44 }: { item: Item; size?: number }) 
           strokeWidth={urgent ? 3 : 2.5}
           strokeLinejoin="round"
           strokeLinecap="round"
-          strokeDasharray={fill === null ? "6 5" : undefined}
+          strokeDasharray={unknown ? "6 5" : undefined}
         />
       )}
 
@@ -186,11 +200,46 @@ export function ShelfVessel({ item, size = 44 }: { item: Item; size?: number }) 
         />
       )}
 
-      {fill === null && (
+      {unknown && (
         <text x="30" y="55" textAnchor="middle" fontSize="24" fontWeight="800" fill={FADE}>
           ?
         </text>
       )}
+      {/*
+        On a label stuck to the front rather than written in the space inside:
+        a spice jar is 18 units wide and "155g" is not, so text in the body
+        crossed its outline. A label may overhang a narrow jar, which is what
+        labels do.
+      */}
+      {amount !== null && (() => {
+        const size = 13;
+        const width = amount.length * size * 0.62 + 8;
+        const middle = Math.min(54, (top + bottom) / 2);
+        return (
+          <g>
+            <rect
+              x={30 - width / 2}
+              y={middle - size / 2 - 3}
+              width={width}
+              height={size + 6}
+              rx="4"
+              fill="oklch(0.99 0.004 60)"
+              stroke={INK}
+              strokeWidth="1.5"
+            />
+            <text
+              x="30"
+              y={middle + size / 2 - 1.5}
+              textAnchor="middle"
+              fontSize={size}
+              fontWeight="800"
+              fill={INK}
+            >
+              {amount}
+            </text>
+          </g>
+        );
+      })()}
     </svg>
   );
 }

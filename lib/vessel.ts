@@ -196,6 +196,23 @@ export function fillFor(item: {
 }
 
 /**
+ * The amount, short enough to write inside a 60px vessel: "410g", "1.5kg",
+ * "3". For the rows with an amount and no pack size, where there is no level
+ * to draw but there is a number that is true.
+ */
+export function shortAmount(item: {
+  quantity: number;
+  canonical_unit: string;
+}): string {
+  const { quantity, canonical_unit: unit } = item;
+  const round = (value: number) => String(Math.round(value * 10) / 10);
+  if (unit === "g" && quantity >= 1000) return `${round(quantity / 1000)}kg`;
+  if (unit === "ml" && quantity >= 1000) return `${round(quantity / 1000)}l`;
+  if (unit === "g" || unit === "ml") return `${Math.round(quantity)}${unit}`;
+  return round(quantity);
+}
+
+/**
  * What colour the contents are.
  *
  * Not decoration: it is the difference between reading a shelf and reading a

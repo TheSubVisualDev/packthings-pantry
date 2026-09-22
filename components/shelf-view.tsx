@@ -56,6 +56,10 @@ export function ShelfView({
   ];
 
   const known = items.filter((item) => fillFor(item) !== null).length;
+  // Split, because "no level" is two facts: nobody said how much, or there
+  // is an amount but no pack size to draw it against. See ShelfVessel.
+  const blank = items.filter((item) => item.unspecified === 1).length;
+  const unmeasured = items.length - known - blank;
 
   return (
     <div className="flex flex-col gap-3">
@@ -80,7 +84,13 @@ export function ShelfView({
               {known} of {items.length} have a level.
             </span>{" "}
             <span className="text-muted-foreground">
-              The outlines are things nobody has said the amount of.
+              {[
+                blank > 0 && "Dashed ones: nobody has said how much.",
+                unmeasured > 0 &&
+                  "Numbers: the amount, with no pack size to draw a level against.",
+              ]
+                .filter(Boolean)
+                .join(" ")}
             </span>
           </p>
         </div>
@@ -88,7 +98,7 @@ export function ShelfView({
 
       {ordered.map((place) => {
         const shelf = byPlace.get(place) ?? [];
-        const blind = shelf.every((item) => fillFor(item) === null);
+        const blind = shelf.every((item) => item.unspecified === 1);
 
         return (
           <section
@@ -145,7 +155,7 @@ export function ShelfView({
                        nowhere to break gets cut off mid-letter rather than wrapped,
                        which is how "Gochujang" came out as "Gochuj". */
                     className={`line-clamp-2 [hyphens:auto] text-center text-[10px] leading-[1.2] font-extrabold break-words ${
-                      fillFor(item) === null ? "text-quantity" : ""
+                      item.unspecified === 1 ? "text-quantity" : ""
                     }`}
                   >
                     {item.name}
