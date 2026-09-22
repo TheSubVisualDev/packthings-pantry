@@ -69,6 +69,18 @@ export function ShoppingList({
    */
   const [leftBehind, setLeftBehind] = useState<LeftBehind[]>([]);
 
+  /**
+   * Lines put away on the press, before Nuremberg has said so.
+   *
+   * "Got everything" and "Put these away" were the two buttons on this screen
+   * that still waited for the round trip - a faded button and nothing else,
+   * at the till, which is where a pause reads as "did that work?". Both move
+   * on the press now, and go back and say so if the write fails, the same
+   * bargain the single ticks above have always made.
+   */
+  const [gone, setGone] = useState<ReadonlySet<number>>(() => new Set());
+  const shown = lines.filter((line) => !gone.has(line.id));
+
   const isBought = (line: ShoppingLine) =>
     ticked[line.id] ?? Boolean(line.bought_at);
 
@@ -119,7 +131,7 @@ export function ShoppingList({
    */
   const byShop = (() => {
     const groups = new Map<string, ShoppingLine[]>();
-    for (const line of lines.filter((entry) => !isBought(entry))) {
+    for (const line of shown.filter((entry) => !isBought(entry))) {
       /**
        * Under a filter, anything with a shop is here by definition - the query
        * only kept lines this shop sells - so it groups under the shop you are
@@ -134,9 +146,9 @@ export function ShoppingList({
     return [...groups.entries()];
   })();
 
-  const done = lines.filter((line) => isBought(line));
+  const done = shown.filter((line) => isBought(line));
   const inBasket = done.length;
-  const total = lines.length;
+  const total = shown.length;
 
   function row(line: ShoppingLine) {
     const bought = isBought(line);
@@ -333,7 +345,7 @@ export function ShoppingList({
         </ul>
       )}
 
-      {lines.length === 0 ? (
+      {shown.length === 0 ? (
         <p className="rounded-[20px] bg-card p-6 text-sm font-semibold text-muted-foreground shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
           {/* The second sentence is about comparing a recipe to shelves, which
               a list with no kitchen behind it cannot do. Promising it there
@@ -373,10 +385,15 @@ export function ShoppingList({
                 <button
                   type="button"
                   disabled={pending}
-                  onClick={() =>
+                  onClick={() => {
+                    setGone(new Set(done.map((line) => line.id)));
+                    setTickError(null);
+                    setPutAway(`Putting ${done.length} away…`);
                     startTransition(async () => {
                       const result = await putAwayBought();
+                      setGone(new Set());
                       if (!result.ok) {
+                        setPutAway(null);
                         setTickError(result.error ?? "Couldn't put those away.");
                         return;
                       }
@@ -387,8 +404,8 @@ export function ShoppingList({
                           : null,
                       );
                       setLeftBehind(result.left ?? []);
-                    })
-                  }
+                    });
+                  }}
                   className="min-h-9 rounded-full bg-ink px-4 text-xs font-extrabold text-background disabled:opacity-60 print:hidden"
                 >
                   Put these away
@@ -413,13 +430,21 @@ export function ShoppingList({
         <button
           type="button"
           disabled={pending}
-          onClick={() =>
+          onClick={() => {
+            const before = ticked;
+            setTicked((current) => ({
+              ...current,
+              ...Object.fromEntries(shown.map((line) => [line.id, true])),
+            }));
+            setTickError(null);
             startTransition(async () => {
               const result = await gotEverything();
-              if (!result.ok) setTickError(result.error ?? "Couldn't tick those off.");
-              else setTicked({});
-            })
-          }
+              if (!result.ok) {
+                setTicked(before);
+                setTickError(result.error ?? "Couldn't tick those off.");
+              } else setTicked({});
+            });
+          }}
           className="min-h-12 w-full rounded-[14px] bg-ink text-[15px] font-extrabold text-background disabled:opacity-60 print:hidden"
         >
           Got everything · {total - inBasket} to tick
