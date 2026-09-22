@@ -4,7 +4,7 @@ Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
 **Last updated:** 22 Sep 2026 — interaction audit approved, building it
-**Doing right now:** #1, sheets opening underneath pinned buttons
+**Doing right now:** #5, substitutes
 **Waiting on you:** nothing
 
 ### 22 Sep, the interaction audit
@@ -13,10 +13,10 @@ Fifteen findings in `docs/AUDIT-2026-09-22.md`, each put to you. Approved:
 everything except two parts of #9 (the repeated name and the single Save stay
 as they are). #12 was answered with "up to two days past".
 
-- [ ] 1 sheets above pinned buttons
-- [ ] 2 "Cooked it"
-- [ ] 3 back goes where you came from, one name per place (+13)
-- [ ] 4 blank name boxes
+- [x] 1 sheets above pinned buttons
+- [x] 2 "Cooked it"
+- [x] 3 back goes where you came from, one name per place (+13)
+- [x] 4 blank name boxes
 - [ ] 5 substitutes need more than a shared "powder"
 - [ ] 6 ticks: not-in-stock start unticked, whole row toggles
 - [ ] 7 the shelf's "?" for things with an amount
