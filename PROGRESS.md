@@ -3,9 +3,9 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 22 Sep 2026 — interaction audit built, all fifteen
+**Last updated:** 22 Sep 2026 — interaction audit built, plus the three found along the way
 **Doing right now:** nothing
-**Waiting on you:** three new things found while building, bottom of `docs/AUDIT-2026-09-22.md`
+**Waiting on you:** nothing
 
 ### 22 Sep, the interaction audit
 
