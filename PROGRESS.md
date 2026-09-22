@@ -4,7 +4,7 @@ Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
 **Last updated:** 22 Sep 2026 — interaction audit approved, building it
-**Doing right now:** #5, substitutes
+**Doing right now:** #9, readable dates on the item page
 **Waiting on you:** nothing
 
 ### 22 Sep, the interaction audit
@@ -17,10 +17,10 @@ as they are). #12 was answered with "up to two days past".
 - [x] 2 "Cooked it"
 - [x] 3 back goes where you came from, one name per place (+13)
 - [x] 4 blank name boxes
-- [ ] 5 substitutes need more than a shared "powder"
-- [ ] 6 ticks: not-in-stock start unticked, whole row toggles
-- [ ] 7 the shelf's "?" for things with an amount
-- [ ] 8 quick adjust's step size
+- [x] 5 substitutes need more than a shared "powder"
+- [x] 6 ticks: not-in-stock start unticked, whole row toggles
+- [x] 7 the shelf's "?" for things with an amount
+- [x] 8 quick adjust's step size
 - [ ] 9 readable dates on the item page
 - [ ] 10 plan hint to the top
 - [ ] 11 discover: no repeats, calm caps, no empty suggestions
