@@ -699,7 +699,11 @@ export function CookPanel({
             disabled={pending}
             /* Its own shadow on mobile: pinned over a scrolling list it needs
                to read as sitting above the page rather than in it. */
-            className="w-full rounded-[14px] bg-primary px-4 py-4 text-[15px] font-extrabold text-primary-foreground shadow-[0_8px_24px_-8px_rgba(60,44,30,0.55)] transition-opacity disabled:opacity-60 sm:shadow-none"
+            /* Dimmed, never faded. It is pinned over the ingredient list,
+               and at 60% opacity the line underneath read straight through
+               "Cooking..." - "120g Unsalted butter" across the button at the
+               one moment somebody is watching it. */
+            className="w-full rounded-[14px] bg-primary px-4 py-4 text-[15px] font-extrabold text-primary-foreground shadow-[0_8px_24px_-8px_rgba(60,44,30,0.55)] transition-[filter] disabled:brightness-[0.85] disabled:saturate-[0.7] sm:shadow-none"
           >
             {pending
               ? "Cooking…"
