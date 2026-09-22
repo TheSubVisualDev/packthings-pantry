@@ -10,7 +10,7 @@ import {
   type ItemResult,
 } from "@/app/pantry/actions";
 import { ItemMenu } from "@/components/item-menu";
-import { daysUntil, parseStamp } from "@/lib/dates";
+import { daysUntil, parseStamp, sayDay } from "@/lib/dates";
 import type { Item } from "@/lib/types";
 
 const FIELD =
@@ -168,10 +168,10 @@ export function ItemDetail({
                 ? "Probably past its best by now"
                 : `Probably about ${left} ${left === 1 ? "day" : "days"} left`
               : left !== null && left < 0
-                ? `Was good until ${useBy} — ${Math.abs(left)} days ago`
+                ? `Was good until ${sayDay(useBy)} — ${Math.abs(left)} ${Math.abs(left) === 1 ? "day" : "days"} ago`
                 : left === 0
                   ? "Use it today"
-                  : `Use by ${useBy} — ${left} days`}
+                  : `Use by ${sayDay(useBy)} — ${left} ${left === 1 ? "day" : "days"}`}
             {openedDeadline && useBy === openedDeadline && " (because it's open)"}
             {guessed && (
               <span className="font-semibold"> — estimated, no date entered</span>

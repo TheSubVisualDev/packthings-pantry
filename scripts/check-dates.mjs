@@ -16,7 +16,7 @@
 // real clock passes at midnight and fails at teatime, which is exactly the bug
 // it is supposed to be catching.
 
-import { daysUntil } from "../lib/dates.ts";
+import { daysUntil, sayDay } from "../lib/dates.ts";
 
 let failures = 0;
 function check(what, got, expected) {
@@ -99,6 +99,13 @@ at("2026-09-14T12:00:00", () => {
   check("nonsense reads as zero", daysUntil("not a date"), 0);
   check("an empty string reads as zero", daysUntil(""), 0);
 });
+
+/* --- how a day is said on screen --- */
+
+// Said, not stored: the item page printed "2026-09-17" straight from the row.
+check("a day, said", sayDay("2026-09-17"), "Thu 17 Sep");
+check("the spring-forward day keeps its date", sayDay("2026-03-29"), "Sun 29 Mar");
+check("nonsense comes back as it went in", sayDay("soon"), "soon");
 
 if (failures > 0) {
   console.error(`\n${failures} failed`);

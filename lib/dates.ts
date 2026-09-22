@@ -55,3 +55,23 @@ export function shortDate(value: string | null): string {
     ? date.toLocaleDateString(undefined, { day: "numeric", month: "short" })
     : "";
 }
+
+/**
+ * "Thu 17 Sep" for a 'YYYY-MM-DD' day, which is how a date on a packet is
+ * said. The item page printed the stored string, "Was good until
+ * 2026-09-17", which is a database talking.
+ *
+ * Spelled out by hand rather than asked of Intl. The server renders this
+ * first and the phone renders it again, and the two need not agree: Node's
+ * en-GB said "Sept" on the machine this was written on, a browser may say
+ * "Sep", and the difference is a hydration error. Noon, so no timezone can
+ * move the day.
+ */
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+export function sayDay(date: string): string {
+  const day = new Date(`${date}T12:00:00`);
+  if (Number.isNaN(day.getTime())) return date;
+  return `${WEEKDAYS[day.getDay()]} ${day.getDate()} ${MONTHS[day.getMonth()]}`;
+}
