@@ -4,7 +4,7 @@ Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
 **Last updated:** 22 Sep 2026 — interaction audit approved, building it
-**Doing right now:** #9, readable dates on the item page
+**Doing right now:** #12, how far past a thing can be and still count
 **Waiting on you:** nothing
 
 ### 22 Sep, the interaction audit
@@ -21,9 +21,9 @@ as they are). #12 was answered with "up to two days past".
 - [x] 6 ticks: not-in-stock start unticked, whole row toggles
 - [x] 7 the shelf's "?" for things with an amount
 - [x] 8 quick adjust's step size
-- [ ] 9 readable dates on the item page
-- [ ] 10 plan hint to the top
-- [ ] 11 discover: no repeats, calm caps, no empty suggestions
+- [x] 9 readable dates on the item page
+- [x] 10 plan hint to the top
+- [x] 11 discover: no repeats, calm caps, no empty suggestions
 - [ ] 12 past food counts for two days
 - [ ] 14 instant ticks at the end of a shop
 - [ ] 15 source link, counts, "open", paste page
