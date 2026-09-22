@@ -3,9 +3,9 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 22 Sep 2026 — interaction audit approved, building it
-**Doing right now:** #15, the small ones
-**Waiting on you:** nothing
+**Last updated:** 22 Sep 2026 — interaction audit built, all fifteen
+**Doing right now:** nothing
+**Waiting on you:** three new things found while building, bottom of `docs/AUDIT-2026-09-22.md`
 
 ### 22 Sep, the interaction audit
 
@@ -26,7 +26,7 @@ as they are). #12 was answered with "up to two days past".
 - [x] 11 discover: no repeats, calm caps, no empty suggestions
 - [x] 12 past food counts for two days
 - [x] 14 instant ticks at the end of a shop
-- [ ] 15 source link, counts, "open", paste page
+- [x] 15 source link, counts, "open", paste page
 
 ### 17 Sep, three pieces of friction
 
