@@ -192,6 +192,32 @@ check(
   "uses the kale, tomorrow · you have everything",
 );
 
+/* --- how far past still counts --- */
+
+// Two days past is still a judgement call a kitchen makes; five is not. The
+// cream that started this was five days past its opened-by date and was the
+// reason given for two recipes.
+check(
+  "two days past is still a reason",
+  explain(recipe("x", { rescues: [{ name: "Cream", daysLeft: -2 }] })),
+  "uses the cream, already past · you have everything",
+);
+check(
+  "three days past is not",
+  explain(recipe("x", { rescues: [{ name: "Cream", daysLeft: -3 }] })),
+  "you have everything",
+);
+check(
+  "and lends no urgency either",
+  scoreRecipe(recipe("x", { rescues: [{ name: "Cream", daysLeft: -5 }] })).parts.urgency,
+  0,
+);
+check(
+  "nor a use-it-up badge",
+  rankTonight([recipe("x", { rescues: [{ name: "Cream", daysLeft: -5 }] })])[0].rescues.length,
+  0,
+);
+
 /* --- nearly there --- */
 
 {

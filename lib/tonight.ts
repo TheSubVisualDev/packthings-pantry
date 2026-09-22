@@ -76,6 +76,26 @@ export const WEIGHTS = {
 /** Expiring within this many days is worth acting on at all. */
 const URGENT_WITHIN_DAYS = 7;
 
+/**
+ * How far past its date a thing can be and still be a reason to cook.
+ *
+ * Luna's number, 22 Sep 2026. Before it there was no limit: "uses the extra
+ * thick double cream, already past" was the reason given for two recipes
+ * while the cream was five days beyond its opened-by date - the app arguing
+ * for cooking with something most people would not. A day or two past is
+ * the ordinary kitchen judgement call, and the ranker may still make it.
+ * Past that, the thing stays on the shelf, drawn as past, and stops being
+ * an argument for anything.
+ */
+export const PAST_GRACE_DAYS = 2;
+
+export function stillWorthRescuing(daysLeft: number): boolean {
+  return daysLeft >= -PAST_GRACE_DAYS;
+}
+
+const live = (rescues: RecipeFacts["rescues"]) =>
+  rescues.filter((rescue) => stillWorthRescuing(rescue.daysLeft));
+
 /** How long it takes to want something again. */
 const FATIGUE_FADES_AFTER_DAYS = 14;
 
@@ -109,7 +129,7 @@ export interface Scored {
 export function scoreRecipe(facts: RecipeFacts): Scored {
   const readiness = facts.total === 0 ? 0 : facts.have / facts.total;
 
-  const worst = facts.rescues.reduce(
+  const worst = live(facts.rescues).reduce(
     (highest, rescue) => Math.max(highest, urgencyOf(rescue.daysLeft)),
     0,
   );
@@ -169,7 +189,7 @@ function deadline(daysLeft: number): string {
 export function explain(facts: RecipeFacts): string {
   const clauses: string[] = [];
 
-  const soonest = [...facts.rescues].sort((a, b) => a.daysLeft - b.daysLeft)[0];
+  const soonest = live(facts.rescues).sort((a, b) => a.daysLeft - b.daysLeft)[0];
   if (soonest) {
     clauses.push(`uses the ${soonest.name.toLowerCase()}, ${deadline(soonest.daysLeft)}`);
   }
@@ -198,6 +218,9 @@ export function rankTonight(candidates: RecipeFacts[]): Suggestion[] {
   return candidates
     .map((facts) => ({
       ...facts,
+      // Handed on without the ones past the grace, so the card's "use it
+      // up" badge cannot disagree with the reason printed under it.
+      rescues: live(facts.rescues),
       score: scoreRecipe(facts).score,
       reason: explain(facts),
     }))

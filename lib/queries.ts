@@ -2,6 +2,7 @@ import { getDb, plainRows } from "./db";
 import { indexStock } from "./pantry-match";
 import { countStockedLines, getLinks, resolveWithLinks } from "./cookbook";
 import { inStock } from "./containers";
+import { daysUntil } from "./dates";
 import { totalMinutes } from "./recipe-tags";
 import type { RecipeFacts } from "./tonight";
 import type { ItemProfile } from "./suggest";
@@ -811,7 +812,16 @@ export async function getTonightFacts(
     }),
   ]);
 
-  const daysLeftByItem = new Map(expiring.map((item) => [item.id, item.days_left]));
+  /**
+   * daysUntil, not the SQL days_left. That column truncates the gap from the
+   * current instant toward zero, so a thing that went off yesterday afternoon
+   * read as "today" - and this is the number the reason under a suggestion
+   * prints ("tomorrow", "already past"), which AGENTS.md says days_left must
+   * never be. It still sorts the query; it just is not said out loud.
+   */
+  const daysLeftByItem = new Map(
+    expiring.map((item) => [item.id, daysUntil(item.use_by)]),
+  );
   const expiringNames = new Map(expiring.map((item) => [item.id, item.name]));
   const sinceByRecipe = new Map(
     (lastCooked.rows as unknown as { recipe_id: number; days_since: number }[]).map(
