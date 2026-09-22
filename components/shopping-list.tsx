@@ -432,13 +432,16 @@ export function ShoppingList({
           disabled={pending}
           onClick={() => {
             const before = ticked;
+            // What is on screen and not yet ticked - under a shop filter,
+            // only that shop's lines, which is what "everything" means here.
+            const toTick = shown.filter((line) => !isBought(line)).map((line) => line.id);
             setTicked((current) => ({
               ...current,
-              ...Object.fromEntries(shown.map((line) => [line.id, true])),
+              ...Object.fromEntries(toTick.map((id) => [id, true])),
             }));
             setTickError(null);
             startTransition(async () => {
-              const result = await gotEverything();
+              const result = await gotEverything(toTick);
               if (!result.ok) {
                 setTicked(before);
                 setTickError(result.error ?? "Couldn't tick those off.");

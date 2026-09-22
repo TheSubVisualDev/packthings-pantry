@@ -54,15 +54,31 @@ export async function unpinTrip(): Promise<TripResult> {
  * It ticks rather than deletes: the list keeps what was bought until somebody
  * clears it, which is what makes "in the basket" a state you can leave and
  * come back to.
+ *
+ * The lines ticked are the ones on screen, by id. It used to be every line in
+ * the kitchen - so in Tesco, with the list filtered to Tesco, "Got everything"
+ * also ticked off the gochujang still waiting at the Asian supermarket, and
+ * it vanished from the list you would take there. The shop rule lives in
+ * getList; passing what it chose, rather than a shop name, keeps it in one
+ * place. The kitchen stays in the WHERE, so an id from anywhere else ticks
+ * nothing.
  */
-export async function gotEverything(): Promise<TripResult & { ticked?: number }> {
+export async function gotEverything(
+  lineIds: number[],
+): Promise<TripResult & { ticked?: number }> {
   const access = await requireKitchenRole("editor");
   if (!access.ok) return { ok: false, error: access.error };
 
+  const ids = Array.isArray(lineIds)
+    ? [...new Set(lineIds.filter((id) => Number.isInteger(id) && id > 0))].slice(0, 500)
+    : [];
+  if (ids.length === 0) return { ok: true, ticked: 0 };
+
   const result = await getDb().execute({
     sql: `UPDATE shopping_list SET bought_at = CURRENT_TIMESTAMP
-          WHERE kitchen_id = ? AND bought_at IS NULL`,
-    args: [access.kitchen.id],
+          WHERE kitchen_id = ? AND bought_at IS NULL
+            AND id IN (${ids.map(() => "?").join(", ")})`,
+    args: [access.kitchen.id, ...ids],
   });
 
   revalidatePath("/pantry/list");
