@@ -1,3 +1,4 @@
+import { displayTitle } from "@/lib/recipe-display";
 import Image from "next/image";
 import Link from "next/link";
 import { recipeTint } from "@/lib/tint";
@@ -104,7 +105,7 @@ export function RecipeBrowseCard({
 
       <div className="min-w-0 flex-1">
         <h3 className="line-clamp-2 text-[15px] leading-snug font-extrabold tracking-[-0.01em]">
-          {recipe.name}
+          {displayTitle(recipe.name)}
         </h3>
 
         {/* One line, and the things people actually compare on. The blurb went:

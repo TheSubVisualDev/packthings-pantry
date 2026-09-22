@@ -1,3 +1,4 @@
+import { displayTitle } from "@/lib/recipe-display";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -172,7 +173,7 @@ export default async function DiscoverPage({
       context.byId,
     );
 
-  const [feed, cooked, trusted, similar, ranked] = await Promise.all([
+  const [feed, cooked, trusted, suggestedCooks, ranked] = await Promise.all([
     getFeed(viewerId),
     getCookedByOthers(viewerId),
     getTrusted(viewerId),
@@ -188,6 +189,17 @@ export default async function DiscoverPage({
    * not a redesign.
    */
   const inFeed = new Set(feed.map((recipe) => recipe.id));
+
+  /**
+   * Only people there is a reason to follow.
+   *
+   * Every line on this list says why - both saved the same recipes, or has
+   * shared some - and the rest said "nothing shared yet", which is a reason
+   * not to. The first suggestion was an account called ADMIN.
+   */
+  const similar = suggestedCooks.filter(
+    (person) => person.shared_saves > 0 || person.recipe_count > 0,
+  );
 
   /**
    * One definition of "you can make this", applied to every section.
@@ -220,15 +232,27 @@ export default async function DiscoverPage({
   const PAGE = 24;
   const showingMore = more === "1";
 
+  /**
+   * Each recipe once, in the first section that claims it.
+   *
+   * "Cooks trust these" is drawn first and says the most about a recipe -
+   * how often cooked, by how many saved - so it keeps it, and the follow feed
+   * and the ranked list below skip anything it has already shown. Four of
+   * the six cards under "From people you follow" were the four just above.
+   */
+  const trustedIds = new Set(trusted.map((recipe) => recipe.id));
   const eligible = shown(
-    ranked.filter((recipe) => !inFeed.has(recipe.id) && !recipe.yours),
+    ranked.filter(
+      (recipe) =>
+        !inFeed.has(recipe.id) && !trustedIds.has(recipe.id) && !recipe.yours,
+    ),
   );
   const rest = eligible.slice(0, showingMore ? PAGE * 4 : PAGE);
   const moreHref = `/discover?${new URLSearchParams({
     ...(readyOnly ? { ready: "1" } : {}),
     more: "1",
   })}`;
-  const shownFeed = shown(feed);
+  const shownFeed = shown(feed.filter((recipe) => !trustedIds.has(recipe.id)));
   const shownTrusted = shown(trusted);
   // Keyed on the recipe, not on the row: this list is one entry per person
   // per recipe, so it needs the recipe id rather than its own.
@@ -365,7 +389,7 @@ export default async function DiscoverPage({
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[15px] font-extrabold break-words">
-                        {entry.name}
+                        {displayTitle(entry.name)}
                       </span>
                       <span className="block text-xs font-semibold text-muted-foreground">
                         @{entry.handle} cooked it

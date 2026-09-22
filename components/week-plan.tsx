@@ -1,5 +1,6 @@
 "use client";
 
+import { displayTitle } from "@/lib/recipe-display";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import {
@@ -253,7 +254,7 @@ export function WeekPlan({
                                 href={`/recipes/${meal.recipe_id}`}
                                 className="text-sm font-extrabold break-words text-ink hover:underline"
                               >
-                                {meal.recipe_name}
+                                {displayTitle(meal.recipe_name ?? "")}
                               </Link>
                             ) : (
                               <p className="text-sm font-bold break-words text-ink/70 italic">

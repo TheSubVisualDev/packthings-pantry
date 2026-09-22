@@ -1,5 +1,6 @@
 "use client";
 
+import { displayTitle } from "@/lib/recipe-display";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
@@ -111,7 +112,7 @@ export function TonightCard({
         href={`/recipes/${suggestion.id}`}
         className="text-[22px] font-extrabold tracking-[-0.02em] break-words hover:underline"
       >
-        {suggestion.name}
+        {displayTitle(suggestion.name)}
       </Link>
 
       <p className="mt-1.5 text-sm font-semibold text-muted-foreground">
@@ -217,7 +218,7 @@ function CookedCard({
       </div>
 
       <p className="text-[22px] font-extrabold tracking-[-0.02em] break-words">
-        {suggestion.name}
+        {displayTitle(suggestion.name)}
       </p>
 
       {result.applied.length > 0 && (
@@ -329,7 +330,7 @@ export function NearlyCard({
         href={`/recipes/${suggestion.id}`}
         className="text-[17px] font-extrabold tracking-[-0.01em] break-words hover:underline"
       >
-        {suggestion.name}
+        {displayTitle(suggestion.name)}
       </Link>
 
       <p className="mt-1 text-sm font-semibold text-muted-foreground">
@@ -351,7 +352,7 @@ export function SuggestionRow({ suggestion }: { suggestion: Suggestion }) {
       className="block rounded-[16px] bg-card px-4 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-[0_8px_22px_-10px_rgba(60,44,30,0.45)]"
     >
       <p className="text-[15px] font-extrabold tracking-[-0.01em] break-words">
-        {suggestion.name}
+        {displayTitle(suggestion.name)}
       </p>
       <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
         {suggestion.reason}

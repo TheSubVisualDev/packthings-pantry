@@ -1,3 +1,4 @@
+import { displayTitle } from "@/lib/recipe-display";
 import type { Metadata } from "next";
 import { BackLink } from "@/components/back-link";
 import Link from "next/link";
@@ -78,7 +79,7 @@ export default async function CookedPage() {
                             href={`/recipes/${recipe.id}`}
                             className="flex items-baseline justify-between gap-3 text-[13px] font-semibold text-muted-foreground hover:text-foreground"
                           >
-                            <span className="min-w-0 break-words">→ {recipe.name}</span>
+                            <span className="min-w-0 break-words">→ {displayTitle(recipe.name)}</span>
                             <span className="shrink-0 tabular-nums">
                               {recipe.have}/{recipe.total}
                             </span>
@@ -121,7 +122,7 @@ export default async function CookedPage() {
                   className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-5 py-3.5 hover:bg-chip"
                 >
                   <span className="min-w-0 font-bold break-words">
-                    {entry.recipe_name}
+                    {displayTitle(entry.recipe_name)}
                   </span>
                   <span className="shrink-0 text-sm font-semibold text-muted-foreground">
                     {shortDate(entry.cooked_at)}
