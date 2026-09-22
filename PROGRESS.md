@@ -3,10 +3,30 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 17 Sep 2026 — cooking ungated, shop trip surfaced, planning from a recipe
-**Doing right now:** nothing
-**Waiting on you:** re-file report #25 with its screenshot. The picture never
-reached the server and the words on their own do not say what was wrong.
+**Last updated:** 22 Sep 2026 — interaction audit approved, building it
+**Doing right now:** #1, sheets opening underneath pinned buttons
+**Waiting on you:** nothing
+
+### 22 Sep, the interaction audit
+
+Fifteen findings in `docs/AUDIT-2026-09-22.md`, each put to you. Approved:
+everything except two parts of #9 (the repeated name and the single Save stay
+as they are). #12 was answered with "up to two days past".
+
+- [ ] 1 sheets above pinned buttons
+- [ ] 2 "Cooked it"
+- [ ] 3 back goes where you came from, one name per place (+13)
+- [ ] 4 blank name boxes
+- [ ] 5 substitutes need more than a shared "powder"
+- [ ] 6 ticks: not-in-stock start unticked, whole row toggles
+- [ ] 7 the shelf's "?" for things with an amount
+- [ ] 8 quick adjust's step size
+- [ ] 9 readable dates on the item page
+- [ ] 10 plan hint to the top
+- [ ] 11 discover: no repeats, calm caps, no empty suggestions
+- [ ] 12 past food counts for two days
+- [ ] 14 instant ticks at the end of a shop
+- [ ] 15 source link, counts, "open", paste page
 
 ### 17 Sep, three pieces of friction
 
