@@ -135,7 +135,12 @@ export function TonightCard({
           disabled={pending}
           className="mt-4 block w-full rounded-[14px] bg-primary px-4 py-3.5 text-center text-[15px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-60"
         >
-          {pending ? "Taking it off the shelves…" : "Cook it"}
+          {/* Past tense because the press is the record, not the start. "Cook
+              it" read as "let's begin", which is the moment before the
+              cooking - and the stock came off then, at five o'clock, for a
+              meal that might not happen. The link below it, which only opens
+              the recipe, keeps "Cook it", since that one really is a start. */}
+          {pending ? "Taking it off the shelves…" : "Cooked it"}
         </button>
       ) : (
         <Link
