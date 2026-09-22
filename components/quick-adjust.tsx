@@ -185,21 +185,32 @@ export function QuickAdjust({ items }: { items: Item[] }) {
                   >
                     &minus;
                   </button>
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    inputMode="decimal"
-                    aria-label={`Amount to adjust ${item.name} by`}
-                    value={amountFor(item)}
-                    onChange={(event) =>
-                      setAmounts((current) => ({
-                        ...current,
-                        [item.id]: event.target.value,
-                      }))
-                    }
-                    className="w-16 rounded-[12px] border border-border bg-background px-1 py-2 text-center font-semibold outline-none focus:border-primary"
-                  />
+                  {/* Marked as a step the way the stock list's stepper is. A
+                      bare "100" beside "Whole Milk, 900ml" sat where the eye
+                      expects the amount, and read as one. */}
+                  <label className="flex items-center gap-0.5 rounded-[12px] border border-border bg-background px-1.5 focus-within:border-primary">
+                    <span aria-hidden className="text-xs font-bold text-muted-foreground">±</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      inputMode="decimal"
+                      aria-label={`Amount to adjust ${item.name} by`}
+                      value={amountFor(item)}
+                      onChange={(event) =>
+                        setAmounts((current) => ({
+                          ...current,
+                          [item.id]: event.target.value,
+                        }))
+                      }
+                      className="w-10 bg-transparent py-2 text-center font-semibold outline-none"
+                    />
+                    {item.canonical_unit !== "count" && (
+                      <span aria-hidden className="text-xs font-bold text-muted-foreground">
+                        {item.canonical_unit}
+                      </span>
+                    )}
+                  </label>
                   <button
                     type="button"
                     aria-label={`Add to ${item.name}`}
