@@ -281,6 +281,7 @@ still there as the way back.
     npm run check:shelf-life  how long food lasts, and the date arithmetic
     npm run check:vessel      what shape a thing is, and whether it has a level
     npm run check:video       a video link becoming text worth reading
+    npm run check:substitutes what can stand in, and "powder" is not enough
     npm run probe             round-trip time to the database
 
 `scripts/ts-imports.mjs` lets plain node import the project's TypeScript, so a

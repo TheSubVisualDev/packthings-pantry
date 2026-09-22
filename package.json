@@ -31,7 +31,8 @@
     "check:usage": "node --import ./scripts/ts-imports.mjs scripts/check-usage.mjs",
     "check:shelf-life": "node --import ./scripts/ts-imports.mjs scripts/check-shelf-life.mjs",
     "check:vessel": "node --import ./scripts/ts-imports.mjs scripts/check-vessel.mjs",
-    "check:video": "node --import ./scripts/ts-imports.mjs scripts/check-video-import.mjs"
+    "check:video": "node --import ./scripts/ts-imports.mjs scripts/check-video-import.mjs",
+    "check:substitutes": "node --import ./scripts/ts-imports.mjs scripts/check-substitutes.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
