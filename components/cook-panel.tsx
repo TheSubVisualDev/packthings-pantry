@@ -297,11 +297,25 @@ export function CookPanel({
    * you are *finished* is the moment the stock has really moved. Nothing is
    * written until Confirm.
    *
-   * Everything starts ticked. The common case by a long way is that you used
-   * the whole recipe, and a checklist you have to fill in before you can cook
-   * would be a worse version of the button it replaced.
+   * Everything you have starts ticked. The common case by a long way is that
+   * you used the whole recipe, and a checklist you have to fill in before you
+   * can cook would be a worse version of the button it replaced.
+   *
+   * What you do not have starts unticked. It used to start ticked like the
+   * rest, under a line saying "ticked ones come off your shelves" - a tick on
+   * Raisins, marked To buy, in a kitchen with no raisins, which reads as the
+   * app being wrong about your cupboard. Only what somebody has pressed is
+   * stored here; the default follows the line's status, so choosing a
+   * substitute you DO have ticks it.
    */
   const [ticked, setTicked] = useState<Record<number, boolean>>({});
+  const isUsed = (id: number, status: Status) =>
+    ticked[id] ?? status.kind !== "not-in-pantry";
+  const toggle = (id: number, status: Status) =>
+    setTicked((current) => ({
+      ...current,
+      [id]: !(current[id] ?? status.kind !== "not-in-pantry"),
+    }));
 
   /** The unticked lines, shown for confirmation. Null while not asking. */
   const [asking, setAsking] = useState<string[] | null>(null);
@@ -333,9 +347,12 @@ export function CookPanel({
 
   const blockers = resolved.filter((r) => r.status.kind !== "in-stock");
 
-  // Unticked means not used. A line is ticked unless it has been untucked, so
-  // a recipe opened and confirmed straight away behaves exactly as the old
-  // single button did.
+  // Unticked means not used - but only an untick somebody pressed is asked
+  // about and sent as skipped. A line that started unticked because there is
+  // none of it has nothing to leave on a shelf; asking "did you use it?" on
+  // every cook of a recipe you are short of would be a tap for nothing, and
+  // "Left on the shelf: raisins" would be untrue. The server flags it as not
+  // in the pantry, which it is.
   const skippedLines = resolved.filter(({ line }) => ticked[line.id] === false);
   const skippedIds = skippedLines.map(({ line }) => line.id);
 
@@ -550,23 +567,24 @@ export function CookPanel({
                     <button
                       type="button"
                       role="checkbox"
-                      aria-checked={ticked[line.id] !== false}
+                      aria-checked={isUsed(line.id, status)}
                       aria-label={`Used ${line.item_name}`}
-                      onClick={() =>
-                        setTicked((current) => ({
-                          ...current,
-                          [line.id]: current[line.id] === false,
-                        }))
-                      }
-                      className={`print:hidden ${
-                        ticked[line.id] === false
-                          ? "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-border"
-                          : "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
-                      }`}
+                      onClick={() => toggle(line.id, status)}
+                      // 44px to press, 24px to see: the negative margin gives
+                      // the thumb the room back without moving the circle.
+                      className="-m-2.5 flex shrink-0 items-center justify-center p-2.5 print:hidden"
                     >
-                      {ticked[line.id] !== false && (
-                        <Check className="h-3.5 w-3.5" strokeWidth={3.5} />
-                      )}
+                      <span
+                        className={
+                          isUsed(line.id, status)
+                            ? "flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground"
+                            : "flex h-6 w-6 items-center justify-center rounded-full border-2 border-border"
+                        }
+                      >
+                        {isUsed(line.id, status) && (
+                          <Check className="h-3.5 w-3.5" strokeWidth={3.5} />
+                        )}
+                      </span>
                     </button>
                   )}
                   {/*
@@ -578,7 +596,13 @@ export function CookPanel({
                     already is; what one pack comes to and how to cut it are
                     both second-line facts, so they share the quiet line.
                   */}
-                  <div className={`min-w-0 flex-1 ${ticked[line.id] === false ? "opacity-45" : ""}`}>
+                  {/* The words toggle too - a floury thumb aims at the line,
+                      not at a 24px circle beside it. The checkbox stays the
+                      one control a screen reader is told about. */}
+                  <div
+                    onClick={hasKitchen ? () => toggle(line.id, status) : undefined}
+                    className={`min-w-0 flex-1 ${hasKitchen ? "cursor-pointer select-none" : ""} ${ticked[line.id] === false ? "opacity-45" : ""}`}
+                  >
                     <div className="font-bold break-words">
                       {amount.primary && (
                         <span className="text-quantity">{amount.primary} </span>
@@ -680,7 +704,7 @@ export function CookPanel({
             {pending
               ? "Cooking…"
               : skippedIds.length > 0
-                ? `Done — cooked ${resolved.length - skippedIds.length} of ${resolved.length}`
+                ? `Done — cooked ${resolved.filter(({ line, status }) => isUsed(line.id, status)).length} of ${resolved.length}`
                 : `Done — cooked for ${servings}`}
           </button>
         </div>
