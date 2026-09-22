@@ -189,19 +189,11 @@ export default async function PlanPage({
           {kitchen.name} &middot; {weekLabel(start)}
         </p>
 
-        <WeekPlan
-          start={start}
-          days={days}
-          slots={slots}
-          today={today}
-          options={options}
-          canEdit={kitchen.role !== "viewer"}
-        />
-
-        <WeekNutrition week={nutrition} each={perPortion(nutrition)} />
-
+        {/* Above the days, not after them. Below, it sat under twenty-one
+            empty rows, which is the one place nobody looking at an empty
+            week was ever going to scroll to. */}
         {planned === 0 && (
-          <p className="mt-5 rounded-[16px] bg-chip p-4 text-sm font-semibold text-muted-foreground print:hidden">
+          <p className="mb-4 rounded-[16px] bg-chip p-4 text-sm font-semibold text-muted-foreground print:hidden">
             {options.length === 0 ? (
               <>
                 Nothing planned, and nothing in {kitchen.name}&apos;s cookbook
@@ -216,13 +208,23 @@ export default async function PlanPage({
               </>
             ) : (
               <>
-                Nothing planned yet. Tap a day to put something in it — the list
-                puts what you already have at the top, so a week can be planned
-                around the shelves rather than against them.
+                Nothing planned yet. Tap a meal to fill it — what you can
+                already make is at the top of the list.
               </>
             )}
           </p>
         )}
+
+        <WeekPlan
+          start={start}
+          days={days}
+          slots={slots}
+          today={today}
+          options={options}
+          canEdit={kitchen.role !== "viewer"}
+        />
+
+        <WeekNutrition week={nutrition} each={perPortion(nutrition)} />
       </main>
     </>
   );
