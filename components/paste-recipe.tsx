@@ -174,9 +174,7 @@ export function PasteRecipe({ briefing }: { briefing: string }) {
             Paste the whole thing
           </h2>
           <p className="mt-2 text-[15px] leading-relaxed font-medium text-muted-foreground">
-            Title, ingredients, method — however it was written. Headings help
-            but are not needed, and nothing is saved until you have looked at
-            what it made of it.
+            Title, ingredients, method — however it was written.
           </p>
 
           {/* Fetching a link fills the box below rather than bypassing it.
@@ -187,10 +185,7 @@ export function PasteRecipe({ briefing }: { briefing: string }) {
               Or off a video
             </h3>
             <p className="mt-1.5 text-sm font-medium text-muted-foreground">
-              A YouTube link, an Instagram reel, or a recipe page. It takes
-              whatever the cook wrote down — the description, the caption, or
-              the page a &ldquo;full recipe here&rdquo; link points at — and
-              falls back to the spoken captions when they wrote nothing.
+              A YouTube link, an Instagram reel, or a recipe page.
             </p>
             <div className="mt-2.5 flex flex-wrap gap-2">
               <input

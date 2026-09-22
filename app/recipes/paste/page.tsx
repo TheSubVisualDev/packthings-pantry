@@ -77,12 +77,14 @@ export default async function PasteRecipePage() {
         <h1 className="mt-2 text-[26px] font-extrabold tracking-[-0.02em]">
           Paste a recipe
         </h1>
+        {/* One sentence. There were three paragraphs above the box - this
+            one, one under the section heading and one about videos - and the
+            thing anybody came here to do was below all of them. The Claude
+            tab explains itself; the connector keeps its link. */}
         <p className="mt-2 mb-6 text-[15px] leading-relaxed font-medium text-muted-foreground">
-          Off a website, out of a message, or typed from memory — paste it as
-          it is and it gets picked apart. If you would rather have Claude write
-          it exactly, there is a tab for that, or you can{" "}
+          Paste it as it is — nothing is saved until you have checked it. Or{" "}
           <Link href="/claude" className="font-bold text-primary underline underline-offset-2">
-            add the connector
+            connect Claude
           </Link>
           .
         </p>

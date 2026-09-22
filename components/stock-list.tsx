@@ -207,14 +207,6 @@ export function StockList({
                   <>
                     <span className="min-w-0 flex-1 truncate">
                       {item.name}
-                      {item.opened_at && !labelSaysOpen(item) && (
-                        <span
-                          title="Opened"
-                          className="ml-1.5 text-xs font-bold text-muted-foreground"
-                        >
-                          open
-                        </span>
-                      )}
                     </span>
                     {/* Its own column, right-aligned and tabular, so amounts
                         line up down the edge and can be compared without
@@ -235,6 +227,12 @@ export function StockList({
                         }`}
                       >
                         {describeStock(item)}
+                        {/* "open" in one place, after the amount. It used to
+                            sit beside the name for loose things and after the
+                            amount for packed ones - "Unsalted butter open,
+                            410g" against "150ml open" - so the same word in
+                            two places looked like two different facts. */}
+                        {item.opened_at && !labelSaysOpen(item) && " open"}
                       </span>
                     )}
                   </>

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { QuickAdjust } from "@/components/quick-adjust";
 import { SiteHeader } from "@/components/site-header";
 import { getItems } from "@/lib/queries";
+import { inStock } from "@/lib/containers";
 import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +45,17 @@ export default async function AdjustPage({
 
   return (
     <>
-      <SiteHeader active="none" meta={`${items.length} items`} />
+      {/* Counted the way /pantry counts, so the two headers agree: this
+          said 31 while the stock page said 28, because it included the
+          three that have run out. A selection says so instead. */}
+      <SiteHeader
+        active="none"
+        meta={
+          narrowed
+            ? `${items.length} selected`
+            : `${all.filter((item) => inStock(item) || item.restock_target !== null).length} items`
+        }
+      />
       <main className="mx-auto w-full max-w-[640px] px-5 py-7 pb-32">
         <BackLink
           href="/tonight#shelf"

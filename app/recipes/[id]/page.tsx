@@ -415,8 +415,10 @@ export default async function RecipePage({
           {timings.map((timing) => (
             <span key={timing}>{timing}</span>
           ))}
-          <span>cooked {recipe.times_cooked}&times;</span>
-          {recipe.source && <span>from {recipe.source}</span>}
+          {/* Nothing rather than "cooked 0×", which is a number that says
+              nothing happened. */}
+          {recipe.times_cooked > 0 && <span>cooked {recipe.times_cooked}&times;</span>}
+          {recipe.source && <SourceLine source={recipe.source} />}
         </div>
 
         <CookPanel
@@ -494,5 +496,38 @@ export default async function RecipePage({
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * Where a recipe came from: "from bbcgoodfood.com", linked, when it is an
+ * address, and the words as written when it is not ("from Nan").
+ *
+ * The whole URL used to be printed, which on a phone wrapped a BBC Good Food
+ * address over three lines under the servings - the longest thing on the
+ * line and the least useful to read. The site's name is the fact; the rest
+ * is for the link.
+ */
+function SourceLine({ source }: { source: string }) {
+  let url: URL | null = null;
+  try {
+    url = /^https?:\/\//i.test(source) ? new URL(source) : null;
+  } catch {
+    url = null;
+  }
+  if (!url) return <span className="break-words">from {source}</span>;
+
+  return (
+    <span>
+      from{" "}
+      <a
+        href={url.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline underline-offset-2 hover:text-foreground"
+      >
+        {url.hostname.replace(/^www\./, "")}
+      </a>
+    </span>
   );
 }
