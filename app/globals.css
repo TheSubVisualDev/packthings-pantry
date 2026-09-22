@@ -371,10 +371,9 @@ li > button:not(:disabled):active {
  * on the item page: the overlay that should have covered 402x874 rendered at
  * 362x40, tucked inside the card it was declared in.
  *
- * The existing users are all fine and it is worth knowing why - `cook-panel`
- * and `week-plan` both own a Sheet, and in both it is a sibling of the
- * staggered container rather than a descendant. That is the rule: the list
- * staggers, the thing that opens over it lives outside the list.
+ * `Sheet` portals to the body since 22 Sep 2026, so it no longer cares. The
+ * rule still holds for anything else fixed - a hand-rolled overlay, a sticky
+ * bar: the list staggers, the thing that sits over it lives outside the list.
  */
 .stagger > * {
   animation: stagger-rise var(--settle) var(--spring) both;

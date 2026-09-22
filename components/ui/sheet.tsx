@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 /**
@@ -104,15 +105,32 @@ export function Sheet({
     };
   }, [open, onClose]);
 
+  const client = useSyncExternalStore(noSubscribe, onClient, onServer);
+
   /*
     No early return any more.
-    
+
     AnimatePresence can only animate something out if it is still rendered
     while it leaves, and `if (!open) return null` removes it before it has the
     chance. Closing a sheet used to be a cut - the only part of opening one
     that was not animated, and the half you see more often.
   */
-  return (
+  if (!client) return null;
+
+  /*
+    Portalled to the body, because z-50 only means anything among siblings.
+
+    Declared where it is used, a sheet inherits every stacking context above
+    it. The recipe menu lives in the photo header, which is `absolute z-10`,
+    so its sheet opened underneath the pinned "Done - cooked" bar (z-20) and
+    the tab bar (z-40), with the cook button drawn across the middle of it.
+    A transformed ancestor does worse - `.stagger` once shrank an overlay to
+    362x40 inside the card that declared it. Rendering at the body answers
+    both for every sheet, rather than each caller having to know. Nothing
+    that hosts a sheet sits inside a <form>, which is the one thing a portal
+    would break: an input moved out of its form stops submitting with it.
+  */
+  return createPortal(
     <AnimatePresence>
       {open && (
     <motion.div
@@ -182,6 +200,13 @@ export function Sheet({
       </motion.div>
     </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
+
+// There is no body to portal into during the server render, and a sheet is
+// never open on first paint, so the server simply renders nothing.
+const noSubscribe = () => () => {};
+const onClient = () => true;
+const onServer = () => false;
