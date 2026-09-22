@@ -513,6 +513,8 @@ export function RecipeEditor({
                     options={pantryNames}
                     defaultValue={line.item_name}
                     onValueChange={(value) => patchIngredient(index, { item_name: value })}
+                    placeholder="Ingredient"
+                    label={`Ingredient ${index + 1}`}
                     className={`${SMALL} w-full pr-9`}
                   />
                 </div>

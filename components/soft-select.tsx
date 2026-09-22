@@ -19,6 +19,8 @@ export function SoftSelect({
   className,
   onValueChange,
   autoFocus,
+  placeholder,
+  label,
 }: {
   id: string;
   name: string;
@@ -33,6 +35,15 @@ export function SoftSelect({
    * where grabbing focus scrolls somebody to a form they did not ask for.
    */
   autoFocus?: boolean;
+  /**
+   * Both were missing, and this is the field people see: the shopping list
+   * shows it whenever the kitchen has stock - which is always - and an empty
+   * box with a chevron reads as a dropdown you cannot type into. The plain
+   * input it replaces had "What do you need?" all along; only the version
+   * nobody saw.
+   */
+  placeholder?: string;
+  label?: string;
 }) {
   const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
@@ -118,6 +129,8 @@ export function SoftSelect({
           open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined
         }
         autoComplete="off"
+        placeholder={placeholder}
+        aria-label={label}
         onChange={(event) => {
           update(event.target.value);
           setOpen(true);
@@ -131,7 +144,7 @@ export function SoftSelect({
       <button
         type="button"
         tabIndex={-1}
-        aria-label={open ? "Hide existing categories" : "Show existing categories"}
+        aria-label={open ? "Hide suggestions" : "Show suggestions"}
         onClick={() => {
           setOpen((current) => !current);
           input.current?.focus();

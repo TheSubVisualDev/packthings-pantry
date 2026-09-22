@@ -477,6 +477,8 @@ export function ShoppingList({
                   name="name"
                   options={profiles.map((profile) => profile.name)}
                   onValueChange={setDraft}
+                  placeholder="What do you need?"
+                  label="What to buy"
                   className={`${SMALL} w-full pr-9`}
                 />
               )}
