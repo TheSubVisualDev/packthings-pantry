@@ -46,3 +46,4 @@ next-env.d.ts
 # .dc.html artboards beside it are the source and are kept.
 design/*.html
 !design/*.dc.html
+.claude/worktrees/
