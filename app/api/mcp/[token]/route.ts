@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
-import { getLocations } from "@/lib/kitchens";
-import { browseRecipes, getItems, getMyRecipes, getRecipe } from "@/lib/queries";
-import { getTagsByItem } from "@/lib/tags";
+import {
+  browseRecipes,
+  getCookbookRecipes,
+  getMyRecipes,
+  getRecipe,
+} from "@/lib/queries";
+import { getList } from "@/lib/shopping";
 import { parseRecipeDocument, recipeJsonSchema, legalUnits } from "@/lib/recipe-schema";
 import { saveRecipe } from "@/lib/recipe-store";
 import { currentKitchenFor } from "@/lib/kitchens";
@@ -61,16 +65,27 @@ function toolError(message: string) {
 }
 
 const TOOLS = [
+  /**
+   * Still called get_pantry, because connectors already added in somebody's
+   * Claude call it by that name and renaming it would break them silently.
+   *
+   * What it returns changed with v2 (18 Oct 2026). It was the stock list -
+   * every item, its quantity and use-by date - and the app no longer keeps
+   * one. The honest replacement is what the kitchen does know: the recipes
+   * in its cookbook and what is on the shopping list. The description says
+   * so, because a model told "what's in the kitchen" would treat the
+   * shopping list as the cupboard.
+   */
   {
     name: "get_pantry",
     description:
-      "What's in the kitchen right now: every item with its quantity, unit, tags, location and use-by date, plus the units this pantry accepts. Read this before suggesting anything to cook.",
+      "The kitchen's cookbook (the recipes it cooks, with how often) and its open shopping list, plus the units this app accepts. This app does not track what is in the cupboard, so nothing here says what the kitchen has in stock - ask the person if it matters.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
     name: "list_recipes",
     description:
-      "The recipes this account has written, with how much of each one the kitchen currently has in stock.",
+      "The recipes this account has written, with how often each has been cooked.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -98,7 +113,7 @@ const TOOLS = [
   {
     name: "create_recipe",
     description:
-      "Write a new recipe into the pantry. Ingredient names are matched against stock, so copy them from get_pantry where you mean the same thing. Units must be ones this pantry accepts. Returns warnings: kind 'not-stocked' just means the kitchen has not bought that yet and is fine to ignore, the others are worth fixing.",
+      "Write a new recipe into the app. Units must be ones it accepts (get_pantry lists them). Returns warnings worth fixing, such as a step naming an ingredient the recipe does not list.",
     inputSchema: recipeJsonSchema(),
   },
 ] as const;
@@ -111,31 +126,34 @@ async function run(
 ) {
   switch (name) {
     case "get_pantry": {
-      const [items, locations, tagsByItem] = await Promise.all([
-        getItems(kitchen?.id ?? null),
-        kitchen ? getLocations(kitchen.id) : Promise.resolve([]),
-        getTagsByItem(kitchen?.id ?? null),
+      const [cookbook, list] = await Promise.all([
+        getCookbookRecipes(kitchen?.id ?? null, user.id),
+        // The same list the person sees: the kitchen's, or their own when
+        // they have no kitchen.
+        getList(kitchen ? { kitchen: kitchen.id } : { owner: user.id }),
       ]);
 
       return text({
         kitchen: kitchen ? { name: kitchen.name, your_role: kitchen.role } : null,
+        stock_tracked: false,
         note: kitchen
-          ? undefined
-          : "This account has no kitchen, so there is no stock. Recipes can still be written.",
-        items: items.map((item) => ({
-          name: item.name,
-          quantity: item.quantity,
-          unit: item.canonical_unit,
-          dimension: item.dimension,
-          tags: tagsByItem.get(item.id)?.map((tag) => tag.name) ?? [],
-          location: item.location,
-          expires: item.expiry_date,
-          opened: item.opened_at ? true : undefined,
+          ? "This app does not record what is in the cupboard. The shopping list is what somebody means to buy, not what is there."
+          : "This account has no kitchen, so there is no cookbook - only a personal shopping list. Recipes can still be written.",
+        cookbook: cookbook.map((recipe) => ({
+          id: recipe.id,
+          name: recipe.name,
+          times_cooked: recipe.times_cooked,
         })),
+        shopping_list: list
+          .filter((line) => !line.bought_at)
+          .map((line) => ({
+            name: line.item_name,
+            quantity: line.quantity,
+            unit: line.unit,
+            for: line.source,
+          })),
         legal_units: legalUnits(),
-        locations,
-        units_note:
-          "Conversion only happens within a dimension - grams never become millilitres. Check an item's dimension before choosing a unit for it.",
+        units_note: "Conversion only happens within a dimension - grams never become millilitres.",
       });
     }
 
@@ -192,7 +210,6 @@ async function run(
           note: line.note,
           optional: line.optional === 1,
           section: line.section,
-          in_pantry: line.item_id !== null,
         })),
         steps: recipe.steps.map((step) => ({
           body: step.body,
@@ -204,7 +221,7 @@ async function run(
     }
 
     case "create_recipe": {
-      const parsed = parseRecipeDocument(args, await getItems(kitchen?.id ?? null));
+      const parsed = parseRecipeDocument(args);
 
       if (!parsed.ok || !parsed.recipe) {
         return toolError(
@@ -221,9 +238,8 @@ async function run(
         id,
         url: `/recipes/${id}`,
         visibility: "private",
-        // The kind travels with the message. A caller guessing at ingredient
-        // names needs to know which of these it can ignore: "not-stocked" is
-        // a fact about the cupboard, the others are things to fix.
+        // The kind travels with the message, so a caller can tell one kind of
+        // finding from another as more are added.
         warnings: parsed.warnings.map((warning) => ({
           kind: warning.kind,
           message: warning.message,
@@ -264,7 +280,7 @@ export async function POST(
         capabilities: { tools: {} },
         serverInfo: { name: "pantry", version: "1.0.0" },
         instructions:
-          "This is someone's kitchen. Call get_pantry before suggesting anything to cook, and copy ingredient names from it so they match what's on the shelf. Recipes you create are saved privately.",
+          "This is someone's recipe book and shopping list. get_pantry shows the kitchen's cookbook and what is on its shopping list; the app does not track what is in the cupboard, so ask before assuming anything is in. Recipes you create are saved privately.",
       });
     }
 

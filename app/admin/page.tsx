@@ -39,7 +39,7 @@ export default async function AdminPage() {
       SELECT
         (SELECT COUNT(*) FROM users) AS users,
         (SELECT COUNT(*) FROM kitchens) AS kitchens,
-        (SELECT COUNT(*) FROM items) AS items,
+        (SELECT COUNT(*) FROM cookbook) AS cookbook,
         (SELECT COUNT(*) FROM recipes) AS recipes,
         (SELECT COUNT(*) FROM cook_events WHERE undone_at IS NULL) AS cooks,
         (SELECT COUNT(*) FROM invites WHERE redeemed_by IS NULL AND expires_at > CURRENT_TIMESTAMP) AS invites,
@@ -114,7 +114,7 @@ export default async function AdminPage() {
           {[
             ["People", n.users],
             ["Kitchens", n.kitchens],
-            ["Items", n.items],
+            ["In cookbooks", n.cookbook],
             ["Recipes", n.recipes],
             ["Cooks", n.cooks],
             ["Live invites", n.invites],

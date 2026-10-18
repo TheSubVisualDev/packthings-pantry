@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 
-// "/" is never rendered - /tonight is the front door (phase 6). It used to
-// be /pantry; "what to cook" is the question the app answers first, and the
-// shelves are now a place you go to on purpose, from the tab bar.
+// "/" is never rendered - the cookbook is the front door. It was /pantry, then
+// /tonight (phase 6); v2 removed stock tracking on 18 Oct 2026 and both went
+// with it, because each answered from what was on the shelves.
 export default function Home() {
-  redirect("/tonight");
+  redirect("/recipes");
 }

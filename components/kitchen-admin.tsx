@@ -6,7 +6,6 @@ import {
   leaveKitchen,
   removePerson,
   rename,
-  saveLocations,
   type KitchenResult,
 } from "@/app/kitchens/actions";
 import type { KitchenMembership, Member } from "@/lib/kitchens";
@@ -53,36 +52,6 @@ export function RenameKitchen({ name }: { name: string }) {
           {pending ? "Saving…" : "Rename"}
         </button>
       </div>
-      <Feedback state={state} />
-    </form>
-  );
-}
-
-export function EditLocations({ locations }: { locations: string[] }) {
-  const [state, action, pending] = useActionState<KitchenResult, FormData>(
-    saveLocations,
-    { ok: true },
-  );
-
-  return (
-    <form action={action}>
-      <label htmlFor="locations" className={LABEL}>
-        Places, in the order you&apos;d walk them
-      </label>
-      <textarea
-        id="locations"
-        name="locations"
-        rows={Math.max(5, locations.length + 1)}
-        defaultValue={locations.join("\n")}
-        className={`${FIELD} resize-y leading-relaxed`}
-      />
-      <p className="mt-1.5 mb-3 text-xs font-semibold text-muted-foreground">
-        One per line. Items keep whatever place they were given, so renaming one
-        here won&apos;t rewrite what&apos;s already on the shelf.
-      </p>
-      <button type="submit" disabled={pending} className={BUTTON}>
-        {pending ? "Saving…" : "Save places"}
-      </button>
       <Feedback state={state} />
     </form>
   );

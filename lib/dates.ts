@@ -29,10 +29,11 @@ export function parseStamp(value: string | null): Date | null {
  * afternoon came back as two days ago, and it was wrong by a day for every
  * moment that was not exactly midnight, which is all of them.
  *
- * It disagreed with the SQL in `getExpiring` too, which truncates toward zero
+ * It disagreed with the SQL in `getExpiring` too, which truncated toward zero
  * and so answered one day for the same row. Three screens gave three answers
- * for one date. The rule lives here now and the SQL sorts with its own copy
- * without ever being shown - see AGENTS.md.
+ * for one date. The rule lives here; `getExpiring` went with stock tracking in
+ * v2, and any SQL that needs to sort by a date sorts with its own copy without
+ * ever printing it.
  *
  * Rounded rather than floored because both ends are local midnight: the gap is
  * a whole number of days except across a clock change, where it is 23 or 25

@@ -3,31 +3,32 @@
 `CLAUDE.md` has pointed at this file since phase 2 and it has never existed, so
 project instructions have been empty the whole time. This is it.
 
+## v2: stock tracking is gone
+
+Decided 18 Oct 2026 (`docs/ROADMAP-V2.md`). v1 asked people to keep a shelf up
+to date - every tin, every jar, how full the open one was - and nobody did, so
+every number cooking subtracted from and every "you have everything" was
+already wrong. v2 stops asking. `/pantry`, `/tonight`, `/stats`, containers,
+vessels, expiry guesses, barcode-to-stock and the shopping trip all went, and
+nothing reads `items`, `item_tags`, `item_shops`, `item_prices`, `products`,
+`kitchen_products`, `tags` or `cookbook_links` any more. The tables stay in
+`db/schema.sql` until the ship milestone deletes their rows after a backup.
+
+**A receipt is the record.** What came into the kitchen is learned from what
+was bought - the receipts, how often a thing is bought again, what it cost -
+rather than from somebody counting the cupboard. Cooking records that a meal
+was made and moves nothing. The shopping list is at `/list` and is just a list;
+shopping for a recipe offers every line ticked and the person unticks what
+they already have, because the app no longer knows.
+
 ## What this is
 
-A pantry tracker. Next.js on Vercel, `sqld` (libSQL) self-hosted on a Hetzner
+Recipes, a week's plan, a shopping list and the people you cook with -
+receipts next. Next.js on Vercel, `sqld` (libSQL) self-hosted on a Hetzner
 box in Nuremberg at `db.packthings.fyi`. Raw SQL, no ORM, no abstraction layer -
 that is deliberate and predates everything here.
 
 ## Things that will bite you
-
-**`quantity` means the open container, not the total.** Since containers
-arrived, a stock row is `sealed_count` full packs plus whatever is left in the
-open one. `totalOnHand()` in `lib/containers.ts` is the answer to "how much is
-there". Three separate bugs have come from testing `quantity > 0`: expiring
-items, stocked-ingredient matching, and cooking itself, which capped a take at
-the open container and silently under-deducted.
-
-**The cascade rule is written twice**, in `ADJUST_SQL` and in `applyDelta()` -
-once so the server is atomic, once so a stepper can move before the round trip.
-`npm run check:cascade` runs both over 480 cases. Run it after touching either.
-
-**Three places move stock**: `ADJUST_SQL`, `PACK_SQL`, and the cook action in
-`app/recipes/[id]/actions.ts`. They must agree about what a jar is. Undo was
-briefly a fourth - it added the delta straight back onto `quantity`, which
-restores the right total and the wrong shelf - and now goes through
-`ADJUST_SQL` like everything else. A stock write that does its own arithmetic
-is the bug, every time.
 
 **sqld allows no pragma control.** `foreign_keys=OFF` is accepted and ignored,
 `defer_foreign_keys` likewise, `legacy_alter_table` will not parse. Every
@@ -49,8 +50,8 @@ per route and 41 of 51 functions each got a copy: 347MB of the 540MB stored on
 every deployment, for a binary nothing calls. Storage is counted across every
 deployment retained, and the free tier's 10GB had gone to 16GB. Changing the
 import back "to be consistent with the scripts" puts all of it straight back.
-The scripts import `@libsql/client` on purpose - `clone-db` and
-`check-cascade` really do open local files, and they ship nowhere.
+The scripts import `@libsql/client` on purpose - `clone-db` really does open
+local files, and the scripts ship nowhere.
 
 **`du` on `.next/server` lies about deployment size.** It said 8.9MB while the
 real figure was 540MB, because it does not see the `node_modules` that file
@@ -63,11 +64,12 @@ twenty times that number - budget against 20x, not 1x.
 **A recipe line may have no amount at all.** `some` is a unit with no
 dimension - "salt, to taste", "oil for frying" - and every conversion refuses
 it with `reason: "unmeasured"`, which is deliberately not the same as
-`unknown-unit`. Five places convert a recipe line and each has to tell a
-decision to respect from a mistake to report: cooking subtracts nothing, the
-shopping list leaves it alone if you have any, nutrition skips it rather than
-calling a pinch of salt a hole in the figures. One miss puts salt on the
-shopping list for ever. `npm run check:amounts`.
+`unknown-unit`. Every place that converts a recipe line has to tell a decision
+to respect from a mistake to report: the shopping list never lists it,
+nutrition skips it rather than calling a pinch of salt a hole in the figures.
+With no shelves to say you have some, the list asks `toCanonical` rather than
+comparing the unit itself; one miss puts salt on the shopping list for ever.
+`npm run check:amounts`.
 
 **A recipe off a video is fetched, never transcribed by a model.** A cooking
 video almost always has the recipe written down beside it - YouTube's
@@ -133,9 +135,12 @@ is a machine's guess at speech and the amounts are the half it gets wrong.
 `npm run check:video`.
 
 **"What is this recipe short of" lives in one place.** `recipeShortfall()` in
-`lib/shopping.ts`, used by the add-what's-missing button and by the week
-planner's Shop for it. It was a hundred lines inside a server action, and a
-second copy of it is a sixth instance of the bug this file keeps a count of.
+`lib/shopping.ts`, used by the recipe page's shopping checklist and by the week
+planner's Shop for it. Since v2 it is every line that is measured and not
+optional, scaled to the servings - the app cannot know what is in, so the
+checklist starts all ticked. The server recomputes it on commit and keeps only
+the ticked keys, so the browser never supplies names or amounts. It was a
+hundred lines inside a server action once, and a second copy is the bug.
 
 **"How many days until this date" is `daysUntil()` in `lib/dates.ts`, and
 nothing else.** There were two of them. `daysUntil` subtracted the current
@@ -144,9 +149,8 @@ INSTANT from the target date's midnight and floored the fraction - and
 yesterday afternoon read as two days ago, wrong by a day for every moment that
 was not exactly midnight. The SQL in `getExpiring` did the same subtraction and
 truncated toward zero, so it answered one. One item, three screens, three
-numbers. The SQL copy still exists and still sorts the query, because ordering
-only needs to be monotonic - but it is never the number shown, and rendering
-`days_left` puts the bug straight back. `npm run check:dates`, which pins the
+numbers. `getExpiring` went with stock in v2; any SQL that computes days may
+sort with its own copy, but never prints it. `npm run check:dates`, which pins the
 clock, because a test that asks the real time passes at midnight and fails at
 teatime.
 
@@ -165,6 +169,10 @@ twice a year the gap changes. `londonNow()` asks Intl. `npm run check:push`.
 `worker_threads` Worker from a file path, which does not survive bundling into
 a serverless function - the worker never starts and the request hangs rather
 than failing. Receipt reading runs in the browser for that reason.
+`components/receipt-scanner.tsx` is kept for that OCR flow while receipts are
+rebuilt; its old server actions went with `/pantry`, and it imports refusing
+stubs from `components/receipt-scanner-stubs.ts` - a plain module, not
+`"use server"`, so nothing is reachable.
 
 **A count that is wrong reads as "delete this feature".** `usage_events` and
 `lib/usage.ts` record what gets pressed, against a closed list of names in
@@ -174,18 +182,6 @@ typo in a `data-track` attribute, or a name added to the list and never wired
 up, both arrive in the report as a zero, and a zero is a number somebody acts
 on. `npm run check:usage` walks both directions. `record()` never throws and is
 never awaited: the button matters and the count does not.
-
-**A guessed expiry date must never look like a read one.** `lib/shelf-life.ts`
-fills in a date for food nobody dated - 34 of 47 items had neither a packet
-date nor a once-opened life, so the rescue engine, the heaviest weight in the
-tonight ranker and the Sunday nudge were all blind to most of the kitchen. The
-guess is only offered for food `estimateFor` actually recognises, because a
-confident wrong number is worse than a blank: a blank invites a correction and
-a number does not. `items.expiry_estimated` carries the marking all the way to
-the screen, an estimate is never drawn in the alarm colour however far past it
-is, and nothing anywhere tells anybody to throw food away on one. Two numbers,
-not one - `keeps` is sealed from today, `openFor` is after opening, and the
-schema is emphatic that they differ. `npm run check:shelf-life`.
 
 **There is one notification and the bar for a second is high.** Five phases
 were spent deliberately not having any - a thing with unread items in it is a
@@ -199,43 +195,18 @@ describing it, because a cook can be undone and "@luna cooked your ragu" for a
 cook that did not happen is worse than silence - and undo marks `undone_at`
 rather than deleting, so the cascade never fires and `forgetCook` has to.
 
-**Stock is not a tab.** Decided 15 Sep 2026. The shelf lives under the answer
-on `/tonight`, because what is in the kitchen is part of deciding what to cook
-rather than an errand of its own - three tabs and the add button, in four equal
-columns. `/pantry` is still a route and still owns the list, the groupings, the
-bulk actions and selection mode; it is reached from "As a list" on the shelf
-and from every item link, not from the tab bar. Pages that used to light up the
-Stock tab pass `active="none"`.
-
-**What shape a thing is, is decided in one place.** `lib/vessel.ts` answers it
-from the name and the unit, because nothing in the database says "jar" - there
-is no packaging column, Open Food Facts is never asked, and `count_noun` is
-empty on every row. The rule learned from running it over the real kitchen is
-**the name beats the unit**: half the rows are "there is some, nobody said how
-much" placeholders and every one of those is stored as mass whatever it is, so
-a unit-first rule drew Olive oil and Milk as bags - while Paprika and MSG are
-stored as `1 count`, so counting first drew spice jars as pips. Both directions
-are pinned in `npm run check:vessel`.
-
-Two components draw from it and neither may grow its own copy:
-`components/vessel.tsx` is the control you DRAG to say how full something is,
-and `components/shelf-vessel.tsx` only ever reports. **The silhouettes they
-draw are also shared**, in `components/vessel-shapes.ts` - they were not, and
-tapping a soy sauce on the shelf opened a page showing a visibly different
-soy sauce. The shapes are a 60x76 box and anything drawing bigger scales them;
-a second set is a second idea of what a bottle is. The classifier used to
-live inside the client component, where `scripts/ts-imports.mjs` could not load
-it - a .tsx is invisible to the check harness, so every rule in it was
-untestable. Anything a check needs to ask belongs in `lib/`.
-
-Being wrong about a shape is deliberately cheap - a bottle drawn as a jar still
-shows the right amount at the right level - so it needs no marking, unlike the
-expiry guess. `fillFor` is the half that must never lie: it returns null rather
-than a plausible level for an `unspecified` row or one with no pack size.
+**Three tabs: Cookbook, Plan, Discover.** Decided with v2, 18 Oct 2026. Tonight
+and the shelf answered from what was in the kitchen and went with stock; the
+plan took the middle because the week is decided there and the shopping list
+is reached from it (and from the account menu and the add sheet). `/` and the
+login redirect go to `/recipes`. Old `/pantry`, `/tonight` and `/stats` links
+are 307s in `next.config.ts` - an installed app keeps the `start_url` it was
+installed with, which was `/pantry`.
 
 **Every exported function in a `"use server"` file is a live endpoint.** Not
 "a function the UI calls" - a URL, reachable by anyone who is past the auth
-gate, whether or not a component references it. `removeRecipe` had no
+gate, whether or not a component references it. Taking a feature out means
+deleting its actions, not just its buttons. `removeRecipe` had no
 authorisation at all and nothing in the app called it, which is exactly why
 nobody noticed: it was a way for any of six accounts to delete any recipe by
 id. The owner goes in the `WHERE` clause, never in a caller's `if` - see
@@ -268,21 +239,24 @@ still there as the way back.
 
 ## Checks
 
-    npm run check:cascade     the two copies of the container rule agree
-    npm run check:amounts     ~, "to taste", and how an amount is said
+    npm run check:amounts     ~, "to taste", how an amount is said, the shortfall
     npm run check:recipe-text pasted plain text becoming a recipe
     npm run check:dates       one answer for "how many days until"
     npm run check:bundle      what a deployment costs Vercel to store
-    npm run check:plan        week arithmetic, DST, meal slots
+    npm run check:plan        week arithmetic, DST, meal slots, Fill the gaps
     npm run check:push        when the weekly nudge decides it is due
     npm run check:receipt     receipt parsing and matching
     npm run check:estimates   the generic-food matcher
     npm run check:usage       every counted name is one the server accepts
-    npm run check:shelf-life  how long food lasts, and the date arithmetic
-    npm run check:vessel      what shape a thing is, and whether it has a level
     npm run check:video       a video link becoming text worth reading
-    npm run check:substitutes what can stand in, and "powder" is not enough
+    npm run check:recipe-tags what a recipe is tagged as, from what it says
+    npm run check:step-timers timings found in a method step
+    npm run check:display     how ingredient names and titles are said
     npm run probe             round-trip time to the database
+
+check:cascade, check:vessel, check:shelf-life, check:substitutes,
+check:tonight, check:match, check:cookbook and check:suggest went with the
+stock code they tested in v2.
 
 `scripts/ts-imports.mjs` lets plain node import the project's TypeScript, so a
 check tests what ships rather than a copy of it:

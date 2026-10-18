@@ -25,7 +25,7 @@ import { forgetDeparture, noteArrival, noteDeparture } from "@/components/back-l
  */
 
 /** The tab bar, left to right. Moving along it is a sideways move. */
-const SECTIONS = ["/pantry", "/tonight", "/recipes", "/discover"];
+const SECTIONS = ["/recipes", "/plan", "/discover"];
 
 const sectionOf = (path: string) =>
   SECTIONS.findIndex((section) => path.startsWith(section));
@@ -151,8 +151,8 @@ export function NavTransitions() {
 
       event.preventDefault();
 
-      // The hash too: "/tonight#shelf" is a back link that means the shelf,
-      // not the recipe card at the top of the page.
+      // The hash too: a back link to "/page#section" means that section, not
+      // the top of the page.
       const target = to.pathname + to.search + to.hash;
       document.documentElement.dataset.navDir = directionBetween(
         location.pathname,

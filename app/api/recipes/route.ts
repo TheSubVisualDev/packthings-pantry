@@ -1,7 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { apiContext } from "@/lib/session";
-import { getItems } from "@/lib/queries";
 import { parseRecipeDocument } from "@/lib/recipe-schema";
 import { saveRecipe } from "@/lib/recipe-store";
 
@@ -10,12 +9,10 @@ export const dynamic = "force-dynamic";
 /**
  * Accepts a recipe document and writes it.
  *
- * The parse is the whole job: ingredient names are resolved against stock,
- * units checked against the table this pantry actually converts, and steps
- * tied to the lines they use. A document that isn't a recipe is refused with
- * the reasons; one that is, but mentions something the kitchen has never held,
- * is saved with warnings - refusing those would make the importer useless for
- * anything you haven't bought yet.
+ * The parse is the whole job: units checked against the table this app
+ * actually converts, and steps tied to the lines they use. A document that
+ * isn't a recipe is refused with the reasons; one that is, but has something
+ * worth a second look, is saved with warnings.
  */
 export async function POST(request: Request) {
   const context = await apiContext(request);
@@ -33,7 +30,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const parsed = parseRecipeDocument(body, await getItems(context.kitchen?.id ?? null));
+  const parsed = parseRecipeDocument(body);
 
   if (!parsed.ok || !parsed.recipe) {
     return NextResponse.json(
@@ -45,7 +42,6 @@ export async function POST(request: Request) {
   const id = await saveRecipe(parsed.recipe);
 
   revalidatePath("/recipes");
-  revalidatePath("/pantry");
 
   return NextResponse.json(
     { id, url: `/recipes/${id}`, warnings: parsed.warnings },

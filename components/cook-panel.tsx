@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
-import { BookOpenText, Check, List, ShoppingBasket } from "lucide-react";
+import { BookOpenText, Check, List } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
-import { Sheet } from "@/components/ui/sheet";
 import {
   cookRecipe,
   rateRecipe,
@@ -12,40 +11,15 @@ import {
   type CookResult,
   type UndoResult,
 } from "@/app/recipes/[id]/actions";
-import { totalOnHand } from "@/lib/containers";
 import { displayItemName } from "@/lib/recipe-display";
-import { SubstitutePicker } from "@/components/substitute-picker";
-import { NewPackDates } from "@/components/new-pack-dates";
 import { AddShortfallButton } from "@/components/add-shortfall-button";
 import { RecipeMethod, type CookStep } from "@/components/recipe-method";
 import {
   describeLine,
   formatQuantity,
-  resolveAmount,
   scaleQuantity,
   splitAmount,
 } from "@/lib/units";
-import type { Item } from "@/lib/types";
-
-/** A stand-in the pantry could offer for one ingredient. */
-export interface SubstituteOption {
-  id: number;
-  name: string;
-  /** Tags it has in common with what the recipe asked for, if any. */
-  shared: string[];
-  /** Its stock row, so a swap can be judged against the shelf immediately. */
-  level: Pick<
-    Item,
-    | "quantity"
-    | "canonical_unit"
-    | "sealed_count"
-    | "pack_size"
-    | "pack_unit"
-    | "unspecified"
-    | "count_noun"
-    | "dimension"
-  >;
-}
 
 export interface CookLine {
   id: number;
@@ -60,164 +34,10 @@ export interface CookLine {
   /** "~70g": roughly this much. Display only. */
   approx: boolean;
   section: string | null;
-  /**
-   * The stock row this line resolves to, carrying its containers.
-   *
-   * Not just `quantity`: that is what is in the OPEN one, and judging a
-   * recipe against it called things short with sealed packs behind them.
-   */
-  item: Pick<
-    Item,
-    | "quantity"
-    | "dimension"
-    | "canonical_unit"
-    | "sealed_count"
-    | "pack_size"
-    | "pack_unit"
-    | "unspecified"
-    | "count_noun"
-  > | null;
-  /** What else is in that could stand in, best first. Empty is common. */
-  substitutes: SubstituteOption[];
 }
 
 /** How long the undo stays the loud button. It never stops being possible. */
 const UNDO_WINDOW_SECONDS = 10;
-
-type Status =
-  | { kind: "in-stock" }
-  | { kind: "short"; detail: string }
-  | { kind: "not-in-pantry" }
-  | { kind: "needs-manual"; detail: string };
-
-/**
- * Resolves a line at the chosen serving count. Recomputed on every servings
- * change - whether a line is short depends on how many you're cooking for.
- */
-/**
- * Judges one line against the shelf - or against its stand-in, if one has been
- * picked. The substitute is compared exactly as the original would be, so
- * swapping in something you have less of still reads as short.
- */
-function resolve(
-  line: CookLine,
-  swap: SubstituteOption | null,
-  base: number,
-  servings: number,
-): { status: Status; display: number } {
-  const scaled = scaleQuantity(line.quantity, base, servings);
-  /**
-   * The stand-in's stock row, or the line's own.
-   *
-   * Checked before the not-in-pantry case rather than after: a substitute is
-   * most useful exactly when the recipe asks for something this kitchen has
-   * never held, and testing line.item first would refuse to offer one.
-   */
-  const level = swap ? swap.level : line.item;
-  if (!level) return { status: { kind: "not-in-pantry" }, display: scaled };
-
-  const converted = resolveAmount(
-    scaled,
-    line.unit,
-    { size: line.pack_size, unit: line.pack_unit },
-    level.dimension,
-  );
-
-  /**
-   * A line nobody measured, against a shelf that has some.
-   *
-   * There is no number to judge, and the recipe's whole claim is that you need
-   * salt. You have salt. A kitchen with none never gets here - the no-stock
-   * branch above has already called it To buy, which is the right answer.
-   */
-  if (!converted.ok && converted.reason === "unmeasured") {
-    return { status: { kind: "in-stock" }, display: scaled };
-  }
-
-  if (!converted.ok) {
-    return {
-      status: {
-        kind: "needs-manual",
-        detail:
-          converted.reason === "dimension-mismatch"
-            ? `${line.unit} can't convert to ${level.canonical_unit}`
-            : `unknown unit "${line.unit}"`,
-      },
-      display: scaled,
-    };
-  }
-
-  // Counts are rounded up during conversion, so show the whole number that
-  // will actually leave stock rather than the raw fraction.
-  const display =
-    level.dimension === "count" ? converted.quantity : scaled;
-
-  /**
-   * Everything on the shelf, not just the open container.
-   *
-   * `quantity` has meant "what is in the open one" since containers arrived,
-   * so comparing against it called a recipe short while two sealed bottles sat
-   * behind the nearly-empty one. Unspecified items have no number to compare,
-   * and are taken at their word.
-   */
-  const onHand = totalOnHand(level);
-
-  if (onHand !== null && converted.quantity > onHand) {
-    return {
-      status: {
-        kind: "short",
-        detail: `need ${formatQuantity(converted.quantity)}${level.canonical_unit}, have ${formatQuantity(onHand)}${level.canonical_unit}`,
-      },
-      display,
-    };
-  }
-  return { status: { kind: "in-stock" }, display };
-}
-
-function StatusBadge({ status }: { status: Status }) {
-  const base =
-    "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap print:hidden";
-  if (status.kind === "in-stock")
-    return (
-      /* A tick, because "In stock" and "To buy" were the same grey chip in the
-         same place, and a tester reported reading one as the other. The words
-         were never the difference at a glance; the shape is. */
-      <span className={`${base} bg-chip text-muted-foreground`}>
-        <Check className="h-3 w-3" strokeWidth={3.5} aria-hidden />
-        In stock
-      </span>
-    );
-  if (status.kind === "short")
-    return (
-      <span
-        className={`${base} bg-[oklch(0.94_0.06_75)] text-[oklch(0.42_0.1_60)]`}
-        title={status.detail}
-      >
-        Low
-      </span>
-    );
-  if (status.kind === "not-in-pantry")
-    return (
-      // Deliberately not the destructive colour the other two use. An
-      // ingredient you have not bought is a shopping item, not a fault - and a
-      // recipe written before you own any of it went red from top to bottom,
-      // which made writing one down feel like doing something wrong. It is
-      // outlined rather than filled so it cannot be mistaken for the in-stock
-      // chip, which is what kept happening while both were flat grey.
-      <span className={`${base} border border-primary/35 bg-primary/8 text-primary`}>
-        <ShoppingBasket className="h-3 w-3" strokeWidth={3} aria-hidden />
-        To buy
-      </span>
-    );
-  return (
-    <span
-      className={`${base} bg-[oklch(0.94_0.05_35)] text-destructive`}
-      title={status.detail}
-    >
-      Manual
-    </span>
-  );
-}
 
 export function CookPanel({
   recipeId,
@@ -239,15 +59,9 @@ export function CookPanel({
   rating: number | null;
   lines: CookLine[];
   steps: CookStep[];
-  /** Cooking spends stock, so without a kitchen there's nothing to spend. */
+  /** A cook goes in a kitchen's log, so without one there is nowhere to write it. */
   hasKitchen: boolean;
-  /**
-   * Whether this kitchen has adopted the recipe.
-   *
-   * Cooking is gated on it because the links that decide what comes off the
-   * shelf are written when a recipe is adopted. Cooking one that has not been
-   * would have to guess at the stove, which is the one place guessing is worst.
-   */
+  /** Whether this kitchen has adopted the recipe. Cooking it adopts it. */
   inCookbook: boolean;
 }) {
   /**
@@ -281,44 +95,6 @@ export function CookPanel({
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [pending, startTransition] = useTransition();
 
-  /**
-   * Stand-ins chosen for this cook, by ingredient line.
-   *
-   * Not saved to the recipe: using oat milk tonight because that is what is in
-   * does not make it an oat milk recipe. It lives as long as this screen does.
-   */
-  const [swaps, setSwaps] = useState<Record<number, number>>({});
-
-  /**
-   * Which ingredients have actually gone in.
-   *
-   * Cooking used to fire the moment you pressed a button at the top, which is
-   * backwards from how cooking goes: you work down the list, and the moment
-   * you are *finished* is the moment the stock has really moved. Nothing is
-   * written until Confirm.
-   *
-   * Everything you have starts ticked. The common case by a long way is that
-   * you used the whole recipe, and a checklist you have to fill in before you
-   * can cook would be a worse version of the button it replaced.
-   *
-   * What you do not have starts unticked. It used to start ticked like the
-   * rest, under a line saying "ticked ones come off your shelves" - a tick on
-   * Raisins, marked To buy, in a kitchen with no raisins, which reads as the
-   * app being wrong about your cupboard. Only what somebody has pressed is
-   * stored here; the default follows the line's status, so choosing a
-   * substitute you DO have ticks it.
-   */
-  const [ticked, setTicked] = useState<Record<number, boolean>>({});
-  const isUsed = (id: number, status: Status) =>
-    ticked[id] ?? status.kind !== "not-in-pantry";
-  const toggle = (id: number, status: Status) =>
-    setTicked((current) => ({
-      ...current,
-      [id]: !(current[id] ?? status.kind !== "not-in-pantry"),
-    }));
-
-  /** The unticked lines, shown for confirmation. Null while not asking. */
-  const [asking, setAsking] = useState<string[] | null>(null);
   const [undoPending, startUndo] = useTransition();
   /** Whether the method is open on the page. Closed until somebody asks. */
   const [reading, setReading] = useState(false);
@@ -339,22 +115,12 @@ export function CookPanel({
     return () => clearInterval(timer);
   }, [deadline]);
 
-  const resolved = lines.map((line) => {
-    const swap =
-      line.substitutes.find((option) => option.id === swaps[line.id]) ?? null;
-    return { line, swap, ...resolve(line, swap, baseServings, servings) };
-  });
-
-  const blockers = resolved.filter((r) => r.status.kind !== "in-stock");
-
-  // Unticked means not used - but only an untick somebody pressed is asked
-  // about and sent as skipped. A line that started unticked because there is
-  // none of it has nothing to leave on a shelf; asking "did you use it?" on
-  // every cook of a recipe you are short of would be a tap for nothing, and
-  // "Left on the shelf: raisins" would be untrue. The server flags it as not
-  // in the pantry, which it is.
-  const skippedLines = resolved.filter(({ line }) => ticked[line.id] === false);
-  const skippedIds = skippedLines.map(({ line }) => line.id);
+  // Each line at the serving count chosen now. Display only: stored
+  // quantities stay at base.
+  const resolved = lines.map((line) => ({
+    line,
+    display: scaleQuantity(line.quantity, baseServings, servings),
+  }));
 
   // Kept in the order the recipe gave them, so a section header appears where
   // its lines start rather than being sorted somewhere else.
@@ -378,15 +144,14 @@ export function CookPanel({
     );
   }
 
-  function cook(skip: number[]) {
+  function cook() {
     setResult(null);
     setUndone(null);
-    setAsking(null);
     setDeadline(0);
     setSecondsLeft(0);
 
     startTransition(async () => {
-      const cooked = await cookRecipe(recipeId, servings, swaps, skip);
+      const cooked = await cookRecipe(recipeId, servings);
       setResult(cooked);
 
       if (cooked.eventId !== undefined) {
@@ -394,23 +159,6 @@ export function CookPanel({
         setDeadline(Date.now() + UNDO_WINDOW_SECONDS * 1000);
       }
     });
-  }
-
-  /**
-   * Confirming, and asking about anything left unticked.
-   *
-   * An unticked line is genuinely ambiguous - it can mean "I did not use this"
-   * or "I forgot to tick it" - and the app does not guess, because guessing
-   * wrong either leaves stock too high or spends something that is still in
-   * the cupboard. The prompt appears only when something is actually unticked,
-   * so a full recipe still confirms in one tap.
-   */
-  function onConfirm() {
-    if (skippedIds.length === 0) {
-      cook([]);
-      return;
-    }
-    setAsking(skippedLines.map(({ line }) => line.item_name));
   }
 
   function onUndo(eventId: number) {
@@ -429,9 +177,9 @@ export function CookPanel({
      * is right and there is no alternative. On a monitor it wastes half the
      * glass to reproduce a constraint the screen does not have.
      *
-     * The cut is where the page already divides: everything about whether you
-     * can cook this - servings, ingredients, what you are short of, the cook
-     * button - on the left and sticky, so it stays put while you read. The
+     * The cut is where the page already divides: everything about cooking
+     * this - servings, ingredients, shopping for it, the cook button - on the
+     * left and sticky, so it stays put while you read. The
      * method, and what you thought of it afterwards, on the right.
      *
      * Printing ignores all of it: print:block puts the two back in one column,
@@ -461,7 +209,7 @@ export function CookPanel({
             >
               &minus;
             </button>
-            {/* Same tick as the stock stepper, for the same reason: the count
+            {/* Animated on every press, because the count
                 used to swap in place, so a press that scaled the whole
                 ingredient list looked like a press that missed. Keyed on a
                 count rather than on the value because 3 -> 2 -> 3 is two
@@ -501,42 +249,9 @@ export function CookPanel({
       </section>
 
       <section>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-label">
-            Ingredients
-          </h2>
-          {/* The answer to "can I make this", at the top where the question is
-              asked. The shortfall and its button stay under the list, which is
-              where you decide to do something about it. */}
-          {hasKitchen && (
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                blockers.length === 0
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-chip text-muted-foreground"
-              }`}
-            >
-              {blockers.length === 0
-                ? `you have everything for ${servings}`
-                : `${blockers.length} to buy`}
-            </span>
-          )}
-        </div>
-        {/*
-          What the ticks are for, said once.
-
-          A filled brand-coloured circle beside every ingredient reads as "you
-          have this" - a tester said exactly that, and then found the status
-          chip on the other end of the row disagreeing with it. The circles are
-          a cooking checklist, not a stock report, and one line saying so costs
-          less than inventing a third visual language for them.
-        */}
-        {hasKitchen && (
-          <p className="mb-2 text-xs font-semibold text-muted-foreground print:hidden">
-            Ticked ones come off your shelves when you cook. Untick anything you
-            left out.
-          </p>
-        )}
+        <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-label">
+          Ingredients
+        </h2>
         {sections.map((section) => (
           <div key={section.name ?? ""} className="mb-3 last:mb-0">
             {section.name && (
@@ -550,7 +265,7 @@ export function CookPanel({
                 mount, not on re-render - which is what makes it safe on a list
                 that recomputes every amount on every press. */}
             <ul className="stagger overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              {section.entries.map(({ line, swap, display, status }) => {
+              {section.entries.map(({ line, display }) => {
                 const amount = splitAmount(
                   display,
                   line.unit,
@@ -563,30 +278,6 @@ export function CookPanel({
                   className="border-b border-border px-4 py-3.5 last:border-b-0 sm:px-5"
                 >
                   <div className="flex items-center justify-between gap-3">
-                  {hasKitchen && (
-                    <button
-                      type="button"
-                      role="checkbox"
-                      aria-checked={isUsed(line.id, status)}
-                      aria-label={`Used ${line.item_name}`}
-                      onClick={() => toggle(line.id, status)}
-                      // 44px to press, 24px to see: the negative margin gives
-                      // the thumb the room back without moving the circle.
-                      className="-m-2.5 flex shrink-0 items-center justify-center p-2.5 print:hidden"
-                    >
-                      <span
-                        className={
-                          isUsed(line.id, status)
-                            ? "flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground"
-                            : "flex h-6 w-6 items-center justify-center rounded-full border-2 border-border"
-                        }
-                      >
-                        {isUsed(line.id, status) && (
-                          <Check className="h-3.5 w-3.5" strokeWidth={3.5} />
-                        )}
-                      </span>
-                    </button>
-                  )}
                   {/*
                     The amount leads the line, with the name.
 
@@ -596,19 +287,13 @@ export function CookPanel({
                     already is; what one pack comes to and how to cut it are
                     both second-line facts, so they share the quiet line.
                   */}
-                  {/* The words toggle too - a floury thumb aims at the line,
-                      not at a 24px circle beside it. The checkbox stays the
-                      one control a screen reader is told about. */}
-                  <div
-                    onClick={hasKitchen ? () => toggle(line.id, status) : undefined}
-                    className={`min-w-0 flex-1 ${hasKitchen ? "cursor-pointer select-none" : ""} ${ticked[line.id] === false ? "opacity-45" : ""}`}
-                  >
+                  <div className="min-w-0 flex-1">
                     <div className="font-bold break-words">
                       {amount.primary && (
                         <span className="text-quantity">{amount.primary} </span>
                       )}
                       {/* "1 Brown Onions" is nobody's sentence. Names are
-                          stored plural for the stock list; this is the one
+                          often stored plural, as a list; this is the one
                           place that reads as a sentence instead of a row. */}
                       {displayItemName(line.item_name, line.quantity, line.unit)}
                       {line.optional && (
@@ -627,24 +312,7 @@ export function CookPanel({
                       </div>
                     )}
                   </div>
-                  <StatusBadge status={status} />
                   </div>
-
-                  {line.substitutes.length > 0 && (
-                    <SubstitutePicker
-                      options={line.substitutes}
-                      chosen={swap}
-                      wanted={line.item_name}
-                      onChoose={(id) =>
-                        setSwaps((current) => {
-                          const next = { ...current };
-                          if (id === null) delete next[line.id];
-                          else next[line.id] = id;
-                          return next;
-                        })
-                      }
-                    />
-                  )}
                 </li>
                 );
               })}
@@ -653,25 +321,14 @@ export function CookPanel({
         ))}
       </section>
 
-        {/* Right under the ingredients, because "can I make this tonight" is
-            answered here and the answer is useless three screens down past the
-            method. The cook flow offers it again afterwards for what it could
-            not decrement. */}
-        {hasKitchen && blockers.length > 0 && !result && (
+        {/* Right under the ingredients, because "what do I need for this" is
+            asked here. It used to appear only when the shelves were short;
+            v2 does not know the shelves, so it is always offered and the
+            checklist it opens is where you say what you already have. It
+            needs no kitchen - a personal list is a list too. */}
+        {!result && (
           <div className="rounded-[16px] bg-chip px-4 py-3 print:hidden">
-            <p className="text-center text-sm font-semibold text-muted-foreground">
-              {/* A recipe you own none of is a normal thing to have written
-                  down - something you meant to try - so it reads as a plan
-                  rather than as a shortage. */}
-              {blockers.length === resolved.length
-                ? `Nothing for this is in yet. Shopping for ${servings}?`
-                : `Short of ${blockers.length} ${
-                    blockers.length === 1 ? "thing" : "things"
-                  } for ${servings}.`}
-            </p>
-            <div className="mt-1.5">
-              <AddShortfallButton recipeId={recipeId} servings={servings} />
-            </div>
+            <AddShortfallButton recipeId={recipeId} servings={servings} />
           </div>
         )}
 
@@ -679,9 +336,9 @@ export function CookPanel({
         /**
          * The cook button follows you down the ingredient list.
          *
-         * Ticking things off while cooking pushed it off the top of the
-         * screen, and getting back to it meant scrolling up past everything
-         * you had just ticked - on the one screen this app is used on
+         * Reading down the ingredients pushed it off the top of the screen,
+         * and getting back to it meant scrolling up past all of them - on the
+         * one screen this app is used on
          * one-handed, standing up, with something on the hob.
          *
          * Sticky rather than fixed. Fixed would need to know how tall the tab
@@ -695,7 +352,7 @@ export function CookPanel({
         <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 sm:static print:hidden">
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={cook}
             disabled={pending}
             /* Its own shadow on mobile: pinned over a scrolling list it needs
                to read as sitting above the page rather than in it. */
@@ -705,11 +362,7 @@ export function CookPanel({
                one moment somebody is watching it. */
             className="w-full rounded-[14px] bg-primary px-4 py-4 text-[15px] font-extrabold text-primary-foreground shadow-[0_8px_24px_-8px_rgba(60,44,30,0.55)] transition-[filter] disabled:brightness-[0.85] disabled:saturate-[0.7] sm:shadow-none"
           >
-            {pending
-              ? "Cooking…"
-              : skippedIds.length > 0
-                ? `Done — cooked ${resolved.filter(({ line, status }) => isUsed(line.id, status)).length} of ${resolved.length}`
-                : `Done — cooked for ${servings}`}
+            {pending ? "Saving…" : `Done — cooked for ${servings}`}
           </button>
         </div>
         {/* Outside the sticky box on purpose. It is read once, at the bottom,
@@ -718,8 +371,7 @@ export function CookPanel({
             anything, so the button's sticky parent stays the full-height
             column and it pins for the whole scroll. */}
         <p className="text-center text-xs font-semibold text-muted-foreground print:hidden">
-          Stock moves when you press this, not before. Untick anything you did
-          not use.
+          Goes in the cooked log, and tells whoever wrote it.
           {/* Said once, on a recipe that is not in the cookbook yet, because
               cooking puts it there and somebody should not discover that
               afterwards. It is a consequence, not a question - the whole point
@@ -729,52 +381,13 @@ export function CookPanel({
         </>
       ) : (
         <p className="rounded-[14px] bg-chip px-4 py-3.5 text-center text-sm font-semibold text-muted-foreground">
-          Cooking takes things off a shelf, so it needs{" "}
+          Saying you cooked it goes in a kitchen&rsquo;s log, so it needs{" "}
           <Link href="/kitchens" className="font-bold text-primary underline underline-offset-2">
             a kitchen
           </Link>
-          . You can still read the recipe.
+          . You can still read it and shop for it.
         </p>
       )}
-
-      <Sheet
-        open={asking !== null}
-        onClose={() => setAsking(null)}
-        title={
-          asking?.length === 1
-            ? "One thing you did not tick"
-            : `${asking?.length ?? 0} things you did not tick`
-        }
-        description="Leave them on the shelf, or take them off anyway?"
-        footer={
-          <>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => cook(skippedIds)}
-              className="w-full rounded-[14px] bg-primary px-4 py-3.5 text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
-            >
-              Did not use {asking?.length === 1 ? "it" : "them"}
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => cook([])}
-              className="mt-2 w-full rounded-[14px] bg-chip px-4 py-3 text-sm font-bold disabled:opacity-60"
-            >
-              Used everything after all
-            </button>
-          </>
-        }
-      >
-        <ul className="space-y-1">
-          {(asking ?? []).map((name) => (
-            <li key={name} className="text-sm font-bold break-words">
-              {name}
-            </li>
-          ))}
-        </ul>
-      </Sheet>
 
       </div>
 
@@ -840,9 +453,9 @@ export function CookPanel({
         /**
          * The one unambiguously good moment in the app, animated like it.
          *
-         * Everything else here is bookkeeping - stock went down, a date moved
-         * - but this is a meal that got made, and it arrived as a receipt: a
-         * static card headed "Cooked - 6 of 9 lines decremented". The motion
+         * Everything else here is bookkeeping, but this is a meal that got
+         * made, and it once arrived as a receipt: a static card headed
+         * "Cooked - 6 of 9 lines decremented". The motion
          * vocabulary in globals.css was built for exactly this and nothing was
          * spending it on the moment worth spending it on.
          *
@@ -865,19 +478,8 @@ export function CookPanel({
           ) : undone?.ok ? (
             <>
               <h3 className="text-sm font-extrabold">
-                Undone &mdash; stock put back
+                Undone &mdash; taken out of the log
               </h3>
-              {undone.restored.length > 0 && (
-                <ul className="mt-2 space-y-1 text-sm font-semibold text-muted-foreground">
-                  {undone.restored.map((line) => (
-                    <li key={line.item_name}>
-                      {line.item_name} +{formatQuantity(line.restored)}
-                      {line.unit === "count" ? "" : line.unit} (
-                      {formatQuantity(line.quantity)} now)
-                    </li>
-                  ))}
-                </ul>
-              )}
             </>
           ) : (
             <>
@@ -899,62 +501,9 @@ export function CookPanel({
                   <Check className="h-4.5 w-4.5" strokeWidth={3.5} aria-hidden />
                 </motion.span>
                 <h3 className="text-[17px] font-extrabold tracking-[-0.01em]">
-                  {result.flagged.length === 0
-                    ? `Cooked for ${servings}.`
-                    : "Cooked."}
+                  Cooked for {servings}.
                 </h3>
               </div>
-              <p className="mt-1.5 text-sm font-semibold text-muted-foreground">
-                {result.applied.length} of{" "}
-                {result.applied.length + result.flagged.length} lines came off
-                your shelves.
-              </p>
-              {result.applied.length > 0 && (
-                <ul className="mt-2 space-y-1 text-sm font-semibold text-muted-foreground">
-                  {result.applied.map((line) => (
-                    <li key={line.item_name}>
-                      {line.item_name} &minus;
-                      {formatQuantity(line.decremented ?? 0)}
-                      {line.unit === "count" ? "" : line.unit} (
-                      {formatQuantity(line.remaining_total ?? 0)} left)
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {/* Said plainly, because a cook that left things out is a
-                  different cook and the log records it as one. */}
-              {result.skipped.length > 0 && (
-                <p className="mt-2 text-sm font-semibold text-muted-foreground">
-                  Left on the shelf: {result.skipped.join(", ")}.
-                </p>
-              )}
-
-              {/* Before the shortfalls: a packet in your hand is a question
-                  with a short shelf life, and it should not be below a list. */}
-              <NewPackDates opened={result.opened} />
-
-              {result.flagged.length > 0 && (
-                <div className="mt-4">
-                  <div className="mb-3">
-                    <AddShortfallButton recipeId={recipeId} servings={servings} />
-                  </div>
-                  <h4 className="text-sm font-extrabold text-destructive">
-                    Needs manual handling
-                  </h4>
-                  <ul className="mt-1 space-y-1 text-sm font-semibold text-[oklch(0.44_0.09_38)]">
-                    {result.flagged.map((line) => (
-                      <li key={line.item_name}>
-                        {line.item_name}
-                        {line.detail ? ` — ${line.detail}` : ""}
-                        {line.issue === "not-in-pantry"
-                          ? " — not in pantry"
-                          : ""}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
               {result.eventId !== undefined && (
                 <div className="mt-4">
                   {secondsLeft > 0 ? (

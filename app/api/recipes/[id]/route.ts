@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { apiContext } from "@/lib/session";
-import { getItems, getRecipe } from "@/lib/queries";
+import { getRecipe } from "@/lib/queries";
 import { parseRecipeDocument } from "@/lib/recipe-schema";
 import { deleteRecipe, saveRecipe } from "@/lib/recipe-store";
 
@@ -54,7 +54,6 @@ export async function GET(
         note: line.note,
         optional: line.optional === 1,
         section: line.section,
-        in_pantry: line.item_id !== null,
       })),
 
       steps: recipe.steps.map((step) => ({
@@ -96,7 +95,7 @@ export async function PUT(
     );
   }
 
-  const parsed = parseRecipeDocument(body, await getItems(context.kitchen?.id ?? null));
+  const parsed = parseRecipeDocument(body);
   if (!parsed.ok || !parsed.recipe) {
     return NextResponse.json(
       { problems: parsed.problems, warnings: parsed.warnings },

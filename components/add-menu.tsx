@@ -4,14 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  ArrowUpDown,
-  Barcode,
   CalendarDays,
   ClipboardType,
   ListChecks,
   NotebookPen,
   Plus,
-  Receipt,
   ShoppingBasket,
 } from "lucide-react";
 import { BottomNav } from "@/components/bottom-nav";
@@ -34,16 +31,18 @@ import { Sheet } from "@/components/ui/sheet";
  * 40px-tall strip.
  */
 
+/**
+ * Adding an item, quick adjust, scanning a barcode and scanning a receipt
+ * were the first four until v2 removed stock tracking (18 Oct 2026); all four
+ * put things on a shelf nothing records any more. Receipts come back, as the
+ * record of a shop rather than a restock, and will get a square here then.
+ */
 const actions = [
-  { key: "add", label: "Add item", Icon: Plus, href: "/pantry/add" },
-  { key: "adjust", label: "Quick adjust", Icon: ArrowUpDown, href: "/pantry/adjust" },
-  { key: "scan", label: "Scan barcode", Icon: Barcode, href: "/pantry/scan" },
-  { key: "receipt", label: "Scan receipt", Icon: Receipt, href: "/pantry/receipt" },
-  { key: "list", label: "Shopping list", Icon: ShoppingBasket, href: "/pantry/list" },
   { key: "recipe", label: "New recipe", Icon: NotebookPen, href: "/recipes/new" },
   // Pasting one written out is how a recipe usually arrives - off a website,
   // out of a message - and it was three taps deep behind the Claude page.
   { key: "paste", label: "Paste a recipe", Icon: ClipboardType, href: "/recipes/paste" },
+  { key: "list", label: "Shopping list", Icon: ShoppingBasket, href: "/list" },
   { key: "plan", label: "Plan the week", Icon: CalendarDays, href: "/plan" },
   { key: "cooked", label: "Cooked log", Icon: ListChecks, href: "/cooked" },
 ] as const;
@@ -83,16 +82,17 @@ function countUse(key: string) {
 /**
  * What to offer before this phone has said anything, from where you are.
  *
- * Standing on the stock list, the thing you are about to do is change an
- * amount; on a recipe it is put something on the list. A sensible guess beats
- * an alphabetical one on the first day, and by the second week the counts have
- * taken over anyway.
+ * On a recipe, the thing you are about to do is put something on the list;
+ * on the plan or the list it is the list again or another recipe. A sensible
+ * guess beats an alphabetical one on the first day, and by the second week
+ * the counts have taken over anyway. Keys from before v2 that no longer exist
+ * are dropped by the favourites filter, so an old phone's counts do not
+ * offer a square that is gone.
  */
 function contextPair(pathname: string): ActionKey[] {
   if (pathname.startsWith("/recipes")) return ["list", "recipe"];
-  if (pathname.startsWith("/pantry/list")) return ["list", "add"];
-  if (pathname.startsWith("/pantry")) return ["adjust", "add"];
-  return ["add", "scan"];
+  if (pathname.startsWith("/list") || pathname.startsWith("/plan")) return ["list", "recipe"];
+  return ["recipe", "paste"];
 }
 
 export function AddMenu() {
@@ -161,7 +161,7 @@ export function AddMenu() {
         open={open}
         onClose={() => setOpen(false)}
         title="Add"
-        description="Everything that puts something into the pantry."
+        description="Recipes in, and the week and the list."
       >
         {/*
           Two big ones, then the rest.

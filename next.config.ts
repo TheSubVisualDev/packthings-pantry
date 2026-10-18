@@ -156,6 +156,28 @@ const nextConfig: NextConfig = {
     return [{ source: "/(.*)", headers: SECURITY_HEADERS }];
   },
 
+  /**
+   * Where the stock screens used to be.
+   *
+   * v2 removed stock tracking on 18 Oct 2026, and /pantry, /tonight and
+   * /stats with it. They are still on home screens - an installed app keeps
+   * the start_url it was installed with, which was /pantry - and in old push
+   * notifications and bookmarks, so they land somewhere useful rather than on
+   * a 404. The shopping list moved rather than went, so it keeps its place.
+   *
+   * Temporary (307), not permanent: a 308 is cached by browsers for good, and
+   * receipts and spend are being rebuilt and may want some of these paths.
+   */
+  async redirects() {
+    return [
+      { source: "/pantry/list", destination: "/list", permanent: false },
+      { source: "/pantry", destination: "/recipes", permanent: false },
+      { source: "/pantry/:path*", destination: "/recipes", permanent: false },
+      { source: "/tonight", destination: "/recipes", permanent: false },
+      { source: "/stats", destination: "/recipes", permanent: false },
+    ];
+  },
+
   images: {
     // Photos live in Vercel Blob, which serves them from a per-store subdomain.
     remotePatterns: [

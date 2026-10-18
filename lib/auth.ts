@@ -134,6 +134,6 @@ export function basicAuthValid(header: string | null): boolean {
  * someone off to another site after a successful login.
  */
 export function safeNextPath(value: string | null | undefined): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/pantry";
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/recipes";
   return value;
 }

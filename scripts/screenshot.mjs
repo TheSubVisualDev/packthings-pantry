@@ -1,7 +1,7 @@
 // Looks at the app the way a phone does.
 //
 //   npm run dev                     (in one terminal, note the port)
-//   npm run shots -- <out-dir> /pantry /pantry/add /recipes
+//   npm run shots -- <out-dir> /recipes /plan /list
 //
 // Exists because this app was designed and redesigned for weeks without
 // anybody rendering it at phone width, and it showed: a form whose last three

@@ -134,7 +134,6 @@ export async function editCell(
   revalidatePath("/admin/db");
   // The rest of the app is reading this data too, and a corrected row that
   // only shows on the admin screen is a correction nobody sees.
-  revalidatePath("/pantry");
   revalidatePath("/recipes");
   return { ok: true, message: `${table}.${column} saved.` };
 }
@@ -150,6 +149,6 @@ export async function removeRow(
   if (!done.ok) return { ok: false, error: done.error };
 
   revalidatePath("/admin/db");
-  revalidatePath("/pantry");
+  revalidatePath("/recipes");
   return { ok: true, message: "Row deleted." };
 }

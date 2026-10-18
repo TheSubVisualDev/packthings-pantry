@@ -7,18 +7,20 @@ import type { MetadataRoute } from "next";
  * something that looked installed until you tapped a link: every navigation
  * was treated as leaving, so Safari's in-app browser slid over the top - URL
  * bar, share sheet, back button and all - on top of our own nav bar. A
- * manifest with a scope is what tells iOS that /tonight and /pantry/list are
- * still the same app.
+ * manifest with a scope is what tells iOS that /recipes and /list are still
+ * the same app.
  *
- * `start_url` is the stock list rather than "/", because that is the screen
- * this app is for and "/" only ever redirects to it.
+ * `start_url` is the cookbook rather than "/", because "/" only ever
+ * redirects to it. It was /pantry until v2 removed stock tracking; a phone
+ * that installed the app before then still opens /pantry, which next.config
+ * redirects here.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Pantry",
     short_name: "Pantry",
-    description: "What is on the shelves, what is expiring soon, and what to cook.",
-    start_url: "/pantry",
+    description: "Your recipes, the week's plan and the shopping list.",
+    start_url: "/recipes",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

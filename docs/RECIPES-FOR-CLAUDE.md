@@ -1,7 +1,12 @@
 # Writing recipes into the pantry
 
 This is for a Claude session — the app, the web, or another Claude Code — that
-has been asked to read someone's kitchen stock and put a recipe into it.
+has been asked to read someone's cookbook and put a recipe into it.
+
+> **The app does not track what is in the cupboard.** It did until v2 (18 Oct
+> 2026), when stock tracking was taken out: it was the thing nobody kept up to
+> date, so every number in it was wrong. If what someone has in matters to a
+> suggestion, ask them.
 
 You do not need this repository.
 
@@ -18,7 +23,7 @@ The pantry is a remote MCP server. Once its owner has added it under
 
 | Tool | What it does |
 |---|---|
-| `get_pantry` | Everything in stock, plus the units and locations this kitchen uses |
+| `get_pantry` | The kitchen's cookbook and its open shopping list, plus the units this app accepts. Still called `get_pantry` so existing connectors keep working; it has no stock in it. |
 | `list_recipes` | The recipes this account has written |
 | `search_recipes` | Search what this account can see, by name or description |
 | `get_recipe` | One recipe in full — ingredients and method |
@@ -43,7 +48,7 @@ be pasted into a chat you don't control. A wrong or missing token gets a plain
 The base URL is wherever the pantry is deployed.
 
 > **If you are ever unsure whether you are allowed to write**, ask the person
-> first. Reads are safe and repeatable. Writes change a real kitchen that
+> first. Reads are safe and repeatable. Writes change a real cookbook that
 > someone is going to cook from tonight.
 
 ---
@@ -56,19 +61,20 @@ This is the only call you need before writing anything. It gives you:
 
 | | What it holds |
 |---|---|
-| items | Everything in stock: name, quantity, unit, dimension, tags, location, expiry |
+| cookbook | The recipes this kitchen cooks: id, name, how often cooked |
+| shopping_list | What somebody means to buy: name, amount, and the recipe it is for |
 | `legal_units` | **The only units you may use** |
-| locations | Where things live in this kitchen |
+| `stock_tracked` | Always `false`. Nothing here says what is in the cupboard. |
 
 Both are self-describing on purpose. If this file and what the pantry tells you
 ever disagree, **the pantry is right** — it ships with the running code, and
 this file is a copy.
 
-Read it before composing. Suggesting a recipe around 400g of tofu when there
-are 80g left is the single most common way to be unhelpful here.
+The shopping list is not the cupboard. Something on it is something they have
+*not* got yet. Do not read it as stock in either direction.
 
 An account can have no kitchen at all. That is a normal state, not an error:
-recipes can still be written, there is simply no stock to check them against.
+recipes can still be written, and the shopping list is then a personal one.
 
 ---
 
@@ -152,14 +158,11 @@ the one most worth filling in.
 
 ## 4. Naming ingredients
 
-`item_name` is matched against the pantry's item names, case-insensitively.
-
-- **An exact match links the line to stock**, so cooking the recipe decrements
-  it. Copy names from `pantry.items` verbatim when you mean the same thing.
-- **A name the pantry doesn't have is accepted**, with a warning. The line
-  shows as "not in pantry" and cooking flags it for manual handling. This is
-  correct behaviour for anything the person hasn't bought yet — don't contort
-  a recipe to avoid it.
+`item_name` is the ingredient as a person would write it on a shopping list,
+because that is where it ends up: shopping for a recipe puts its lines on the
+list by name. "Firm tofu", not "tofu (firm, 400g block)". Names are no longer
+matched against stock — there is none — so nothing is gained by bending a name
+to match something else.
 
 If a step's `uses` names an ingredient that isn't in the recipe, that reference
 is dropped with a warning rather than failing the request.
@@ -174,19 +177,14 @@ is dropped with a warning rather than failing the request.
 
 Three dimensions — mass, volume, count — and **conversion only ever happens
 within one**. Grams never become millilitres, because there is no density data
-in this system and inventing some would corrupt the stock counts.
+in this system and inventing some would make the nutrition figures wrong.
 
-Each pantry item is stored in one canonical unit: grams, millilitres, or a bare
-count. So:
+Write the unit a cook would measure with. `3 tbsp` of doenjang is fine; so is
+`60 g`. Scaling works within a dimension either way.
 
-- Asking for `tbsp` of something the pantry keeps in **grams** is accepted, but
-  **it cannot be decremented when cooked**, and you'll get a warning saying so.
-- Asking for `g` of something kept as a **count** has the same problem.
-
-Check `dimension` on the pantry item before choosing a unit. If doenjang is
-stored in grams, write `60 g`, not `3 tbsp` — even though the recipe book says
-tablespoons. Convert it yourself; you know roughly what a tablespoon of paste
-weighs and the system deliberately doesn't guess.
+For an amount nobody measures — "salt, to taste", "oil for frying" — use the
+unit `"some"` with no quantity and put the wording in `note`. Those lines are
+never put on the shopping list.
 
 ---
 
@@ -221,12 +219,14 @@ do not retry the same body.
 them to the person; don't silently swallow them, and don't try to "fix" them by
 renaming their ingredients to whatever happens to be in the cupboard.
 
-The two you'll see most:
+The one you'll see:
 
 | Warning | What it means |
 |---|---|
-| `"X" isn't in the pantry` | Fine. They'll buy it. |
-| `"X" is measured in g, so tbsp can't be taken out of stock` | Your unit choice can't decrement. See §5. |
+| `unknown-reference` | A step's `uses` names something the recipe does not list. Usually a typo. |
+
+There were two more, about stock (`not-stocked`, `unit-mismatch`). They went
+with stock tracking in v2.
 
 ---
 
@@ -259,9 +259,9 @@ household's history, not part of the document: they come back on `GET`, and
 
 ## 8. Practices
 
-**Read stock before you suggest.** The whole point of this endpoint is that you
-can see what's actually in the kitchen. A recipe built around things they have
-is worth more than a better recipe built around things they don't.
+**Ask what they have, if it matters.** The app does not know what is in the
+cupboard, and the shopping list is what is missing rather than what is there.
+The cookbook tells you what this kitchen already likes to cook.
 
 **One line per ingredient.** Not "salt, to taste" as a step and again as a
 line. Pick one.
@@ -290,10 +290,9 @@ first; duplicates are tedious to clean up by hand.
 ## 9. Worked flow
 
 1. `get_pantry` (or `GET /api/pantry`).
-2. Read the legal units and the items. Note which items are stored in which
-   dimension.
-3. Compose. Copy item names verbatim where you mean the pantry's item. Convert
-   your units to that item's dimension.
+2. Read the legal units, and the cookbook so you do not write a recipe they
+   already have.
+3. Compose. Name ingredients the way they would go on a shopping list.
 4. `create_recipe` (or `POST /api/recipes`).
 5. If it's rejected, fix the paths listed and send once more.
 6. When it saves, tell the person the recipe's url, say it saved privately, and

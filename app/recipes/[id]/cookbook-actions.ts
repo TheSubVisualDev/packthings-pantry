@@ -2,54 +2,34 @@
 
 import { revalidatePath } from "next/cache";
 import { requireKitchenRole, requireUser } from "@/lib/session";
-import {
-  addToCookbook,
-  proposeLinks,
-  relink,
-  removeFromCookbook,
-  type LinkChoice,
-  type ProposedLink,
-} from "@/lib/cookbook";
+import { addToCookbook, removeFromCookbook } from "@/lib/cookbook";
 import { tagRecipe, untagRecipe, type RecipeTag } from "@/lib/recipe-tags";
 
 /**
- * Adopting a recipe is an editor's act, not a viewer's.
+ * Adopting a recipe is an editor's act, not a viewer's: it changes what the
+ * kitchen's cookbook holds, and so what the week planner chooses from.
  *
- * It writes links that decide what cooking takes off the shelf, so somebody
- * who may look at a kitchen but not change it may not decide that either.
+ * There used to be two more endpoints here, previewAdoption and
+ * relinkIngredient, which proposed and corrected which stock row each line
+ * meant. v2 keeps no stock (18 Oct 2026), and an export from a "use server"
+ * file is a live URL whether or not anything calls it, so they went rather
+ * than being left unwired.
  */
-export interface AdoptPreview {
-  ok: boolean;
-  error?: string;
-  lines?: ProposedLink[];
-}
-
-/** What adding would link and what it would ask. Writes nothing. */
-export async function previewAdoption(recipeId: number): Promise<AdoptPreview> {
-  const access = await requireKitchenRole("editor");
-  if (!access.ok) return { ok: false, error: access.error };
-
-  return { ok: true, lines: await proposeLinks(access.kitchen.id, recipeId) };
-}
-
 export async function addRecipeToCookbook(
   recipeId: number,
-  choices: LinkChoice[] = [],
-): Promise<{ ok: boolean; error?: string; linked?: number }> {
+): Promise<{ ok: boolean; error?: string }> {
   const access = await requireKitchenRole("editor");
   if (!access.ok) return { ok: false, error: access.error };
+  if (!Number.isInteger(recipeId) || recipeId <= 0) {
+    return { ok: false, error: "Unknown recipe" };
+  }
 
-  const result = await addToCookbook(
-    access.kitchen.id,
-    recipeId,
-    access.user.id,
-    choices,
-  );
+  await addToCookbook(access.kitchen.id, recipeId, access.user.id);
 
   revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
-  revalidatePath("/pantry");
-  return { ok: true, linked: result.linked };
+  revalidatePath("/plan");
+  return { ok: true };
 }
 
 export async function removeRecipeFromCookbook(
@@ -62,29 +42,7 @@ export async function removeRecipeFromCookbook(
 
   revalidatePath(`/recipes/${recipeId}`);
   revalidatePath("/recipes");
-  revalidatePath("/pantry");
-  return { ok: true };
-}
-
-/**
- * Changes what one line means, after the fact.
- *
- * The escape hatch for a link that was agreed and turned out wrong - which
- * matters more than it sounds, because the alternative to being able to fix one
- * is removing the recipe and adding it again.
- */
-export async function relinkIngredient(
-  recipeId: number,
-  ingredientId: number,
-  itemId: number | null,
-): Promise<{ ok: boolean; error?: string }> {
-  const access = await requireKitchenRole("editor");
-  if (!access.ok) return { ok: false, error: access.error };
-
-  await relink(access.kitchen.id, ingredientId, itemId);
-
-  revalidatePath(`/recipes/${recipeId}`);
-  revalidatePath("/pantry");
+  revalidatePath("/plan");
   return { ok: true };
 }
 

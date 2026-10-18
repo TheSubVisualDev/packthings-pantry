@@ -11,16 +11,15 @@ import {
   isoDate,
   moveMeal,
   planMeal,
+  rankForPlanning,
   setSlots,
   weekDates,
   weekStart,
 } from "@/lib/plan";
-import { getItems, getRecipe, getTonightFacts } from "@/lib/queries";
-import { rankTonight } from "@/lib/tonight";
+import { getPlanningFacts, getRecipe } from "@/lib/queries";
 import { addLine, pendingNames, recipeShortfall } from "@/lib/shopping";
-import { indexStock } from "@/lib/pantry-match";
-import { getLinks } from "@/lib/cookbook";
 import { record } from "@/lib/usage";
+import type { ChecklistLine, ChecklistPreview } from "@/app/list/actions";
 
 export interface PlanResult {
   ok: boolean;
@@ -59,7 +58,7 @@ function readSlot(value: unknown, count: number): number | null {
   return slot;
 }
 
-/** Planning is changing the kitchen's week, so it needs the same role as stock. */
+/** Planning is changing the kitchen's week, so it needs an editor. */
 async function access() {
   return requireKitchenRole("editor");
 }
@@ -101,7 +100,6 @@ export async function putInSlot(input: {
   record("plan.set", gate.user.id, input.from ?? "/plan");
 
   revalidatePath("/plan");
-  revalidatePath("/tonight");
   if (input.recipeId) revalidatePath(`/recipes/${input.recipeId}`);
   return { ok: true };
 }
@@ -115,7 +113,6 @@ export async function emptySlot(date: string, slot: number): Promise<PlanResult>
 
   await clearMeal(gate.kitchen.id, day, slot);
   revalidatePath("/plan");
-  revalidatePath("/tonight");
   return { ok: true };
 }
 
@@ -138,7 +135,6 @@ export async function shiftMeal(
   );
 
   revalidatePath("/plan");
-  revalidatePath("/tonight");
   return { ok: true };
 }
 
@@ -211,11 +207,12 @@ export async function copyWeekForward(start: string): Promise<PlanResult> {
 /**
  * Fills every empty slot from here to Sunday with something worth cooking.
  *
- * The fun one, and it is not a random shuffle. It runs the same ranker
- * /tonight uses, which already knows what is about to go off, what the shelves
- * can supply and what was cooked recently - so a filled week uses up the
- * spinach, does not put Tuesday's dinner on Wednesday, and leans towards
- * things you can actually make.
+ * Not a random shuffle. It ranks the cookbook by what the kitchen has said
+ * about its own cooking - ratings, how often it goes back to a recipe, and how
+ * recently it had it - so a filled week leans towards favourites and does not
+ * put Tuesday's dinner on Wednesday. It used to lean on the shelves as well,
+ * what was in and what was about to go off; v2 keeps no stock, so the ranker
+ * in lib/plan.ts is the Tonight one with those two signals taken out.
  *
  * Only forwards. Filling in Monday on a Thursday would be the app writing down
  * a week that did not happen.
@@ -233,7 +230,7 @@ export async function fillTheGaps(start: string): Promise<PlanResult> {
   const today = isoDate(new Date());
 
   const [facts, planned] = await Promise.all([
-    getTonightFacts(gate.kitchen.id, gate.user.id),
+    getPlanningFacts(gate.kitchen.id, gate.user.id),
     getPlanned(gate.kitchen.id, from, addDays(from, 6)),
   ]);
 
@@ -259,7 +256,7 @@ export async function fillTheGaps(start: string): Promise<PlanResult> {
       .filter((id): id is number => id !== null),
   );
 
-  const ranked = rankTonight(facts);
+  const ranked = rankForPlanning(facts);
   let filled = 0;
   /**
    * Whether it stopped because it ran out of recipes rather than out of days.
@@ -298,7 +295,6 @@ export async function fillTheGaps(start: string): Promise<PlanResult> {
   }
 
   revalidatePath("/plan");
-  revalidatePath("/tonight");
 
   if (filled === 0) {
     return { ok: false, error: "Nothing left to fill, or nothing new to fill it with." };
@@ -308,25 +304,70 @@ export async function fillTheGaps(start: string): Promise<PlanResult> {
     ok: true,
     message: ranDry
       ? `${days} — that is every recipe in the cookbook once. Add more and the rest of the week fills too.`
-      : `${days}, using up what expires soonest first.`,
+      : `${days}, favourites first and nothing you had lately.`,
   };
 }
 
 /**
- * Puts everything the week is short of onto the shopping list, in one go.
+ * Everything the rest of this week would need buying, line by line.
  *
  * One trip for seven dinners, which is how shopping actually works and is the
- * thing a paper meal plan cannot do. Every recipe is judged against the SAME
- * snapshot of the shelves, and a name spoken for by Monday is not listed again
- * for Thursday - otherwise a week with pasta twice in it asks you to buy pasta
- * twice.
+ * thing a paper meal plan cannot do. A name spoken for by Monday is not listed
+ * again for Thursday - otherwise a week with pasta twice in it asks you to buy
+ * pasta twice.
  *
- * It does not add up the amounts across days. Two dinners needing 200g each is
- * not reliably 400g on a shelf that already holds 300g, and quietly doubling a
- * number somebody will act on in a shop is worse than listing it once and
- * letting them look.
+ * It does not add up the amounts across days. Two dinners needing 200g each
+ * may or may not be 400g of shopping, and quietly doubling a number somebody
+ * will act on in a shop is worse than listing it once and letting them look.
+ *
+ * Shared by the preview and the commit, so the checklist a person unticks and
+ * the lines that are then written come from the same arithmetic.
  */
-export async function shopForTheWeek(start: string): Promise<PlanResult> {
+async function weekShortfall(
+  kitchenId: number,
+  viewerId: number,
+  from: string,
+): Promise<{ lines: ChecklistLine[]; alreadyListed: number; recipes: number }> {
+  const today = isoDate(new Date());
+  const planned = (await getPlanned(kitchenId, from, addDays(from, 6)))
+    // Shopping for Monday on Thursday is shopping for a dinner already eaten.
+    .filter((meal) => meal.recipe_id !== null && meal.on_date >= today);
+
+  const already = await pendingNames({ kitchen: kitchenId });
+  const lines: ChecklistLine[] = [];
+  let alreadyListed = 0;
+  let recipes = 0;
+
+  for (const meal of planned) {
+    const recipe = await getRecipe(meal.recipe_id!, viewerId);
+    if (!recipe) continue;
+    recipes += 1;
+
+    const shortfall = recipeShortfall(
+      recipe,
+      meal.servings ?? recipe.base_servings,
+      already,
+    );
+    alreadyListed += shortfall.alreadyListed;
+
+    for (const line of shortfall.wanted) {
+      lines.push({
+        // The day and slot as well as the line: the same recipe planned twice
+        // is two meals, and only the first one's lines survive the name check.
+        key: `${meal.on_date}:${meal.slot}:${line.ingredientId}`,
+        name: line.name,
+        quantity: line.quantity,
+        unit: line.unit,
+        source: recipe.name,
+      });
+    }
+  }
+
+  return { lines, alreadyListed, recipes };
+}
+
+/** What shopping for the rest of the week would add. Writes nothing. */
+export async function previewWeekShopping(start: string): Promise<ChecklistPreview> {
   const gate = await access();
   if (!gate.ok) return { ok: false, error: gate.error };
 
@@ -335,64 +376,61 @@ export async function shopForTheWeek(start: string): Promise<PlanResult> {
     return { ok: false, error: "That is not the start of a week." };
   }
 
-  const today = isoDate(new Date());
-  const planned = (await getPlanned(gate.kitchen.id, from, addDays(from, 6)))
-    // Shopping for Monday on Thursday is shopping for a dinner already eaten.
-    .filter((meal) => meal.recipe_id !== null && meal.on_date >= today);
+  const { lines, alreadyListed, recipes } = await weekShortfall(
+    gate.kitchen.id,
+    gate.user.id,
+    from,
+  );
+  if (recipes === 0) return { ok: false, error: "Nothing left to shop for this week." };
+  return { ok: true, lines, alreadyListed };
+}
 
-  if (planned.length === 0) {
-    return { ok: false, error: "Nothing left to shop for this week." };
+/**
+ * Puts the lines somebody left ticked onto the shopping list.
+ *
+ * Recomputed rather than taken from the browser, so the names and amounts are
+ * the ones the plan says and a line somebody else listed in the meantime is
+ * not listed twice.
+ */
+export async function shopForTheWeek(
+  start: string,
+  keys: string[],
+): Promise<PlanResult> {
+  const gate = await access();
+  if (!gate.ok) return { ok: false, error: gate.error };
+
+  const from = readDate(start);
+  if (!from || weekStart(from) !== from) {
+    return { ok: false, error: "That is not the start of a week." };
   }
 
-  const stock = await getItems(gate.kitchen.id);
-  const shelves = {
-    index: indexStock(stock),
-    byId: new Map(stock.map((item) => [item.id, item])),
-    links: new Map<number, number | null>(),
-  };
+  const chosen = new Set(Array.isArray(keys) ? keys.filter((key) => typeof key === "string") : []);
+  const { lines } = await weekShortfall(gate.kitchen.id, gate.user.id, from);
 
-  const already = await pendingNames({ kitchen: gate.kitchen.id });
   let added = 0;
-  const shoppedFor: string[] = [];
-
-  for (const meal of planned) {
-    const recipe = await getRecipe(meal.recipe_id!, gate.user.id);
-    if (!recipe) continue;
-
-    // Per recipe, because the links that say which jar an ingredient means are
-    // written when a recipe is adopted and are specific to it.
-    shelves.links = await getLinks(gate.kitchen.id, recipe.id);
-
-    const { wanted } = recipeShortfall(
-      recipe,
-      meal.servings ?? recipe.base_servings,
-      shelves,
-      already,
-    );
-
-    for (const line of wanted) {
-      await addLine({ kitchen: gate.kitchen.id }, gate.user.id, {
-        name: line.name,
-        quantity: line.quantity,
-        unit: line.unit,
-        itemId: line.itemId,
-        source: recipe.name,
-      });
-      added += 1;
-    }
-    if (wanted.length > 0) shoppedFor.push(recipe.name);
+  const shoppedFor = new Set<string>();
+  for (const line of lines) {
+    if (!chosen.has(line.key)) continue;
+    await addLine({ kitchen: gate.kitchen.id }, gate.user.id, {
+      name: line.name,
+      quantity: line.quantity,
+      unit: line.unit,
+      source: line.source,
+    });
+    added += 1;
+    shoppedFor.add(line.source);
   }
 
   record("plan.shop", gate.user.id, "/plan");
 
-  revalidatePath("/pantry/list");
+  revalidatePath("/list");
   revalidatePath("/plan");
 
   if (added === 0) {
-    return { ok: true, message: "You already have everything for this week." };
+    return { ok: true, message: "Nothing ticked, so nothing added." };
   }
   return {
     ok: true,
-    message: `${added} ${added === 1 ? "thing" : "things"} added for ${shoppedFor.length} ${shoppedFor.length === 1 ? "meal" : "meals"}.`,
+    message: `${added} ${added === 1 ? "thing" : "things"} added for ${shoppedFor.size} ${shoppedFor.size === 1 ? "meal" : "meals"}.`,
   };
 }

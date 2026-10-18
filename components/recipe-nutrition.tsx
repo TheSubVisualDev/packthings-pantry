@@ -76,12 +76,15 @@ export function RecipeNutrition({ macros }: { macros: RecipeMacros }) {
         ) : (
           <>From all {macros.total} ingredients.</>
         )}
+        {/* Every figure is a standard one since v2 dropped the stock rows
+            that carried packet figures, so this is said once rather than
+            counted: "4 of them are standard figures" of 4 was a sum. */}
         {macros.estimated > 0 && (
           <>
             {" "}
-            {macros.estimated} of them{" "}
-            {macros.estimated === 1 ? "is a" : "are"} standard figure
-            {macros.estimated === 1 ? "" : "s"} rather than a packet.
+            {macros.estimated === macros.counted
+              ? "Standard figures for each food, not a packet's."
+              : `${macros.estimated} of them are standard figures rather than a packet.`}
           </>
         )}
       </p>

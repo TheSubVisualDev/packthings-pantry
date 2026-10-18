@@ -25,6 +25,7 @@ import {
   writeQuantity,
 } from "../lib/units.ts";
 import { parseRecipeDocument } from "../lib/recipe-schema.ts";
+import { recipeShortfall } from "../lib/shopping.ts";
 
 let failures = 0;
 function check(what, got, expected) {
@@ -150,23 +151,8 @@ check("a real typo", toCanonical(1, "cups", "volume"), {
 
 /* --- the document parser --- */
 
-const ITEMS = [
-  {
-    id: 1,
-    name: "Salt",
-    dimension: "mass",
-    canonical_unit: "g",
-    quantity: 500,
-    sealed_count: 0,
-    pack_size: null,
-    pack_unit: null,
-    unspecified: 0,
-    count_noun: null,
-  },
-];
-
 const doc = (ingredients) => ({ name: "Test", base_servings: 2, ingredients });
-const parse = (ingredients) => parseRecipeDocument(doc(ingredients), ITEMS);
+const parse = (ingredients) => parseRecipeDocument(doc(ingredients));
 
 // An unmeasured line needs no quantity, and is not a problem.
 const toTaste = parse([{ item_name: "Salt", unit: UNMEASURED, note: "to taste" }]);
@@ -182,20 +168,10 @@ check(
   false,
 );
 
-// A gram line against a gram item is fine; a tablespoon one warns. An
-// unmeasured line must do neither - there is no dimension to mismatch.
-check(
-  "unmeasured never warns about units",
-  toTaste.warnings.filter((w) => w.kind === "unit-mismatch").length,
-  0,
-);
-check(
-  "a real mismatch still warns",
-  parse([{ item_name: "Salt", quantity: 1, unit: "tbsp" }]).warnings.filter(
-    (w) => w.kind === "unit-mismatch",
-  ).length,
-  1,
-);
+// There used to be a unit-mismatch warning here, for a tablespoon against a
+// stock row weighed in grams. v2 keeps no stock, so a recipe is checked as a
+// recipe: an unmeasured line warns about nothing.
+check("unmeasured never warns", toTaste.warnings.length, 0);
 
 // A pack size on an unmeasured line is a caller who wanted something else.
 // Refused rather than dropped, so they find out.
@@ -215,6 +191,50 @@ check(
     ?.ingredients[0].approx,
   false,
 );
+
+
+/* --- the shopping list ---
+ *
+ * With no stock (v2) the shortfall is every line, and the person unticks what
+ * they have. Every line except the two a recipe is saying you do not need to
+ * buy: an unmeasured one and an optional one. Before v2 an unmeasured line was
+ * left off only when the shelf had some; with no shelf, nothing says you have
+ * salt, and listing it would put salt on the list for every recipe for ever.
+ */
+{
+  const line = (id, item_name, quantity, unit, optional = 0) => ({
+    id, item_name, quantity, unit, optional,
+  });
+  const recipe = {
+    base_servings: 2,
+    ingredients: [
+      line(1, "Spaghetti", 200, "g"),
+      line(2, "Salt", 1, UNMEASURED),
+      line(3, "Parsley", 10, "g", 1),
+      line(4, "Eggs", 2, "count"),
+    ],
+  };
+
+  const once = recipeShortfall(recipe, 4, new Set());
+  check(
+    "the shortfall is every measured, required line",
+    once.wanted.map((each) => each.name),
+    ["Spaghetti", "Eggs"],
+  );
+  check("salt to taste never goes on the list", once.wanted.some((each) => each.name === "Salt"), false);
+  check("scaled to the servings asked for", once.wanted[0].quantity, 400);
+
+  // A name already on the list is not listed again, and is reported, so
+  // "nothing to add" can say why.
+  const listed = recipeShortfall(recipe, 2, new Set(["spaghetti"]));
+  check("already listed is skipped", listed.wanted.map((each) => each.name), ["Eggs"]);
+  check("and counted", listed.alreadyListed, 1);
+
+  // Shared across a week: the second recipe does not list what the first did.
+  const week = new Set();
+  recipeShortfall(recipe, 2, week);
+  check("a week lists a name once", recipeShortfall(recipe, 2, week).wanted.length, 0);
+}
 
 if (failures > 0) {
   console.error(`\n${failures} failed`);

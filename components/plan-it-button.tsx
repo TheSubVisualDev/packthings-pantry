@@ -83,7 +83,7 @@ export function PlanItButton({
           back at the button. */}
       {done && (
         <p className="mt-1.5 text-center text-xs font-semibold text-muted-foreground">
-          It will be waiting on the Tonight screen that day.
+          It is on the week&rsquo;s plan, under Plan.
         </p>
       )}
       {error && (
@@ -96,7 +96,7 @@ export function PlanItButton({
         open={open}
         onClose={() => setOpen(false)}
         title="Plan it for a day"
-        description="Pick a meal. It shows up on Tonight when the day comes."
+        description="Pick a meal. It goes on the week's plan."
       >
         <div className="space-y-3">
           {days.map((day) => (

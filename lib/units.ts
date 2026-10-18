@@ -178,16 +178,6 @@ export const ENTRY_UNITS = Object.keys(FACTORS);
 export const RECIPE_UNITS = [...ENTRY_UNITS, UNMEASURED];
 
 /**
- * How much one tap of +/- moves an item. Grams and millilitres are too fine to
- * step one at a time; counts are whole things and step by one.
- */
-export const ADJUST_STEP: Record<Dimension, number> = {
-  mass: 100,
-  volume: 100,
-  count: 1,
-};
-
-/**
  * What to print after a number, spaced the way the unit is said.
  *
  * "500ml" and "1 pack", not "500 ml" and "1pack". Symbols hug the number

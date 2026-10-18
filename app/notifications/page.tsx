@@ -36,14 +36,14 @@ export default async function NotificationsPage() {
 
   return (
     <>
-      {/* No tab is right for this page - it is not one of the four sections,
+      {/* No tab is right for this page - it is not one of the three sections,
           and highlighting Cookbook said you were somewhere you were not. */}
       <SiteHeader active="none" />
 
       <div className="mx-auto w-full max-w-[720px] px-5 pt-6 pb-32 sm:px-9 sm:py-7">
         <div className="mb-1 flex items-center gap-3">
           <Link
-            href="/tonight"
+            href="/recipes"
             aria-label="Back"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-chip"
           >

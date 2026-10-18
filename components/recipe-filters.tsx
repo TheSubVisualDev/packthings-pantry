@@ -27,7 +27,7 @@ export function RecipeFilters({
   activeTag: string | null;
   activeWithin: number | null;
   term: string;
-  /** Which list is being filtered - the cookbook, or tonight's shortlist. */
+  /** Which list is being filtered. The cookbook, since Tonight went in v2. */
   basePath?: string;
 }) {
   /** Keeps whatever else is set while changing one thing. */

@@ -1,43 +1,23 @@
 "use client";
 
-import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useActionState, useMemo, useState, useTransition } from "react";
-import { SoftSelect } from "@/components/soft-select";
-import { suggestFor, type ItemProfile } from "@/lib/suggest";
+import { estimateFor } from "@/lib/generic-nutrition";
 import {
   addItemToList,
   clearDone,
   drop,
+  gotEverything,
   tick,
   type ListResult,
-} from "@/app/pantry/list/actions";
-import { gotEverything, putAwayBought } from "@/app/pantry/trip-actions";
-import type { LeftBehind } from "@/app/pantry/trip-actions";
+} from "@/app/list/actions";
 import { ENTRY_UNITS, formatQuantity, unitSuffix } from "@/lib/units";
 import type { ShoppingLine } from "@/lib/shopping";
 
 const SMALL =
   "rounded-[12px] border border-border bg-card px-3 py-2.5 font-semibold outline-none focus:border-primary";
 
-export function ShoppingList({
-  lines,
-  filter,
-  profiles,
-}: {
-  lines: ShoppingLine[];
-  /** The shop the list is narrowed to, if any. */
-  filter?: string | null;
-  /**
-   * What the kitchen already holds, so a line can be typed once and mean the
-   * same row the pantry already knows about.
-   *
-   * Free text here was quietly expensive: "bread" and "Bread" and "Sourdough
-   * bread" all became separate lines, and none of them matched the stock row
-   * the shortfall list was trying not to duplicate.
-   */
-  profiles: ItemProfile[];
-}) {
+export function ShoppingList({ lines }: { lines: ShoppingLine[] }) {
   const [state, formAction, pending] = useActionState<ListResult, FormData>(
     addItemToList,
     { ok: true },
@@ -58,28 +38,7 @@ export function ShoppingList({
    */
   const [ticked, setTicked] = useState<Record<number, boolean>>({});
   const [tickError, setTickError] = useState<string | null>(null);
-  /** What putting the basket away did, said once and left on screen. */
-  const [putAway, setPutAway] = useState<string | null>(null);
-  /**
-   * The lines the put-away could not finish.
-   *
-   * Kept apart from the sentence above because each one is a thing to do
-   * rather than a thing to read, and a tap that fixes it beats a tap that
-   * dismisses it.
-   */
-  const [leftBehind, setLeftBehind] = useState<LeftBehind[]>([]);
-
-  /**
-   * Lines put away on the press, before Nuremberg has said so.
-   *
-   * "Got everything" and "Put these away" were the two buttons on this screen
-   * that still waited for the round trip - a faded button and nothing else,
-   * at the till, which is where a pause reads as "did that work?". Both move
-   * on the press now, and go back and say so if the write fails, the same
-   * bargain the single ticks above have always made.
-   */
-  const [gone, setGone] = useState<ReadonlySet<number>>(() => new Set());
-  const shown = lines.filter((line) => !gone.has(line.id));
+  const shown = lines;
 
   const isBought = (line: ShoppingLine) =>
     ticked[line.id] ?? Boolean(line.bought_at);
@@ -97,14 +56,20 @@ export function ShoppingList({
   }
 
   /**
-   * The unit follows the name, the same way it does on the add form.
+   * The unit follows the name.
    *
    * Grams was the default for everything, so a line for bread went on the list
-   * as "500 g bread" unless somebody noticed and changed it.
+   * as "500 g bread" unless somebody noticed and changed it. The generic-food
+   * table carries a typical weight for things that are counted, so its
+   * presence answers "is this counted or weighed". It used to ask the
+   * kitchen's own stock first, and v2 has no stock to ask.
    */
-  const guess = useMemo(() => suggestFor(draft, profiles), [draft, profiles]);
+  const guess = useMemo(() => {
+    const generic = draft.trim().length >= 2 ? estimateFor(draft.trim()) : null;
+    return generic ? (generic.unitGrams ? "count" : "g") : null;
+  }, [draft]);
   const [unitOverride, setUnitOverride] = useState<string | null>(null);
-  const unit = unitOverride ?? guess.unit ?? "g";
+  const unit = unitOverride ?? guess ?? "g";
 
   /**
    * Clears and refocuses the moment you submit, not when the server replies.
@@ -122,30 +87,10 @@ export function ShoppingList({
     formAction(data);
   }
 
-  /**
-   * Outstanding lines, grouped by shop, in the order the query returned them.
-   *
-   * A Map preserves insertion order, so the SQL's ORDER BY decides the groups
-   * and their contents - there is one place that knows what order a shopping
-   * list goes in, and it is not here.
-   */
-  const byShop = (() => {
-    const groups = new Map<string, ShoppingLine[]>();
-    for (const line of shown.filter((entry) => !isBought(entry))) {
-      /**
-       * Under a filter, anything with a shop is here by definition - the query
-       * only kept lines this shop sells - so it groups under the shop you are
-       * standing in, not the one you usually use. Saying "Asian supermarket"
-       * over a line while you are in Tesco is just wrong.
-       */
-      const key = filter && line.shop ? filter : (line.shop ?? "Anywhere");
-      const bucket = groups.get(key);
-      if (bucket) bucket.push(line);
-      else groups.set(key, [line]);
-    }
-    return [...groups.entries()];
-  })();
-
+  // In the order the query returned them: there is one place that knows what
+  // order a shopping list goes in, and it is not here. Grouping by shop went
+  // with stock, which was where a line's shop was recorded.
+  const todo = shown.filter((line) => !isBought(line));
   const done = shown.filter((line) => isBought(line));
   const inBasket = done.length;
   const total = shown.length;
@@ -302,115 +247,26 @@ export function ShoppingList({
         </p>
       )}
 
-      {putAway && (
-        <p className="rounded-[14px] bg-chip px-4 py-3 text-sm font-semibold">
-          {putAway}
-        </p>
-      )}
-
-      {/* Each loose end with the tap that ties it. An item the pantry has
-          never heard of needs adding, with the name and amount off the list
-          already in the boxes; one that never said what a pack holds needs
-          that said on its own page. Both leave the line where it is until
-          the next put-away, so nothing is lost by ignoring this. */}
-      {leftBehind.length > 0 && (
-        <ul className="stagger space-y-2">
-          {leftBehind.map((line) => (
-            <li
-              key={`${line.reason}-${line.name}`}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-[14px] bg-chip px-4 py-3 text-sm font-semibold"
-            >
-              <span>
-                {line.name} &mdash;{" "}
-                {line.reason === "unknown"
-                  ? "not on your shelves yet"
-                  : "nobody has said what one pack holds"}
-              </span>
-              <Link
-                href={
-                  line.reason === "unknown"
-                    ? `/pantry/add?${new URLSearchParams({
-                        name: line.name,
-                        ...(line.quantity ? { quantity: String(line.quantity) } : {}),
-                        ...(line.unit ? { unit: line.unit } : {}),
-                      })}`
-                    : `/pantry/item/${line.itemId}`
-                }
-                className="shrink-0 rounded-full bg-ink px-4 py-2 text-xs font-extrabold text-background"
-              >
-                {line.reason === "unknown" ? "Add it" : "Say the pack size"}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-
       {shown.length === 0 ? (
         <p className="rounded-[20px] bg-card p-6 text-sm font-semibold text-muted-foreground shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-          {/* The second sentence is about comparing a recipe to shelves, which
-              a list with no kitchen behind it cannot do. Promising it there
-              would be the empty state describing a different app. Both point
-              down at the add form now that the list sits above it. */}
-          {profiles.length === 0
-            ? "Nothing on the list yet. Add what you need below."
-            : "Nothing on the list. Add what you need below, or cook something you’re short of and it’ll offer to add what’s missing."}
+          {/* Points down at the add form, which sits under the list, and at
+              the other way in: shopping for a recipe from its own page. */}
+          Nothing on the list yet. Add what you need below, or shop for a
+          recipe from its page or from the week&rsquo;s plan.
         </p>
       ) : (
         <div className="space-y-4">
-          {byShop.map(([shop, shopLines]) => (
-            <section key={shop}>
-              {/* No heading when everything is unassigned: a single "Anywhere"
-                  banner over the whole list is a label, not information. */}
-              {byShop.length > 1 && (
-                <h2 className="mb-1.5 text-xs font-bold uppercase tracking-[0.08em] text-label">
-                  {shop}
-                </h2>
-              )}
-              <ul className="stagger overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-                {shopLines.map(row)}
-              </ul>
-            </section>
-          ))}
+          {todo.length > 0 && (
+            <ul className="stagger overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+              {todo.map(row)}
+            </ul>
+          )}
 
           {done.length > 0 && (
             <section id="basket">
-              <div className="mb-1.5 flex items-center justify-between gap-3">
-                <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-label">
-                  In the basket &middot; {done.length}
-                </h2>
-                {/* The walk from the front door to the cupboard. Ticking
-                    something off says you are holding it and nothing about
-                    the shelf; this is the sentence that finishes the trip for
-                    anybody who did not scan a receipt. */}
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => {
-                    setGone(new Set(done.map((line) => line.id)));
-                    setTickError(null);
-                    setPutAway(`Putting ${done.length} away…`);
-                    startTransition(async () => {
-                      const result = await putAwayBought();
-                      setGone(new Set());
-                      if (!result.ok) {
-                        setPutAway(null);
-                        setTickError(result.error ?? "Couldn't put those away.");
-                        return;
-                      }
-                      setTicked({});
-                      setPutAway(
-                        result.stocked?.length
-                          ? `${result.stocked.length} put away.`
-                          : null,
-                      );
-                      setLeftBehind(result.left ?? []);
-                    });
-                  }}
-                  className="min-h-9 rounded-full bg-ink px-4 text-xs font-extrabold text-background disabled:opacity-60 print:hidden"
-                >
-                  Put these away
-                </button>
-              </div>
+              <h2 className="mb-1.5 text-xs font-bold uppercase tracking-[0.08em] text-label">
+                In the basket &middot; {done.length}
+              </h2>
               <ul className="overflow-hidden rounded-[20px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
                 {done.map(row)}
               </ul>
@@ -423,8 +279,7 @@ export function ShoppingList({
         The checkout, as one button.
 
         Ticking eleven things off at the till is eleven taps in a queue with a
-        basket in one hand. The receipt scanner does this and the restocking
-        at once; this is for the shop that gave you a paper receipt, or none.
+        basket in one hand.
       */}
       {total > inBasket && (
         <button
@@ -432,8 +287,8 @@ export function ShoppingList({
           disabled={pending}
           onClick={() => {
             const before = ticked;
-            // What is on screen and not yet ticked - under a shop filter,
-            // only that shop's lines, which is what "everything" means here.
+            // What is on screen and not yet ticked, by id - not everything in
+            // the list, which may have grown on another phone meanwhile.
             const toTick = shown.filter((line) => !isBought(line)).map((line) => line.id);
             setTicked((current) => ({
               ...current,
@@ -477,39 +332,17 @@ export function ShoppingList({
         </h2>
         <form action={submit} className="mt-3 space-y-3">
           <div className="flex flex-wrap gap-2">
-            {/* Offers what the kitchen already calls things, so a line matches
-                the stock row it means rather than becoming a second name for
-                it. Still free text: half of what goes on a shopping list is
-                something you have never bought before. */}
             <div className="min-w-36 flex-1">
-              {/* A picker with nothing in it is a dropdown arrow that opens on
-                  an empty box - which is what a list with no kitchen behind
-                  it got. There are no stock names to offer, so it is just a
-                  field. */}
-              {profiles.length === 0 ? (
-                <input
-                  key={seq}
-                  autoFocus={seq > 0}
-                  id="shopping-name"
-                  name="name"
-                  placeholder="What do you need?"
-                  aria-label="What to buy"
-                  onChange={(event) => setDraft(event.target.value)}
-                  className={`${SMALL} w-full`}
-                />
-              ) : (
-                <SoftSelect
-                  key={seq}
-                  autoFocus={seq > 0}
-                  id="shopping-name"
-                  name="name"
-                  options={profiles.map((profile) => profile.name)}
-                  onValueChange={setDraft}
-                  placeholder="What do you need?"
-                  label="What to buy"
-                  className={`${SMALL} w-full pr-9`}
-                />
-              )}
+              <input
+                key={seq}
+                autoFocus={seq > 0}
+                id="shopping-name"
+                name="name"
+                placeholder="What do you need?"
+                aria-label="What to buy"
+                onChange={(event) => setDraft(event.target.value)}
+                className={`${SMALL} w-full`}
+              />
             </div>
             <input
               name="quantity"

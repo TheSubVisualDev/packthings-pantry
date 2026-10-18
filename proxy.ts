@@ -104,7 +104,7 @@ export default async function proxy(request: NextRequest) {
      * A well-signed cookie for an account that no longer exists.
      *
      * The signature is valid, so this gate says authenticated and bounces
-     * /login to /tonight - and /tonight looks the user up, finds nobody, and
+     * /login to the front door - which looks the user up, finds nobody, and
      * sends them back to /login. That loop is unrecoverable without clearing
      * cookies by hand, and it is exactly what happens to somebody whose
      * account is deleted while they are signed in.
@@ -122,8 +122,8 @@ export default async function proxy(request: NextRequest) {
       return stale;
     }
 
-    // /tonight, not /pantry - phase 6 made "what to cook" the front door.
-    return NextResponse.redirect(new URL("/tonight", request.url));
+    // The cookbook is the front door since v2 took out the stock screens.
+    return NextResponse.redirect(new URL("/recipes", request.url));
   }
 
   if (authenticated) return NextResponse.next();

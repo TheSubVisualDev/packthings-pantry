@@ -170,15 +170,12 @@ export async function runQuery(sql: string): Promise<QueryResult> {
 /**
  * Columns this tool will not write, whatever anybody types.
  *
- * `quantity` and `sealed_count` are the container rule. Since containers
- * arrived, quantity means what is in the OPEN one and the two move together
- * under rules written down twice - in ADJUST_SQL and in applyDelta - which
- * `npm run check:cascade` holds to agreeing over 480 cases. A form that sets
- * either directly bypasses both and the count is quietly wrong from then on.
- * AGENTS.md keeps a tally of that bug; it is at five.
+ * `items.quantity` and `items.sealed_count` were here too, because the
+ * container rule moved them together and a direct write broke it. v2 removed
+ * stock tracking (18 Oct 2026) and nothing reads those rows any more, so the
+ * rule protects nothing; the rows themselves are deleted at ship.
  */
 const OFF_LIMITS: Record<string, string[]> = {
-  items: ["quantity", "sealed_count"],
   users: ["password_hash", "api_token"],
 };
 
@@ -186,9 +183,6 @@ const OFF_LIMITS: Record<string, string[]> = {
 export function refusalFor(table: string, column: string): string | null {
   if (column === "_rowid" || column === "rowid") {
     return "The row's own address - changing it would move the row, not edit it.";
-  }
-  if (table === "items" && OFF_LIMITS.items.includes(column)) {
-    return "Stock levels move through the adjust control, which keeps the open container and the sealed ones in step. Setting this directly is the bug AGENTS.md keeps a count of.";
   }
   if (table === "users" && OFF_LIMITS.users.includes(column)) {
     return "A credential. Rotate it from settings, where the new one is shown to the person it belongs to.";

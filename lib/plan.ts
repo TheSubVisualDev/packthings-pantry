@@ -335,3 +335,89 @@ export async function whatIsNext(
   const planned = await getPlanned(kitchenId, today, addDays(today, 7));
   return planned.find((meal) => meal.recipe_id !== null) ?? null;
 }
+
+/**
+ * What "Fill the gaps" knows about one recipe. No database types, so the
+ * ranking below can be checked without one.
+ */
+export interface PlanningFacts {
+  id: number;
+  name: string;
+  /** Prep plus cook, or null when nobody has said. */
+  minutes: number | null;
+  /** Average rating out of 5, or null. */
+  rating: number | null;
+  timesCooked: number;
+  /** Days since this kitchen last cooked it, or null for never. */
+  daysSinceCooked: number | null;
+}
+
+/**
+ * What each signal is worth when filling a week.
+ *
+ * These are the Tonight ranker's weights with the two stock signals taken
+ * out. Readiness (how much was on the shelf) and urgency (what was about to go
+ * off) both read stock, and v2 does not keep any - so what is left is what a
+ * kitchen has told the app about its own cooking. Kept at the same values
+ * rather than retuned, because the orderings they produced were already
+ * argued over in check:tonight and the ones that survive are pinned in
+ * check:plan.
+ */
+export const PLANNING_WEIGHTS = {
+  /** You have rated it, or keep going back to it. */
+  affection: 0.5,
+  /**
+   * You had it recently. Negative, and heavy enough to sink a favourite -
+   * nobody wants the same dinner three nights running.
+   */
+  fatigue: -1.4,
+  /** Mildly prefers the quicker of two otherwise equal options. */
+  effort: 0.25,
+} as const;
+
+/** How long it takes to want something again. */
+const FATIGUE_FADES_AFTER_DAYS = 14;
+
+/** Past this, one more minute stops making a recipe meaningfully longer. */
+const LONG_RECIPE_MINUTES = 90;
+
+const clamp = (value: number) => Math.max(0, Math.min(1, value));
+
+export function scoreForPlanning(facts: PlanningFacts): number {
+  /**
+   * Liking it and returning to it, weighted towards the rating.
+   *
+   * times_cooked saturates at five: the difference between cooking something
+   * once and six times says a lot, and the difference between twenty and
+   * thirty says nothing except that it is old.
+   */
+  const affection =
+    0.6 * (facts.rating === null ? 0 : facts.rating / 5) +
+    (0.4 * Math.min(facts.timesCooked, 5)) / 5;
+
+  const fatigue =
+    facts.daysSinceCooked === null
+      ? 0
+      : clamp(1 - facts.daysSinceCooked / FATIGUE_FADES_AFTER_DAYS);
+
+  // An untimed recipe makes no claim about being quick and gets nothing here,
+  // rather than being treated as instant.
+  const effort =
+    facts.minutes === null
+      ? 0
+      : 1 - Math.min(facts.minutes, LONG_RECIPE_MINUTES) / LONG_RECIPE_MINUTES;
+
+  return (
+    affection * PLANNING_WEIGHTS.affection +
+    fatigue * PLANNING_WEIGHTS.fatigue +
+    effort * PLANNING_WEIGHTS.effort
+  );
+}
+
+/** The cookbook, best first for an empty slot. Ties go alphabetically. */
+export function rankForPlanning(candidates: PlanningFacts[]): PlanningFacts[] {
+  return candidates
+    .map((facts) => ({ facts, score: scoreForPlanning(facts) }))
+    .sort((a, b) => b.score - a.score || a.facts.name.localeCompare(b.facts.name))
+    .map(({ facts }) => facts);
+}

@@ -5,147 +5,62 @@ import { getDb } from "@/lib/db";
 import { requireKitchenRole, requireUser } from "@/lib/session";
 import { getRecipe } from "@/lib/queries";
 import { rate } from "@/lib/recipe-store";
-import { addToCookbook, isInCookbook, resolveWithLinks } from "@/lib/cookbook";
-import { indexStock } from "@/lib/pantry-match";
-import { resolveAmount, scaleQuantity } from "@/lib/units";
-import { ADJUST_SQL } from "@/lib/containers";
-import { addLine, pendingNames, removeLine } from "@/lib/shopping";
-import { unpinIf } from "@/lib/trip";
+import { addToCookbook, isInCookbook } from "@/lib/cookbook";
 import { record } from "@/lib/usage";
 import { forgetCook, record as tellAuthor } from "@/lib/notifications";
-import type {
-  CookChange,
-  CookEvent,
-  Dimension,
-  Item,
-  Recipe,
-  RecipeIngredient,
-} from "@/lib/types";
-
-export interface CookLineResult {
-  item_name: string;
-  /** The stock row it came off, so a caller can act on the item itself. */
-  item_id?: number;
-  /** Amount taken out of stock, in the item's canonical unit. */
-  decremented?: number;
-  unit?: string;
-  /** What is left in the OPEN container. */
-  remaining?: number;
-  /**
-   * What is left on the shelf altogether - sealed packs and the open one.
-   *
-   * `remaining` is the open container alone, so a cook that finished the open
-   * bottle reported "0 left" with two sealed ones behind it. Anything asking
-   * whether something has run out wants this number.
-   */
-  remaining_total?: number;
-  /** Set when the line couldn't be applied cleanly. */
-  issue?: "not-in-pantry" | "dimension-mismatch" | "unknown-unit" | "short";
-  detail?: string;
-}
-
-export interface OpenedPack {
-  item_id: number;
-  item_name: string;
-  /**
-   * How long it keeps once open, if anybody has ever said.
-   *
-   * Null is why the rescue panel is dark for most of a pantry: the deadline
-   * that applies to an open jar is opened_at plus this, and without it an open
-   * jar has no deadline at all. Opening one is the moment to ask, because it
-   * is the moment somebody is holding it.
-   */
-  shelf_life_days: number | null;
-}
+import type { CookEvent, Recipe } from "@/lib/types";
 
 export interface CookResult {
-  /**
-   * Items where cooking finished the open container and broke into a sealed
-   * one. Their old expiry date has been cleared - it belonged to a packet that
-   * no longer exists - so these are the ones worth asking about.
-   */
-  opened: OpenedPack[];
   ok: boolean;
   error?: string;
-  applied: CookLineResult[];
-  flagged: CookLineResult[];
-  /** Row in cook_events, and the handle undo needs. Absent if nothing moved. */
+  /** Row in cook_events, and the handle undo needs. */
   eventId?: number;
   /** What was cooked, for anything that has to say so afterwards. */
   recipeName?: string;
-  /** Lines deliberately left out, as the recipe words them. */
-  skipped: string[];
 }
 
 /**
- * Marks a recipe cooked at the chosen serving count and decrements stock.
+ * Says a recipe was cooked, at a serving count.
  *
- * The whole read-scale-write runs inside one transaction: a stock edit from
- * Claude Code (the other writer on this database) must not interleave and
- * double-apply or lose a decrement. Quantities are recomputed from the
- * database rather than trusted from the client.
+ * Until v2 this was the heaviest write in the app: every line resolved to a
+ * stock row, converted, scaled and taken off the shelf through the container
+ * rule, all in one transaction. v2 removed stock tracking on 18 Oct 2026 - the
+ * shelf was the thing nobody kept up to date, so every number it subtracted
+ * from was already wrong (docs/ROADMAP-V2.md). What is left is the part that
+ * was always true: somebody cooked this, for this many, on this day. That is
+ * what the cooked log, the planner's "had it recently", the author's
+ * notification and times_cooked all read.
  *
- * Lines that can't be matched - ingredient absent, or a unit in a different
- * dimension than the item's canonical unit - are flagged for manual handling
- * rather than silently skipped. Stored recipe quantities always stay at base
- * servings; the scaling applies to the decrement only.
+ * `changes` is written as an empty list. The column is NOT NULL and its rows
+ * from before v2 still hold the old deltas, which nothing reads now.
  */
 export async function cookRecipe(
   recipeId: number,
   servings: number,
-  /**
-   * Stand-ins chosen for this cook only, as ingredient line id to stock id.
-   *
-   * Not written to the recipe: using oat milk tonight because that is what is
-   * in does not mean the recipe was always an oat milk recipe. The swap lives
-   * in this one cook, and the log records what actually left the shelf.
-   */
-  substitutions: Record<number, number> = {},
-  /**
-   * Lines the cook says they did not use, by ingredient line id.
-   *
-   * Nothing comes off the shelf for these and they are not flagged as
-   * problems - a skipped line is an answer, not a failure. Recorded on the
-   * event so the log says what actually left the kitchen rather than what the
-   * recipe asked for, which is the whole reason the checklist is worth ticking.
-   */
-  skipped: number[] = [],
 ): Promise<CookResult> {
   if (!Number.isInteger(recipeId) || recipeId <= 0) {
-    return { ok: false, error: "Invalid recipe", opened: [], applied: [], flagged: [], skipped: [] };
+    return { ok: false, error: "Invalid recipe" };
   }
   if (!Number.isFinite(servings) || servings <= 0 || servings > 100) {
-    return { ok: false, error: "Invalid serving count", opened: [], applied: [], flagged: [], skipped: [] };
+    return { ok: false, error: "Invalid serving count" };
   }
 
-  // Cooking spends stock, so it needs a kitchen you're allowed to change.
+  // A cook is a fact about a kitchen - it goes in that kitchen's log - so it
+  // needs a kitchen the person may change.
   const access = await requireKitchenRole("editor");
-  if (!access.ok) {
-    return { ok: false, error: access.error, opened: [], applied: [], flagged: [], skipped: [] };
-  }
+  if (!access.ok) return { ok: false, error: access.error };
 
   /**
    * Cooking a recipe adopts it, rather than requiring that first.
    *
-   * The Cook button used to appear only once a recipe was in the cookbook, and
-   * until then the panel said so and offered the other button. In a month of
-   * counting, recipes were opened fourteen times, written or pasted ten, and
-   * cooked zero times - with zero presses of Add to cookbook, which is the
-   * door the other zero was behind. Two counts, one cause: the app's central
-   * action was gated on a word nobody had reason to learn.
-   *
-   * So pressing Cook links the ingredients to these shelves and gets on with
-   * it. The confident lines link as they always did; the ambiguous ones are
-   * deliberately left unwritten - see skipUncertain - so the resolver below
-   * places them and flags what it cannot, rather than a silent decision being
-   * recorded on somebody's behalf at the stove.
-   *
-   * Not counted as `recipe.save`. That name means the button was pressed, and
-   * a count that includes presses nobody made answers a different question
-   * than the one it is read as answering.
+   * The Cook button used to appear only once a recipe was in the cookbook,
+   * and in a month of counting recipes were cooked zero times with zero
+   * presses of Add to cookbook - the app's central action gated on a word
+   * nobody had reason to learn. Not counted as `recipe.save`: that name means
+   * the button was pressed.
    */
   if (!(await isInCookbook(access.kitchen.id, recipeId))) {
-    await addToCookbook(access.kitchen.id, recipeId, access.user.id, [], true);
+    await addToCookbook(access.kitchen.id, recipeId, access.user.id);
   }
 
   const tx = await getDb().transaction("write");
@@ -158,213 +73,7 @@ export async function cookRecipe(
     const recipe = recipeResult.rows[0] as unknown as Recipe | undefined;
     if (!recipe) {
       await tx.rollback();
-      return { ok: false, error: "Recipe not found", opened: [], applied: [], flagged: [], skipped: [] };
-    }
-
-    const ingredientResult = await tx.execute({
-      sql: "SELECT * FROM recipe_ingredients WHERE recipe_id = ? ORDER BY id",
-      args: [recipeId],
-    });
-    const lines = ingredientResult.rows as unknown as RecipeIngredient[];
-
-    const itemResult = await tx.execute({
-      sql: "SELECT * FROM items WHERE kitchen_id = ?",
-      args: [access.kitchen.id],
-    });
-    const stock = itemResult.rows as unknown as Item[];
-    const stockById = new Map(stock.map((item) => [item.id, item]));
-
-    /**
-     * What each line means on these shelves, decided when the recipe was added
-     * to the cookbook rather than re-guessed here.
-     *
-     * This used to be a lowercased name lookup, which is why a recipe calling
-     * for "firm tofu" against a row called "Tofu" flagged as an ingredient the
-     * kitchen has never held - and why the same recipe could behave
-     * differently in two kitchens for no reason anybody could see. The link is
-     * a person's answer; a line nobody was asked about falls through to the
-     * resolver, which happens when a recipe gains an ingredient after it was
-     * adopted.
-     */
-    const linkResult = await tx.execute({
-      sql: `SELECT cl.ingredient_id, cl.item_id
-            FROM cookbook_links cl
-            JOIN recipe_ingredients ri ON ri.id = cl.ingredient_id
-            WHERE cl.kitchen_id = ? AND ri.recipe_id = ?`,
-      args: [access.kitchen.id, recipeId],
-    });
-    const links = new Map<number, number | null>(
-      (linkResult.rows as unknown as { ingredient_id: number; item_id: number | null }[]).map(
-        (row) => [row.ingredient_id, row.item_id],
-      ),
-    );
-    const stockIndex = indexStock(stock);
-
-    const applied: CookLineResult[] = [];
-    const flagged: CookLineResult[] = [];
-    const leftOut: string[] = [];
-    const skipping = new Set(skipped);
-    const changes: CookChange[] = [];
-    const opened: OpenedPack[] = [];
-
-    for (const line of lines) {
-      /**
-       * A line the cook said they did not use.
-       *
-       * Checked before anything else, so an ingredient that is missing from
-       * the pantry AND was not used reads as not used - which is what the
-       * person said, and the more informative of the two.
-       */
-      if (skipping.has(line.id)) {
-        leftOut.push(line.item_name);
-        continue;
-      }
-
-      /**
-       * The substitute if one was picked, otherwise whatever the line names.
-       *
-       * Looked up by id among this kitchen's stock, so a number from somewhere
-       * else resolves to nothing and the line is simply flagged - the same as
-       * asking for something the pantry has never held.
-       */
-      const swapId = substitutions[line.id];
-      const item = swapId
-        ? stockById.get(swapId)
-        : (resolveWithLinks(line, links, stockIndex, stockById).item ?? undefined);
-      if (!item) {
-        flagged.push({ item_name: line.item_name, issue: "not-in-pantry" });
-        continue;
-      }
-
-      /**
-       * "There is some and nobody has said how much" is not a number.
-       *
-       * Cooking used to subtract from it anyway, driving a quantity that means
-       * nothing down towards zero - and ADJUST_SQL, which is where undo puts
-       * things back, refuses unspecified rows outright, so the take could not
-       * even be undone. Nothing comes off the shelf and nothing is flagged:
-       * the salt is there, that is the whole claim the row makes.
-       */
-      if (item.unspecified) continue;
-
-      const scaled = scaleQuantity(
-        line.quantity,
-        recipe.base_servings,
-        servings,
-      );
-      const converted = resolveAmount(
-        scaled,
-        line.unit,
-        { size: line.pack_size, unit: line.pack_unit },
-        item.dimension as Dimension,
-      );
-
-      /**
-       * The mirror of the unspecified case above, from the recipe's side.
-       *
-       * "Salt, to taste" has no amount to subtract, so nothing is subtracted
-       * and nothing is reported. Flagging it would end every cook with a list
-       * of seasonings the app could not work out - which is true, and useless,
-       * because there was never anything to work out.
-       */
-      if (!converted.ok && converted.reason === "unmeasured") continue;
-
-      if (!converted.ok) {
-        flagged.push({
-          item_name: line.item_name,
-          issue:
-            converted.reason === "dimension-mismatch"
-              ? "dimension-mismatch"
-              : "unknown-unit",
-          detail:
-            converted.reason === "dimension-mismatch"
-              ? `${line.unit} can't convert to ${item.canonical_unit}`
-              : `unknown unit "${line.unit}"`,
-        });
-        continue;
-      }
-
-      /**
-       * What is actually on the shelf, not just what is in the open one.
-       *
-       * `quantity` has meant "the open container" since containers arrived, so
-       * cooking used to cap a take at it: two sealed bottles and 100ml open
-       * would give a recipe 100ml and report a shortfall, with a litre in the
-       * cupboard. The total is sealed packs plus the open one.
-       */
-      const pack = item.pack_size !== null && item.pack_size > 0 ? item.pack_size : null;
-      const onHand = (pack === null ? 0 : item.sealed_count * pack) + item.quantity;
-
-      // Stock never goes negative - take what's there and flag the shortfall.
-      const take = Math.min(converted.quantity, onHand);
-      const left = onHand - take;
-
-      // Split back into containers, the same closed form ADJUST_SQL uses:
-      // finishing the open one opens the next.
-      const sealedLeft = pack === null ? item.sealed_count : Math.floor(left / pack);
-      const openLeft = pack === null ? left : Math.round((left - sealedLeft * pack) * 1e6) / 1e6;
-      const brokeSeal = sealedLeft < item.sealed_count;
-
-      await tx.execute({
-        sql: `UPDATE items SET quantity = ?, sealed_count = ?, updated_at = CURRENT_TIMESTAMP
-              WHERE id = ?`,
-        args: [openLeft, sealedLeft, item.id],
-      });
-
-      if (brokeSeal) {
-        /**
-         * A different packet is open now, so the old one's dates do not apply.
-         *
-         * expiry_date is cleared rather than carried forward: it is the date
-         * printed on a packet that has been finished, and keeping it would nag
-         * about something already eaten. The cook result says which items
-         * these were, so you can put the new dates in while holding them.
-         */
-        opened.push({
-          item_id: item.id,
-          item_name: item.name,
-          shelf_life_days: item.shelf_life_days,
-        });
-        await tx.execute({
-          sql: `UPDATE items SET opened_at = CURRENT_TIMESTAMP, expiry_date = NULL
-                WHERE id = ?`,
-          args: [item.id],
-        });
-      } else if (take > 0) {
-        // Taking some of something is opening it. Only stamped when there is no
-        // date already: an open jar does not become fresher for being used
-        // again, and re-stamping would keep pushing back a deadline that has
-        // already started running.
-        await tx.execute({
-          sql: `UPDATE items SET opened_at = CURRENT_TIMESTAMP
-                WHERE id = ? AND opened_at IS NULL`,
-          args: [item.id],
-        });
-      }
-
-      // Zero-take lines have nothing to give back, so they stay out of the log.
-      if (take > 0) {
-        changes.push({ item_id: item.id, delta: take, unit: item.canonical_unit });
-      }
-
-      const result: CookLineResult = {
-        item_name: line.item_name,
-        item_id: item.id,
-        decremented: take,
-        unit: item.canonical_unit,
-        remaining: openLeft,
-        remaining_total: left,
-      };
-
-      if (take < converted.quantity) {
-        flagged.push({
-          ...result,
-          issue: "short",
-          detail: `needed ${converted.quantity}${item.canonical_unit}, only ${onHand}${item.canonical_unit} in stock`,
-        });
-      } else {
-        applied.push(result);
-      }
+      return { ok: false, error: "Recipe not found" };
     }
 
     await tx.execute({
@@ -372,37 +81,17 @@ export async function cookRecipe(
       args: [recipeId],
     });
 
-    // Written inside the same transaction as the decrements: a log that can be
-    // committed separately from the change it describes is worse than none.
     const event = await tx.execute({
       sql: `INSERT INTO cook_events (kitchen_id, cooked_by, recipe_id, servings, changes, skipped)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-      args: [
-        access.kitchen.id,
-        access.user.id,
-        recipeId,
-        servings,
-        JSON.stringify(changes),
-        // Null rather than "[]" when nothing was skipped, so a cook from
-        // before the checklist existed and a cook where everything was used
-        // read the same way - which they should, because they are the same.
-        leftOut.length > 0 ? JSON.stringify(leftOut) : null,
-      ],
+            VALUES (?, ?, ?, ?, '[]', NULL)`,
+      // skipped stays NULL. It recorded the lines unticked on the "came off
+      // your shelves" checklist, and that checklist went with the shelves.
+      // Old rows that have it are still shown in the log.
+      args: [access.kitchen.id, access.user.id, recipeId, servings],
     });
 
     await tx.commit();
 
-    /**
-     * Cooking it is the end of the trip.
-     *
-     * A pin that outlives the meal leaves the app shopping for last night's
-     * dinner. Undo deliberately does not put it back: by then you have either
-     * eaten or decided you had not, and the shopping is not the question
-     * either way.
-     */
-    await unpinIf(access.kitchen.id, recipeId);
-
-    revalidatePath("/pantry");
     // After the commit, not before: a cook that rolled back did not happen,
     // and a count of attempts is a different question nobody asked.
     record("cook.start", access.user.id, `/recipes/${recipeId}`);
@@ -426,14 +115,11 @@ export async function cookRecipe(
 
     revalidatePath("/recipes");
     revalidatePath(`/recipes/${recipeId}`);
+    revalidatePath("/cooked");
 
     return {
       ok: true,
-      opened,
-      applied,
-      flagged,
       recipeName: recipe.name,
-      skipped: leftOut,
       eventId: event.lastInsertRowid ? Number(event.lastInsertRowid) : undefined,
     };
   } catch (error) {
@@ -441,11 +127,6 @@ export async function cookRecipe(
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Cook failed",
-      // The transaction rolled back, so nothing was opened after all.
-      opened: [],
-      applied: [],
-      flagged: [],
-      skipped: [],
     };
   }
 }
@@ -481,39 +162,29 @@ export async function rateRecipe(
   return { ok: true };
 }
 
-export interface UndoLineResult {
-  item_name: string;
-  /** Amount put back, in the item's canonical unit. */
-  restored: number;
-  unit: string;
-  quantity: number;
-}
-
 export interface UndoResult {
   ok: boolean;
   error?: string;
-  restored: UndoLineResult[];
 }
 
 /**
- * Reverses a cook by adding its recorded deltas back to stock.
+ * Takes a cook back: it did not happen.
  *
- * Deltas rather than remembered absolutes: Claude Code writes to this database
- * too, so stock may have moved since the cook. Adding back what was taken
- * preserves an edit made in between, where restoring a snapshot would discard
- * it. A cook that was clamped short recorded what actually left stock, so this
- * gives back exactly that and no more.
+ * It used to put the ingredients back on the shelf as well, through the same
+ * container rule cooking took them off by. With no stock (v2) there is
+ * nothing to put back, and what is left is the record - marked undone rather
+ * than deleted, so the log, the planner and times_cooked all stop counting it.
  *
- * The guard update runs before the quantity changes and is conditional on
- * undone_at still being null, so a double-tap can't apply the deltas twice.
+ * The claim is conditional on undone_at still being null, so a double tap
+ * cannot take times_cooked down twice.
  */
 export async function undoCook(eventId: number): Promise<UndoResult> {
   if (!Number.isInteger(eventId) || eventId <= 0) {
-    return { ok: false, error: "Invalid cook", restored: [] };
+    return { ok: false, error: "Invalid cook" };
   }
 
   const access = await requireKitchenRole("editor");
-  if (!access.ok) return { ok: false, error: access.error, restored: [] };
+  if (!access.ok) return { ok: false, error: access.error };
 
   const tx = await getDb().transaction("write");
 
@@ -526,7 +197,7 @@ export async function undoCook(eventId: number): Promise<UndoResult> {
 
     if (!event) {
       await tx.rollback();
-      return { ok: false, error: "That cook is no longer on record", restored: [] };
+      return { ok: false, error: "That cook is no longer on record" };
     }
 
     const claimed = await tx.execute({
@@ -537,61 +208,7 @@ export async function undoCook(eventId: number): Promise<UndoResult> {
 
     if (claimed.rowsAffected === 0) {
       await tx.rollback();
-      return { ok: false, error: "Already undone", restored: [] };
-    }
-
-    const changes = JSON.parse(event.changes) as CookChange[];
-    const restored: UndoLineResult[] = [];
-
-    for (const change of changes) {
-      /**
-       * Put back the way it came off: through the cascade, not into the open
-       * container.
-       *
-       * This used to be `quantity = quantity + delta`, which restores the
-       * right TOTAL and the wrong shelf. Undoing a cook that took 600g out of
-       * a 1kg bag plus a sealed one left a single open 1.4kg bag - a
-       * container that does not exist - and every question asked of the row
-       * afterwards ("how full is the open one", "is a seal broken") got a
-       * wrong answer from a right number. ADJUST_SQL is the rule, in the one
-       * place it is written down.
-       *
-       * The date clauses inside it do not fire on a positive delta: nothing
-       * empties, no seal breaks. Restoring never invents an expiry.
-       */
-      const updated = await tx.execute({
-        sql: ADJUST_SQL,
-        args: [change.delta, change.item_id, access.kitchen.id],
-      });
-
-      const split = updated.rows[0] as unknown as
-        | { quantity: number; sealed_count: number; pack_size: number | null }
-        | undefined;
-
-      const named = split
-        ? await tx.execute({
-            sql: "SELECT name, canonical_unit FROM items WHERE id = ?",
-            args: [change.item_id],
-          })
-        : null;
-
-      const row = split && named
-        ? {
-            ...(named.rows[0] as unknown as { name: string; canonical_unit: string }),
-            quantity: split.quantity,
-          }
-        : undefined;
-
-      // The item may have been deleted since the cook. Nothing to restore it
-      // to, and re-creating it would guess at fields the log doesn't hold.
-      if (!row) continue;
-
-      restored.push({
-        item_name: row.name,
-        restored: change.delta,
-        unit: row.canonical_unit,
-        quantity: row.quantity,
-      });
+      return { ok: false, error: "Already undone" };
     }
 
     await tx.execute({
@@ -608,116 +225,23 @@ export async function undoCook(eventId: number): Promise<UndoResult> {
      * notifications never fires and the author is left holding "@luna cooked
      * your ragu" for a dinner that was taken back. Outside the transaction
      * because it is a different kind of failure: a notification that outlives
-     * its cook is untidy, a rolled-back undo is somebody's shelf being wrong.
+     * its cook is untidy, a rolled-back undo leaves the log wrong.
      *
      * The push, if one went, cannot be recalled - that is inherent to push and
      * the reason this app sends one only for something that already happened.
      */
     await forgetCook(eventId).catch(() => {});
 
-    revalidatePath("/pantry");
     revalidatePath("/recipes");
     revalidatePath(`/recipes/${event.recipe_id}`);
+    revalidatePath("/cooked");
 
-    return { ok: true, restored };
+    return { ok: true };
   } catch (error) {
     await tx.rollback();
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Undo failed",
-      restored: [],
     };
   }
-}
-
-/** A line put on the shopping list by cooking, and the handle to take it off. */
-export interface ListedLine {
-  id: number;
-  name: string;
-}
-
-export interface CookAndListResult extends CookResult {
-  /**
-   * What cooking finished off, already on the shopping list.
-   *
-   * Added rather than offered, because the moment a thing runs out is the only
-   * moment anybody knows it has - and it is taken straight back off again by
-   * undo, so the list never claims a cook that did not happen.
-   */
-  listed: ListedLine[];
-}
-
-/**
- * Cooking without the checklist: the whole recipe, at a serving count.
- *
- * What the suggestion on /tonight and the step-by-step screen both want.
- * Everything the cook panel asks about - stand-ins, which lines were skipped -
- * has a defensible default, and the panel is still there for the cook that
- * needs them.
- */
-export async function cookAndList(
-  recipeId: number,
-  servings: number,
-): Promise<CookAndListResult> {
-  const result = await cookRecipe(recipeId, servings);
-  if (!result.ok) return { ...result, listed: [] };
-
-  const access = await requireKitchenRole("editor");
-  if (!access.ok) return { ...result, listed: [] };
-
-  /**
-   * Run out means the shelf is empty, not the open container.
-   *
-   * `remaining` is what is left in the one that is open, which is zero every
-   * time cooking finishes a packet with two more behind it.
-   */
-  const ranOut = [...result.applied, ...result.flagged].filter(
-    (line) => line.item_id !== undefined && line.remaining_total === 0,
-  );
-  if (ranOut.length === 0) return { ...result, listed: [] };
-
-  // Cooking spends stock, so this path always has a kitchen behind it.
-  const already = await pendingNames({ kitchen: access.kitchen.id });
-  const listed: ListedLine[] = [];
-  for (const line of ranOut) {
-    if (already.has(line.item_name.toLowerCase())) continue;
-    const id = await addLine({ kitchen: access.kitchen.id }, access.user.id, {
-      name: line.item_name,
-      quantity: null,
-      unit: null,
-      itemId: line.item_id,
-      // Named, because "ran out" alone leaves you standing in an aisle
-      // wondering what you were making when it happened.
-      source: result.recipeName
-        ? `ran out cooking ${result.recipeName}`
-        : "ran out cooking",
-    });
-    listed.push({ id, name: line.item_name });
-  }
-
-  if (listed.length > 0) revalidatePath("/pantry/list");
-  return { ...result, listed };
-}
-
-/**
- * Undo, including the shopping list.
- *
- * Putting the stock back and leaving "Spinach" on the list would be the app
- * remembering half of something that did not happen.
- */
-export async function undoCookAndList(
-  eventId: number,
-  lineIds: number[],
-): Promise<UndoResult> {
-  const undone = await undoCook(eventId);
-  if (!undone.ok) return undone;
-
-  const access = await requireKitchenRole("editor");
-  if (access.ok && lineIds.length > 0) {
-    for (const id of lineIds) await removeLine({ kitchen: access.kitchen.id }, id);
-    revalidatePath("/pantry/list");
-  }
-
-  revalidatePath("/tonight");
-  return undone;
 }

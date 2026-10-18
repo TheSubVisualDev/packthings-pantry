@@ -1,5 +1,4 @@
 import { getDb, plainRows } from "./db";
-import { DEFAULT_LOCATIONS } from "./locations";
 
 /**
  * Kitchens, who belongs to them, and what they're allowed to do.
@@ -88,21 +87,17 @@ export async function getMembers(kitchenId: number): Promise<Member[]> {
   return plainRows<Member>(result);
 }
 
-export async function getLocations(kitchenId: number): Promise<string[]> {
-  const result = await getDb().execute({
-    sql: "SELECT name FROM kitchen_locations WHERE kitchen_id = ? ORDER BY position, id",
-    args: [kitchenId],
-  });
-  return (result.rows as unknown as { name: string }[]).map((row) => row.name);
-}
-
 /**
- * Makes a kitchen, with the usual places to put things already in it.
+ * Makes a kitchen.
  *
- * The first kitchen ever created also adopts every orphaned row - the stock,
- * scanned products and cooking history that existed before kitchens did. Only
- * the first, and only rows with no kitchen: otherwise the second person to
- * sign up would quietly inherit someone else's shopping.
+ * It used to come with the usual places to put things already in it - Fridge,
+ * Freezer, Cupboard - which were where stock lived. v2 keeps no stock (18 Oct
+ * 2026), so a kitchen is its people, its cookbook, its plan and its list.
+ *
+ * The first kitchen ever created also adopts every orphaned row of cooking
+ * history that existed before kitchens did. Only the first, and only rows with
+ * no kitchen: otherwise the second person to sign up would quietly inherit
+ * someone else's.
  */
 export async function createKitchen(
   ownerId: number,
@@ -125,20 +120,11 @@ export async function createKitchen(
       args: [kitchen.id, ownerId],
     });
 
-    for (const [index, place] of DEFAULT_LOCATIONS.entries()) {
-      await tx.execute({
-        sql: "INSERT INTO kitchen_locations (kitchen_id, name, position) VALUES (?, ?, ?)",
-        args: [kitchen.id, place, index],
-      });
-    }
-
     if (isFirstEver) {
-      for (const table of ["items", "products", "cook_events"]) {
-        await tx.execute({
-          sql: `UPDATE ${table} SET kitchen_id = ? WHERE kitchen_id IS NULL`,
-          args: [kitchen.id],
-        });
-      }
+      await tx.execute({
+        sql: "UPDATE cook_events SET kitchen_id = ? WHERE kitchen_id IS NULL",
+        args: [kitchen.id],
+      });
 
       // Recipes aren't kitchen-scoped, but they were written by someone and
       // the rows predating authorship have nobody. Same condition, same
@@ -162,7 +148,7 @@ export async function createKitchen(
  *
  * Deliberately does not conjure one. An account is a person on the network
  * first: they can follow people, write recipes and read everyone else's
- * without ever tracking a tin of beans. A kitchen is something you make or get
+ * without ever joining a household. A kitchen is something you make or get
  * added to, and an empty "Home" nobody asked for is just a thing to explain.
  */
 export async function currentKitchenFor(
@@ -197,31 +183,6 @@ export async function renameKitchen(kitchenId: number, name: string): Promise<vo
   });
 }
 
-export async function setLocations(kitchenId: number, names: string[]): Promise<void> {
-  const cleaned = names.map((name) => name.trim()).filter(Boolean).slice(0, 20);
-
-  const tx = await getDb().transaction("write");
-  try {
-    // Rewritten rather than diffed: it's a short ordered list, and the order is
-    // the point. Items keep their location as free text, so a renamed place
-    // leaves those rows reading the old name rather than losing it.
-    await tx.execute({
-      sql: "DELETE FROM kitchen_locations WHERE kitchen_id = ?",
-      args: [kitchenId],
-    });
-    for (const [index, name] of cleaned.entries()) {
-      await tx.execute({
-        sql: "INSERT INTO kitchen_locations (kitchen_id, name, position) VALUES (?, ?, ?)",
-        args: [kitchenId, name, index],
-      });
-    }
-    await tx.commit();
-  } catch (error) {
-    await tx.rollback();
-    throw error;
-  }
-}
-
 export async function addMember(
   kitchenId: number,
   userId: number,
@@ -245,8 +206,7 @@ export async function removeMember(kitchenId: number, userId: number): Promise<v
 }
 
 export interface KitchenContents {
-  items: number;
-  products: number;
+  cookbook: number;
   cooks: number;
   shopping: number;
   members: number;
@@ -255,18 +215,18 @@ export interface KitchenContents {
 /**
  * What a kitchen currently holds.
  *
- * Used to make the delete confirmation concrete. "This removes 34 items and 12
- * cooks" is a sentence someone can weigh; "are you sure?" is not.
+ * Used to make the delete confirmation concrete. "This removes 34 recipes from
+ * the cookbook and 12 cooks" is a sentence someone can weigh; "are you sure?"
+ * is not. It counted stock and scanned barcodes until v2 stopped keeping any.
  */
 export async function getContents(kitchenId: number): Promise<KitchenContents> {
   const result = await getDb().execute({
     sql: `SELECT
-            (SELECT COUNT(*) FROM items WHERE kitchen_id = ?) AS items,
-            (SELECT COUNT(*) FROM kitchen_products WHERE kitchen_id = ?) AS products,
+            (SELECT COUNT(*) FROM cookbook WHERE kitchen_id = ?) AS cookbook,
             (SELECT COUNT(*) FROM cook_events WHERE kitchen_id = ?) AS cooks,
             (SELECT COUNT(*) FROM shopping_list WHERE kitchen_id = ?) AS shopping,
             (SELECT COUNT(*) FROM kitchen_members WHERE kitchen_id = ?) AS members`,
-    args: [kitchenId, kitchenId, kitchenId, kitchenId, kitchenId],
+    args: [kitchenId, kitchenId, kitchenId, kitchenId],
   });
   // Plain object: the counts are handed to the delete confirmation, which is a
   // client component, and a libSQL Row is not serialisable. See plainRows.
@@ -276,10 +236,10 @@ export async function getContents(kitchenId: number): Promise<KitchenContents> {
 /**
  * Deletes a kitchen and everything in it.
  *
- * Stock, scanned barcodes, cooking history, the shopping list and everyone's
- * membership all cascade away with it. Recipes do not: they belong to whoever
- * wrote them, not to a set of shelves, so they survive intact and simply stop
- * being matched against anything.
+ * The cookbook, cooking history, the plan, the shopping list and everyone's
+ * membership all cascade away with it (and any stock rows left from before
+ * v2). Recipes do not: they belong to whoever wrote them, not to a kitchen,
+ * so they survive intact.
  *
  * The owner is in the WHERE clause, so this can only ever be your own.
  */
