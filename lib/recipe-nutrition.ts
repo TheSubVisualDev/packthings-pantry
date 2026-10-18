@@ -1,15 +1,19 @@
 import { dimensionOf, resolveAmount } from "./units";
-import { STRONG_MATCH, rankItems } from "./match";
 import { estimateFor } from "./generic-nutrition";
 import type { Macros } from "./nutrition";
-import type { Item, RecipeIngredient } from "./types";
+import type { RecipeIngredient } from "./types";
 
 /**
  * What a portion of a recipe is made of.
  *
- * Every figure the pantry holds is per 100g or 100ml, so a recipe's total is
- * just each line converted to canonical units and scaled. The division by
- * servings happens last, at the serving count you are actually cooking.
+ * Every figure is per 100g or 100ml, so a recipe's total is just each line
+ * converted to canonical units and scaled. The division by servings happens
+ * last, at the serving count you are actually cooking.
+ *
+ * The figures come from the generic-food table only. They used to come from
+ * the matching stock row first - its packet's figures, read off Open Food
+ * Facts - with the table as the fallback. v2 keeps no stock (18 Oct 2026), so
+ * the fallback is the whole answer, and every counted line is an estimate.
  *
  * The honest part is `counted` and `total`. Half a recipe's ingredients having
  * no figures is normal - spices rarely do - and a confident-looking number over
@@ -39,7 +43,6 @@ const KEYS = [
 
 export function recipeMacros(
   ingredients: RecipeIngredient[],
-  itemsByName: Map<string, Item>,
   servings: number,
   baseServings: number,
 ): RecipeMacros {
@@ -59,74 +62,35 @@ export function recipeMacros(
 
   for (const line of ingredients) {
     /**
-     * The stock row this line means.
+     * What the food is, from the standard table.
      *
-     * Exact name first, then the same scorer the barcode and receipt matchers
-     * use, because a recipe saying "Onion" and a shelf saying "Brown Onions"
-     * are the same onion. Only a strong match counts: attributing the wrong
-     * food's figures is worse than admitting we do not know.
+     * "Sesame oil" is sesame oil whatever is in the cupboard, and a recipe's
+     * figures are a property of the dish. A food the table does not know is
+     * named as missing rather than guessed at: attributing the wrong food's
+     * figures is worse than admitting we do not know.
      */
-    const item =
-      itemsByName.get(line.item_name.toLowerCase()) ??
-      (() => {
-        const best = rankItems(line.item_name, null, null, [...itemsByName.values()])[0];
-        return best && best.score >= STRONG_MATCH ? best.item : undefined;
-      })();
-
-    /**
-     * Counts are skipped rather than guessed at.
-     *
-     * Figures are per 100g, and "2 eggs" is not 2g of anything - turning a
-     * count into a weight needs to know what one weighs, which the pantry has
-     * no way of knowing. Better to leave it out and say so.
-     */
-    /**
-     * Nothing on the shelf, but the recipe still named a food.
-     *
-     * "Sesame oil" is sesame oil whether or not this kitchen has any, and a
-     * recipe's figures should not depend on what is in the cupboard today -
-     * they are a property of the dish. So an unstocked line falls back to the
-     * standard table, counted as an estimate like any other guess.
-     */
-    const generic = item ? null : estimateFor(line.item_name);
-    if (!item && !generic) {
+    const generic = estimateFor(line.item_name);
+    if (!generic) {
       missing.push(line.item_name);
       continue;
     }
 
     /**
-     * Counted things need a weight before per-100g figures mean anything.
-     *
-     * "2 eggs" is not 2g of anything. The generics table knows roughly what
-     * one of each weighs, which is approximate by nature - a large onion is
-     * twice a small one - but an approximate weight beats leaving every
-     * counted ingredient out of the total, which is what used to happen.
-     */
-    // Figures from the shelf if it is there, from the table if it is not.
-    const figures: Macros = item ?? generic!;
-    const fromTable = !item;
-
-    /**
-     * Which kind of quantity this line is.
-     *
-     * A stock row says so outright. Without one, the unit the recipe wrote is
-     * the only evidence - "2 cloves" is a count, "30ml" is a volume - and an
+     * Which kind of quantity this line is. The unit the recipe wrote is the
+     * only evidence - "2 cloves" is a count, "30ml" is a volume - and an
      * unrecognised unit is treated as a mass, which is what most of them are.
      */
-    const dimension = item?.dimension ?? dimensionOf(line.unit) ?? "mass";
+    const dimension = dimensionOf(line.unit) ?? "mass";
 
     /**
      * Counted things need a weight before per-100g figures mean anything.
      *
-     * "2 eggs" is not 2g of anything. The generics table knows roughly what one
-     * of each weighs - approximate by nature, since a large onion is twice a
-     * small one, but an approximate weight beats leaving every counted
-     * ingredient out of the total.
+     * "2 eggs" is not 2g of anything. The table knows roughly what one of each
+     * weighs - approximate by nature, since a large onion is twice a small one,
+     * but an approximate weight beats leaving every counted ingredient out of
+     * the total.
      */
-    const perUnit =
-      dimension === "count"
-        ? (generic ?? estimateFor(item!.name))?.unitGrams ?? null
-        : null;
+    const perUnit = dimension === "count" ? (generic.unitGrams ?? null) : null;
     if (dimension === "count" && perUnit === null) {
       missing.push(line.item_name);
       continue;
@@ -159,7 +123,7 @@ export function recipeMacros(
     let contributed = false;
 
     for (const key of KEYS) {
-      const per100 = figures[key];
+      const per100 = generic[key];
       if (per100 === null) continue;
       totals[key] = (totals[key] ?? 0) + per100 * hundreds;
       contributed = true;
@@ -167,9 +131,11 @@ export function recipeMacros(
 
     if (contributed) {
       counted += 1;
-      // Worth carrying up: a total resting on standard figures is a different
-      // claim from one resting on packets, and "roughly" should say why.
-      if (fromTable || item?.nutrition_source === "estimate") estimated += 1;
+      // Every figure is from the table now, so every counted line is an
+      // estimate. Still carried up rather than assumed by the screen, so the
+      // day a packet's figures come back (from a receipt line, say) this is
+      // the one place that has to learn the difference.
+      estimated += 1;
     }
     else missing.push(line.item_name);
   }
@@ -229,7 +195,6 @@ export function weekMacros(
     servings: number;
     name: string;
   }[],
-  itemsByName: Map<string, Item>,
 ): WeekMacros {
   const totals: Record<(typeof KEYS)[number], number | null> = {
     kcal_100: null,
@@ -254,7 +219,6 @@ export function weekMacros(
      */
     const macros = recipeMacros(
       meal.ingredients,
-      itemsByName,
       meal.servings,
       meal.baseServings,
     );

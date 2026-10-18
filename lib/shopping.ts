@@ -1,36 +1,30 @@
 import { getDb, plainRows } from "./db";
-import { resolveWithLinks } from "./cookbook";
-import { totalOnHand } from "./containers";
-import type { StockIndex } from "./pantry-match";
-import { resolveAmount, scaleQuantity } from "./units";
-import type { Item, RecipeIngredient } from "./types";
+import { dimensionOf, scaleQuantity, toCanonical } from "./units";
+import type { RecipeIngredient } from "./types";
 
 /**
  * The shopping list.
  *
  * Deliberately free text with an optional amount. Half of what goes on a
  * shopping list is "bread" - forcing a quantity and a unit on every line would
- * make the quick case the annoying one. `item_id` links to stock when the line
- * came from something the pantry already knows about, which is what lets
- * scanning tick it off.
+ * make the quick case the annoying one.
+ *
+ * It used to know about the shelves: lines linked to stock rows, grouped by
+ * the shop each row was bought at, and a "running low" panel offered whatever
+ * had fallen below a target. v2 removed stock tracking on 18 Oct 2026 - see
+ * docs/ROADMAP-V2.md - so a line is just a line. What replaces "running low"
+ * is the receipts: how often something gets bought says when it is probably
+ * due, which is a later milestone.
  */
 
 export interface ShoppingLine {
   id: number;
-  item_id: number | null;
   item_name: string;
   quantity: number | null;
   unit: string | null;
   bought_at: string | null;
   /**
-   * Where this gets bought, taken from the stock row it links to.
-   *
-   * Null for a free-text line, or for stock nobody has said a shop for - which
-   * is most of it, and is why the ungrouped case has to look deliberate.
-   */
-  shop: string | null;
-  /**
-   * Why it is on the list: a recipe name, "running low", "ran out cooking".
+   * Why it is on the list: the recipe it was shopped for.
    *
    * Null for a line somebody typed. The list shows it as a muted chip - never
    * in the destructive colour, because needing to buy something is not a
@@ -41,28 +35,13 @@ export interface ShoppingLine {
 }
 
 /**
- * The list, optionally narrowed to one shop.
- *
- * Grouping and filtering ask different questions of the same data, so they use
- * different columns. A line is GROUPED under the shop you usually buy it from,
- * because that is where it belongs on a normal week. A line is KEPT by the
- * filter if that shop sells it at all - standing in Tesco you want everything
- * Tesco has, not only the things you usually buy there.
- *
- * Lines with no shop survive every filter. A free-text "kitchen roll", or stock
- * nobody has said a shop for, can be got here as much as anywhere, and hiding it
- * would mean walking out without it.
- */
-/**
  * Whose list this is.
  *
  * A kitchen's, or one person's. The second exists because a tester asked for
  * it and /kitchens already half agreed: an account without a kitchen is a
- * normal state there, "you can follow people and write recipes without ever
- * tracking a tin of beans". Writing down what to buy is squarely in that
- * category - it needs no shelves, only a pen. What it does not get is
- * everything that compares the list to shelves: restock suggestions, shop
- * grouping, and the trip.
+ * normal state there. Writing down what to buy needs no kitchen, only a pen.
+ * Since v2 stopped tracking stock the two kinds are the same list with a
+ * different owner; the kitchen's is simply shared.
  *
  * One type rather than an optional second argument, so every query is forced
  * to say which it means and none of them can default to the wrong one.
@@ -76,36 +55,19 @@ function scoped(scope: ListScope): { sql: string; arg: number } {
     : { sql: "s.owner_id = ?", arg: scope.owner };
 }
 
-export async function getList(
-  scope: ListScope,
-  shop?: string | null,
-): Promise<ShoppingLine[]> {
-  const filter = shop?.trim() || null;
+export async function getList(scope: ListScope): Promise<ShoppingLine[]> {
   const where = scoped(scope);
 
   const result = await getDb().execute({
-    sql: `SELECT s.id, s.item_id, s.item_name, s.quantity, s.unit, s.bought_at,
-                 s.source, u.handle AS added_by_handle, ps.name AS shop
+    sql: `SELECT s.id, s.item_name, s.quantity, s.unit, s.bought_at,
+                 s.source, u.handle AS added_by_handle
           FROM shopping_list s
           LEFT JOIN users u ON u.id = s.added_by
-          LEFT JOIN items i ON i.id = s.item_id
-          LEFT JOIN shops ps ON ps.id = i.preferred_shop_id
           WHERE ${where.sql}
-            AND (
-              ? IS NULL
-              OR NOT EXISTS (SELECT 1 FROM item_shops isx WHERE isx.item_id = i.id)
-              OR EXISTS (
-                SELECT 1 FROM item_shops isx
-                JOIN shops sh ON sh.id = isx.shop_id
-                WHERE isx.item_id = i.id AND LOWER(sh.name) = LOWER(?)
-              )
-            )
-          -- Shop first, so one trip is one run down the page. Unassigned lines
-          -- go last rather than first, where they would read as the most
-          -- important group.
-          ORDER BY (s.bought_at IS NOT NULL), ps.name IS NULL, ps.name COLLATE NOCASE,
-                   s.created_at, s.id`,
-    args: [where.arg, filter, filter],
+          -- Still to buy first, then in the order they were written down,
+          -- which is roughly the order somebody thought of them.
+          ORDER BY (s.bought_at IS NOT NULL), s.created_at, s.id`,
+    args: [where.arg],
   });
   // Plain objects: the list is a client component. See plainRows in lib/db.ts.
   return plainRows<ShoppingLine>(result);
@@ -119,23 +81,22 @@ export async function addLine(
     name: string;
     quantity: number | null;
     unit: string | null;
-    itemId?: number | null;
     /**
-     * Why it is on the list, in the words the screen should say.
-     *
-     * "Pad thai", "running low", "ran out cooking Chana masala". Null for a
-     * line somebody typed, because "you typed it" is not a fact worth a chip.
+     * Why it is on the list, in the words the screen should say: the recipe
+     * it was shopped for. Null for a line somebody typed, because "you typed
+     * it" is not a fact worth a chip.
      */
     source?: string | null;
   },
 ): Promise<number> {
   const result = await getDb().execute({
-    sql: `INSERT INTO shopping_list (kitchen_id, owner_id, item_id, item_name, quantity, unit, added_by, source)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    // item_id linked a line to a stock row. There are none in v2, so it is
+    // left out and stays NULL until the schema retires the column.
+    sql: `INSERT INTO shopping_list (kitchen_id, owner_id, item_name, quantity, unit, added_by, source)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
     args: [
       "kitchen" in scope ? scope.kitchen : null,
       "kitchen" in scope ? null : scope.owner,
-      line.itemId ?? null,
       line.name,
       line.quantity,
       line.unit,
@@ -160,6 +121,26 @@ export async function setBought(
           WHERE s.id = ? AND ${where.sql}`,
     args: [lineId, where.arg],
   });
+}
+
+/**
+ * The checkout, as one button: ticks the lines that were on screen, by id.
+ *
+ * Ticks rather than deletes, so the list keeps what was bought until somebody
+ * clears it - which is what makes "in the basket" a state you can leave and
+ * come back to. The scope stays in the WHERE clause, so an id from anybody
+ * else's list ticks nothing.
+ */
+export async function tickLines(scope: ListScope, lineIds: number[]): Promise<number> {
+  if (lineIds.length === 0) return 0;
+  const where = scoped(scope);
+  const result = await getDb().execute({
+    sql: `UPDATE shopping_list AS s SET bought_at = CURRENT_TIMESTAMP
+          WHERE ${where.sql} AND s.bought_at IS NULL
+            AND s.id IN (${lineIds.map(() => "?").join(", ")})`,
+    args: [where.arg, ...lineIds],
+  });
+  return result.rowsAffected;
 }
 
 export async function removeLine(scope: ListScope, lineId: number): Promise<void> {
@@ -195,110 +176,13 @@ export async function pendingNames(scope: ListScope): Promise<Set<string>> {
   );
 }
 
-export interface RestockSuggestion {
-  item_id: number;
-  name: string;
-  shop: string | null;
-  /** How much short of the target, in the item's own unit. */
-  short: number;
-  /** Whole packs that covers, rounded up. Null when it is not packaged. */
-  packs: number | null;
-  pack_size: number | null;
-  pack_unit: string | null;
-  canonical_unit: string;
-}
-
-/**
- * Things that have fallen below what you said to keep.
- *
- * The target is an amount of the thing, never a count of packaging: "keep 6
- * eggs", not "keep one box". Packs only come into it when buying, where the
- * shortfall is rounded UP to whole ones - you cannot buy two thirds of a box,
- * and rounding down would leave you short of the number you asked for.
- *
- * What is on hand is the real total, sealed packs plus what is in the open one.
- * An earlier version counted a part-used container as a whole one you have,
- * which reads fine for a bottle of soy sauce and badly for a box with two eggs
- * left in it. Comparing actual amounts makes the question disappear.
- *
- * Anything already on the list is excluded by name rather than by item_id: a
- * line typed by hand as "olive oil" is the same errand as the one the pantry
- * would add, and suggesting it again is how a list grows duplicates.
- */
-export async function getRestockSuggestions(
-  kitchenId: number,
-  shop?: string | null,
-): Promise<RestockSuggestion[]> {
-  const filter = shop?.trim() || null;
-
-  const result = await getDb().execute({
-    sql: `SELECT i.id AS item_id, i.name, ps.name AS shop, i.pack_size, i.pack_unit,
-                 i.canonical_unit,
-                 i.restock_target
-                   - (COALESCE(i.sealed_count, 0) * COALESCE(i.pack_size, 0) + i.quantity)
-                   AS short
-          FROM items i
-          LEFT JOIN shops ps ON ps.id = i.preferred_shop_id
-          WHERE i.kitchen_id = ?
-            AND i.unspecified = 0
-            AND i.restock_target IS NOT NULL
-            AND short > 0
-            AND NOT EXISTS (
-              SELECT 1 FROM shopping_list s
-              WHERE s.kitchen_id = i.kitchen_id
-                AND s.bought_at IS NULL
-                AND LOWER(s.item_name) = LOWER(i.name)
-            )
-            -- The same predicate getList applies to the list above it, word
-            -- for word: something nobody has assigned to a shop survives every
-            -- filter, and something assigned survives the shops it is assigned
-            -- to. It was a second, narrower copy in the page - preferred shop
-            -- only - so standing in Tesco, a thing you buy at Tesco could be
-            -- on the list and missing from Running Low underneath it.
-            AND (
-              ? IS NULL
-              OR NOT EXISTS (SELECT 1 FROM item_shops isx WHERE isx.item_id = i.id)
-              OR EXISTS (
-                SELECT 1 FROM item_shops isx
-                JOIN shops sh ON sh.id = isx.shop_id
-                WHERE isx.item_id = i.id AND LOWER(sh.name) = LOWER(?)
-              )
-            )
-          ORDER BY ps.name IS NULL, ps.name COLLATE NOCASE, i.name COLLATE NOCASE`,
-    args: [kitchenId, filter, filter],
-  });
-
-  return (result.rows as unknown as Omit<RestockSuggestion, "packs">[]).map(
-    (row) => ({
-      ...row,
-      // Rounded up, because half a box is not something a shop sells.
-      packs:
-        row.pack_size !== null && row.pack_size > 0
-          ? Math.ceil(row.short / row.pack_size)
-          : null,
-    }),
-  );
-}
-
-/**
- * What one recipe would need buying, given these shelves.
- *
- * Lifted out of the "add what's missing" button so the week planner can ask
- * the same question about seven dinners at once. It was a hundred lines inside
- * a server action, and a second copy of "what does this recipe cost me" is a
- * second place for the container rule to be got wrong - which AGENTS.md keeps
- * a count of, and the count is five.
- *
- * Pure, and takes the shelves rather than fetching them: shopping for a week
- * means asking about several recipes against one snapshot of stock, and
- * re-reading the cupboard between each one would let a line be added twice.
- */
-/** One line to put on the list, as the shortfall worked it out. */
+/** One line a recipe would put on the list. */
 export interface ShortfallLine {
+  /** The recipe line it came from, which is what a checklist ticks. */
+  ingredientId: number;
   name: string;
   quantity: number | null;
   unit: string | null;
-  itemId?: number;
 }
 
 export interface ShortfallResult {
@@ -307,18 +191,40 @@ export interface ShortfallResult {
   alreadyListed: number;
 }
 
+/**
+ * What one recipe would need buying.
+ *
+ * With stock tracked, this compared each line against the shelves and listed
+ * the difference. v2 does not know what is in the cupboard and does not ask,
+ * so the honest answer is every line - and the person, who does know, unticks
+ * what they already have before anything is written. The screens that call
+ * this start every line ticked for that reason.
+ *
+ * Still one function, used by the recipe page and by the week planner's Shop
+ * for it, because AGENTS.md counts the bugs that came from a second copy of
+ * "what is this recipe short of".
+ *
+ * Two kinds of line are never listed:
+ *
+ * - **Unmeasured** ("salt, to taste", unit `some`). Asked of toCanonical, the
+ *   one place that rule is written, rather than by comparing the unit here.
+ *   With no shelves to say you have some, listing it would put salt on the
+ *   list for every recipe for ever - the bug check:amounts exists for.
+ * - **Optional**, which is a recipe saying you can do without.
+ *
+ * Pure, and takes the names already spoken for rather than fetching them:
+ * shopping for a week asks about several recipes in a row, and a name listed
+ * for Monday must not be listed again for Thursday.
+ */
 export function recipeShortfall(
   recipe: {
-    name: string;
     base_servings: number;
-    ingredients: RecipeIngredient[];
+    ingredients: Pick<
+      RecipeIngredient,
+      "id" | "item_name" | "quantity" | "unit" | "optional"
+    >[];
   },
   servings: number,
-  shelves: {
-    index: StockIndex;
-    byId: Map<number, Item>;
-    links: Map<number, number | null>;
-  },
   /**
    * Lowercased names already spoken for, so nothing is listed twice. Mutated:
    * anything this returns is added, so a second call for another day of the
@@ -330,77 +236,34 @@ export function recipeShortfall(
   /**
    * Lines this recipe wanted that were already waiting to be bought.
    *
-   * Reported rather than inferred by the caller. "Nothing added" means two
-   * different things - you have everything, or it is already on the list - and
-   * telling somebody they have everything when it is merely already listed is
-   * a lie they would act on in a shop.
+   * Reported rather than inferred by the caller. "Nothing to add" means two
+   * different things - it is all listed already, or the recipe only asks for
+   * seasoning - and saying the wrong one is a claim somebody acts on in a shop.
    */
   let alreadyListed = 0;
 
   for (const line of recipe.ingredients) {
     if (line.optional === 1) continue;
+
+    const conversion = toCanonical(1, line.unit, dimensionOf(line.unit) ?? "mass");
+    if (!conversion.ok && conversion.reason === "unmeasured") continue;
+
+    const key = line.item_name.toLowerCase();
     // Already waiting to be bought, or already added for an earlier day of
     // this same week. Left alone rather than topped up: the amount on the list
     // is one a person may have already adjusted.
-    if (already.has(line.item_name.toLowerCase())) {
+    if (already.has(key)) {
       alreadyListed += 1;
       continue;
     }
 
-    const { item } = resolveWithLinks(line, shelves.links, shelves.index, shelves.byId);
-    const need = scaleQuantity(line.quantity, recipe.base_servings, servings);
-
-    // Nothing in stock under that name: buy it, without pretending to know how
-    // much of it the shelf already has.
-    if (!item) {
-      wanted.push({ name: line.item_name, quantity: need, unit: line.unit });
-      already.add(line.item_name.toLowerCase());
-      continue;
-    }
-
-    const converted = resolveAmount(
-      need,
-      line.unit,
-      { size: line.pack_size, unit: line.pack_unit },
-      item.dimension,
-    );
-
-    // "Salt, to taste" against a shelf that has some: nothing to buy. There is
-    // no amount to compare and the recipe's whole claim is that you need salt.
-    if (!converted.ok && converted.reason === "unmeasured") continue;
-
-    // Unconvertible goes on as written and the human decides.
-    if (!converted.ok) {
-      wanted.push({
-        name: line.item_name,
-        quantity: need,
-        unit: line.unit,
-        itemId: item.id,
-      });
-      already.add(line.item_name.toLowerCase());
-      continue;
-    }
-
-    /**
-     * Everything on the shelf, not just the open container.
-     *
-     * `quantity` has meant "what is in the OPEN one" since containers arrived.
-     * Unspecified means there is some and nobody has said how much, which is
-     * not a number to subtract, so it is left off rather than guessed at.
-     */
-    const onHand = totalOnHand(item);
-    if (onHand === null) continue;
-
-    const short = converted.quantity - onHand;
-    if (short <= 0) continue;
-
     wanted.push({
-      name: item.name,
-      quantity: Math.ceil(short * 100) / 100,
-      unit: item.canonical_unit,
-      itemId: item.id,
+      ingredientId: line.id,
+      name: line.item_name,
+      quantity: scaleQuantity(line.quantity, recipe.base_servings, servings),
+      unit: line.unit,
     });
-    already.add(item.name.toLowerCase());
+    already.add(key);
   }
 
   return { wanted, alreadyListed };

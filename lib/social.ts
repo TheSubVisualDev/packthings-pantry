@@ -443,9 +443,6 @@ export interface Discovery {
   adoptions: number;
   /** Of those, kitchens belonging to people you follow. */
   adoptedByFollowed: number;
-  /** How much of it your shelves can supply right now. */
-  have: number;
-  total: number;
   /** Your relationship to it: the three states, made visible. */
   yours: boolean;
   saved: boolean;
@@ -475,28 +472,29 @@ interface DiscoveryRow {
 }
 
 /**
- * Discover, ranked on what this kitchen can actually do with it - P6.
+ * Discover, ranked on what other kitchens make of it - P6.
  *
  * It was a reverse-chronological list of everything visible, which is a
  * filing order rather than an answer. The signals are all things the app has
  * been computing or storing for phases and never reading together:
  *
  * - **Adopting is the strong one.** A like costs a tap; putting a recipe in
- *   your cookbook means linking its ingredients to your own shelves, which
- *   nobody does idly. Adoption by somebody you follow counts double again.
- * - **Readiness against your stock**, the same count the cookbook shows.
+ *   your cookbook says your kitchen cooks it. Adoption by somebody you follow
+ *   counts double again.
  * - **Ratings**, which have been averaged and unread since phase 2.
  * - **Fatigue**: something this kitchen cooked last week is not a discovery.
  *
  * Your own recipes are included rather than filtered out - Luna asked, and it
  * is the only way to see what one looks like to everybody else.
  *
+ * Readiness against your stock was a fifth signal, and the heaviest, until v2
+ * removed stock tracking on 18 Oct 2026. The rest were already about people,
+ * so the ranking keeps them as they were.
+ *
  * **Everything in the pool is scored, and the caller decides how many to
  * draw.** This used to take the 24 most-recently-created recipes and rank
- * those, which meant readiness - the heaviest weight in the whole formula -
- * could never surface anything older. A recipe you could make entirely off
- * the shelf right now was excluded before scoring ran, because it happened to
- * have been written a month ago. Ranking a filing order is not ranking.
+ * those, so nothing older could ever surface however well it scored. Ranking
+ * a filing order is not ranking.
  *
  * The pool is bounded rather than unbounded: this is an invite-only app with
  * tens of recipes, and a ceiling that is never reached is cheap insurance
@@ -508,7 +506,6 @@ const DISCOVERY_POOL = 400;
 export async function getDiscoveries(
   viewerId: number,
   kitchenId: number | null,
-  countStocked: (recipeId: number) => { have: number; total: number },
   pool = DISCOVERY_POOL,
 ): Promise<Discovery[]> {
   const result = await getDb().execute({
@@ -556,16 +553,12 @@ export async function getDiscoveries(
 
   return plainRows<DiscoveryRow>(result)
     .map((row) => {
-      const { have, total } = countStocked(row.id);
-      const readiness = total === 0 ? 0 : have / total;
-
       /**
-       * The weights, in one place with the reasoning written down - the same
-       * arrangement lib/tonight.ts uses, because the argument should be about
-       * the ordering rather than about where the numbers live.
+       * The weights, in one place with the reasoning written down, because
+       * the argument should be about the ordering rather than about where the
+       * numbers live.
        */
       const score =
-        readiness * 3 +
         Math.min(row.adoptions, 4) * 2 +
         row.adopted_by_followed * 4 +
         (row.avg_rating ?? 0) +
@@ -580,19 +573,15 @@ export async function getDiscoveries(
           ? "somebody you follow cooks it"
           : row.adoptions > 1
             ? `${row.adoptions} kitchens have adopted it`
-            : total > 0 && have === total
-              ? "you have everything for it"
-              : row.avg_rating !== null
-                ? `rated ${row.avg_rating}`
-                : row.author_id === viewerId
-                  ? "yours"
-                  : "shared here";
+            : row.avg_rating !== null
+              ? `rated ${row.avg_rating}`
+              : row.author_id === viewerId
+                ? "yours"
+                : "shared here";
 
       return {
         ...row,
         adoptedByFollowed: row.adopted_by_followed,
-        have,
-        total,
         yours: row.author_id === viewerId,
         saved: row.saved === 1,
         inCookbook: row.in_cookbook === 1,

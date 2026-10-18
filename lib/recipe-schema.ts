@@ -1,4 +1,3 @@
-import type { Item } from "./types";
 import { dimensionOf, UNITS_BY_DIMENSION, UNMEASURED } from "./units";
 
 /**
@@ -21,28 +20,29 @@ export interface RecipeProblem {
 
 /** Accepted, but the human should look. */
 /**
- * Why a line wants a second look, which is not always a complaint.
+ * Why a line wants a second look.
  *
- * `not-stocked` is the normal state of a recipe you have not shopped for yet -
- * writing one down before you own any of it is a thing people do, and the app
- * should not treat it as a mistake to be cleared. It stays in the API response
- * because a machine caller is guessing at names and genuinely needs telling,
- * but no screen renders it as a problem.
+ * `unknown-reference`: a step naming an ingredient the recipe does not list,
+ * which is a typo somebody wants to hear about.
  *
- * `unit-mismatch` is a real one: a tablespoon against a gram-canonical item
- * cannot be decremented, and finding that out mid-cook is the worst time.
- * `unknown-reference` is a real one too - a step naming an ingredient the
- * recipe does not list is a typo somebody wants to hear about.
+ * There used to be two more, both about stock: `not-stocked` (the kitchen had
+ * never held the thing) and `unit-mismatch` (a tablespoon against a stock row
+ * weighed in grams, which cooking could not take off the shelf). v2 keeps no
+ * stock (18 Oct 2026), so a recipe is checked as a recipe and nothing else.
  */
-export type WarningKind = "not-stocked" | "unit-mismatch" | "unknown-reference";
+export type WarningKind = "unknown-reference";
 
 export interface RecipeWarning extends RecipeProblem {
   kind: WarningKind;
 }
 
 export interface ParsedIngredient {
-  /** Resolved against items.name; null when the pantry has no such thing. */
-  item_id: number | null;
+  /**
+   * Always null. It linked a line to a stock row, and v2 has none; kept on the
+   * type so recipe-store goes on writing the column empty until the schema
+   * retires it.
+   */
+  item_id: null;
   item_name: string;
   quantity: number;
   unit: string;
@@ -100,16 +100,14 @@ function asPositiveInt(value: unknown): number | null {
 }
 
 /**
- * Validates a recipe document and resolves its ingredients against stock.
+ * Validates a recipe document.
  *
  * Two kinds of finding, kept apart on purpose. A problem means the document
  * isn't a recipe and nothing is written - a missing name, a unit that doesn't
- * exist. A warning means it is a recipe but something wants a human eye: an
- * ingredient the pantry has never heard of, or a line measured in a dimension
- * the matching item can't be decremented in. Refusing those outright would
- * make the importer useless for anything you haven't bought yet.
+ * exist. A warning means it is a recipe but something wants a human eye, like
+ * a step naming an ingredient the recipe never lists.
  */
-export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult {
+export function parseRecipeDocument(input: unknown): ParseResult {
   const problems: RecipeProblem[] = [];
   const warnings: RecipeWarning[] = [];
 
@@ -138,8 +136,6 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
   } else if (baseServings > 100) {
     problems.push({ path: "base_servings", message: "base_servings is above 100." });
   }
-
-  const byName = new Map(items.map((item) => [item.name.toLowerCase(), item]));
 
   // Ingredients
   const rawIngredients = document.ingredients;
@@ -251,35 +247,8 @@ export function parseRecipeDocument(input: unknown, items: Item[]): ParseResult 
         packSize = rawPackSize;
       }
 
-      const item = byName.get(itemName.toLowerCase()) ?? null;
-
-      if (!item) {
-        warnings.push({
-          kind: "not-stocked",
-          path: `${path}.item_name`,
-          // Stated flatly. This is information about the cupboard, not a fault
-          // in the recipe, and the wording should not suggest otherwise.
-          message: `"${itemName}" isn't in this kitchen yet.`,
-        });
-      } else if (
-        !unmeasured &&
-        item.dimension !== dimension &&
-        !(packSize && packUnit && dimensionOf(packUnit) === item.dimension)
-      ) {
-        // Caught here rather than at the stove: a tablespoon against a
-        // gram-canonical item can't be decremented, and finding that out
-        // mid-cook is the worst time to find it out. A package size that does
-        // reach the item's dimension rescues the line, which is the whole point
-        // of "1 tin (400 g)" against a pantry that weighs tomatoes.
-        warnings.push({
-          kind: "unit-mismatch",
-          path: `${path}.unit`,
-          message: `"${itemName}" is measured in ${item.canonical_unit}, so ${unit} can't be taken out of stock when you cook this.`,
-        });
-      }
-
       ingredients.push({
-        item_id: item?.id ?? null,
+        item_id: null,
         item_name: itemName,
         quantity,
         unit,
