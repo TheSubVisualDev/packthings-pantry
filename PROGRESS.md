@@ -9,15 +9,15 @@ timestamp to see how fresh it is.
 
 ### 18 Oct, v2: recipes and receipts
 
-Stock tracking is gone and receipts are the record. Built on `v2`, not yet
-live. Plan and decisions in `docs/ROADMAP-V2.md`.
+Stock tracking is gone and receipts are the record. Live 18 Oct 2026; the
+old stock rows were deleted after a backup (`backups/pre-v2-ship-2026-10-18.db`). Plan and decisions in `docs/ROADMAP-V2.md`.
 
 - [x] 1 schema - rehearsed on a clone, migrated twice, foreign keys clean
 - [x] 2 receipt core - till meta, checklist, per-line split, learning, history
 - [x] 3 the gut - /pantry, /tonight, /stats and every stock library out
 - [x] 4 receipts - inbox, photo / paste / type, a receipt's page
 - [x] 5 spend, who owes whom, meals as pseudorecipes, probably-due on the list
-- [ ] 6 ship - needs your go-ahead
+- [x] 6 shipped - migrated, merged, stock rows deleted, foreign keys clean
 
 ### 22 Sep, the interaction audit
 

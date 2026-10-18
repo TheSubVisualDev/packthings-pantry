@@ -67,3 +67,6 @@ for (const table of TABLES) {
 
 const broken = await client.execute("PRAGMA foreign_key_check");
 console.log(`foreign_key_check: ${broken.rows.length} problems`);
+
+// A WebSocket client holds the process open until it is closed.
+client.close();
