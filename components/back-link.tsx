@@ -7,10 +7,10 @@ import { useSyncExternalStore } from "react";
 /**
  * A back link that goes back.
  *
- * Every page used to name one fixed place: the item page's "← The shelf" went
- * to /tonight whichever list you opened the item from. Tap Dark soy sauce
- * halfway down /pantry, press back, and you were on a different screen at the
- * top of it, with your place gone - the one thing a back link exists to keep.
+ * Every page used to name one fixed place: a stock item's "← The shelf" went
+ * to the same screen whichever list you opened it from. Tap something halfway
+ * down a list, press back, and you were on a different screen at the top of
+ * it, with your place gone - the one thing a back link exists to keep.
  *
  * So when this page was reached by a link inside the app, it is a real
  * history step, named for where it returns to. Arrive any other way - a fresh
@@ -26,7 +26,7 @@ export function BackLink({
 }: {
   /** Where to go when there is no in-app step to go back to. */
   href: string;
-  /** What that fixed place is called: "The shelf", "Cookbook". */
+  /** What that fixed place is called: "Cookbook", "Plan". */
   label: string;
   className?: string;
   /** An icon-only back button, like the recipe photo's. Labelled for readers. */
@@ -104,19 +104,13 @@ export function noteArrival(path: string) {
 
 /** What each place is called, matching the tab bar where there is a tab. */
 export function nameFor(path: string): string | null {
-  if (path === "/tonight" || path === "/") return "Tonight";
-  if (path === "/pantry") return "The shelf";
-  if (path === "/pantry/list") return "Shopping";
-  if (path === "/pantry/expiring") return "Expiring soon";
-  if (path === "/pantry/adjust") return "Quick adjust";
-  if (path === "/pantry/receipt") return "The receipt";
-  if (path === "/recipes") return "Cookbook";
+  if (path === "/recipes" || path === "/") return "Cookbook";
+  if (path === "/list") return "Shopping";
   if (/^\/recipes\/\d+$/.test(path)) return "The recipe";
-  if (path === "/plan") return "The week";
+  if (path === "/plan") return "Plan";
   if (path === "/discover") return "Discover";
   if (path === "/cooked") return "Cooked";
   if (path === "/people") return "People";
-  if (path === "/stats") return "Stats";
   if (path === "/notifications") return "News";
   if (path === "/kitchens") return "Your kitchen";
   if (path === "/settings") return "Settings";

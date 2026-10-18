@@ -4,34 +4,22 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
-  BookOpenText, Check, Plus, ChevronLeft, Compass, UtensilsCrossed,
+  BookOpenText, CalendarDays, Plus, ChevronLeft, Compass, UtensilsCrossed,
 } from "lucide-react";
 import {
-  addStaples, finishWelcome, howYouCook, nameKitchen, type WelcomeResult,
+  finishWelcome, howYouCook, nameKitchen, type WelcomeResult,
 } from "@/app/welcome/actions";
 import { NudgeSettings } from "@/components/nudge-settings";
 import { MAX_SLOTS, SLOT_SUGGESTIONS } from "@/lib/plan";
 
 /**
- * The things almost every kitchen has and nobody would think to add.
- *
- * Deliberately short and deliberately boring. A long list turns the step into
- * a shopping decision, and the point of it is the opposite: to get past the
- * empty shelf without asking anybody to think.
- */
-const STAPLES = [
-  "Salt", "Black pepper", "Olive oil", "Vegetable oil", "Butter",
-  "Milk", "Eggs", "Plain flour", "Sugar", "Pasta",
-  "Rice", "Tinned tomatoes", "Onions", "Garlic", "Stock cubes",
-];
-
-/**
  * Being shown round, once.
  *
  * The cliff a new account falls off is not signing up, it is the first screen
- * after: empty shelves, no recipes, and five tabs that all say nothing yet.
- * This is five questions that leave somebody with a named kitchen, a shelf
- * with something on it, and some idea where things are.
+ * after: no recipes and tabs that all say nothing yet. These few questions
+ * leave somebody with a named kitchen, a planner set up the way they eat, and
+ * some idea where things are. There was a step for putting staples on the
+ * shelf; it went with stock tracking in v2 (18 Oct 2026).
  *
  * Every step is skippable and the whole thing is skippable, because an
  * onboarding that gates the app behind a form is a signup form wearing a coat.
@@ -62,8 +50,8 @@ export function Welcome({
    */
   const [steps] = useState(() =>
     hasKitchen
-      ? (["cook", "staples", "nudge", "tour"] as const)
-      : (["kitchen", "cook", "staples", "nudge", "tour"] as const),
+      ? (["cook", "nudge", "tour"] as const)
+      : (["kitchen", "cook", "nudge", "tour"] as const),
   );
 
   const router = useRouter();
@@ -74,7 +62,6 @@ export function Welcome({
   const [name, setName] = useState(kitchenName ?? "");
   const [slots, setSlots] = useState<string[]>(["Dinner"]);
   const [servings, setServings] = useState(2);
-  const [picked, setPicked] = useState<string[]>([]);
 
   const step = steps[at];
   const last = at === steps.length - 1;
@@ -98,10 +85,10 @@ export function Welcome({
     startWorking(async () => {
       await finishWelcome();
       // refresh as well as push: the kitchen made two steps ago is a cookie
-      // /tonight's server render has not seen, so a plain push can land on a
-      // kitchen-less page that then bounces straight back here.
+      // the next page's server render has not seen, so a plain push can land
+      // on a kitchen-less page that then bounces straight back here.
       router.refresh();
-      router.push("/tonight");
+      router.push("/recipes");
     });
   }
 
@@ -124,8 +111,8 @@ export function Welcome({
             Hello @{handle}.
           </h1>
           <p className="mt-1 mb-4 text-[15px] leading-relaxed font-medium text-muted-foreground">
-            A kitchen is a stock list with people in it. Yours to fill, and you
-            can share it later.
+            A kitchen is a household: one cookbook, one week&rsquo;s plan, one
+            shopping list. Yours to fill, and you can share it later.
           </p>
           <label htmlFor="kitchen-name" className="sr-only">
             What to call it
@@ -144,8 +131,8 @@ export function Welcome({
 
       {step === "cook" && (
         <section className="advance" key="cook">
-          {/* The other four steps open on an input, a grid of chips, a real
-              control, or a checklist - this one used to open on a bare
+          {/* The other steps open on an input or a real control - this one
+              used to open on a bare
               heading, which left the top of the screen looking like an
               illustration had not loaded rather than a choice not to have
               one. Same treatment the tour step gives each tab below. */}
@@ -224,53 +211,6 @@ export function Welcome({
         </section>
       )}
 
-      {step === "staples" && (
-        <section className="advance" key="staples">
-          <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
-            What have you definitely got?
-          </h1>
-          <p className="mt-1 mb-4 text-[15px] leading-relaxed font-medium text-muted-foreground">
-            Tap anything you own. They go on the shelf without an amount —
-            &ldquo;there is some and nobody has said how much&rdquo; is a real
-            answer here, and you can pin it down later.
-          </p>
-
-          <div className="flex flex-wrap gap-1.5">
-            {STAPLES.map((staple) => {
-              const on = picked.includes(staple);
-              return (
-                <button
-                  key={staple}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() =>
-                    setPicked((current) =>
-                      on
-                        ? current.filter((each) => each !== staple)
-                        : [...current, staple],
-                    )
-                  }
-                  className={`flex h-11 items-center gap-1.5 rounded-full px-4 text-sm font-bold ${
-                    on
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-card text-muted-foreground shadow-[0_1px_3px_rgba(0,0,0,0.05)]"
-                  }`}
-                >
-                  {on && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-                  {staple}
-                </button>
-              );
-            })}
-          </div>
-
-          <p className="mt-3 text-xs font-semibold text-muted-foreground">
-            {picked.length === 0
-              ? "None picked — that is fine, skip it."
-              : `${picked.length} to add.`}
-          </p>
-        </section>
-      )}
-
       {step === "nudge" && (
         <section className="advance" key="nudge">
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
@@ -295,16 +235,17 @@ export function Welcome({
             Three tabs and a plus along the bottom. That is the whole app.
           </p>
 
-          {/* Said four tabs, Stock first, for a week after Stock stopped
-              being one - the first thing a new person was told about the
-              app described a button that was not there. The shelf is under
-              Tonight now, so it is described there. */}
+          {/* Matches the tab bar, left to right. It once said four tabs,
+              Stock first, for a week after Stock stopped being one - the first
+              thing a new person was told described a button that was not
+              there - and it said Tonight and the shelf until v2 took both
+              out. Whatever the bar says, this says. */}
           <ul className="space-y-2">
             {[
-              { Icon: UtensilsCrossed, name: "Tonight", what: "What to cook, ranked on what you have and what needs using - and under it, the shelf: what is in and what is running out." },
               { Icon: BookOpenText, name: "Cookbook", what: "Your recipes. Paste one in as it is written and it gets picked apart." },
+              { Icon: CalendarDays, name: "Plan", what: "The week's meals, and the shopping list they add up to." },
               { Icon: Compass, name: "Discover", what: "What everyone else is cooking." },
-              { Icon: Plus, name: "The plus", what: "Everything that puts something in: an item, a barcode, a receipt, a recipe." },
+              { Icon: Plus, name: "The plus", what: "A new recipe, a pasted one, the shopping list." },
             ].map(({ Icon, name: tab, what }) => (
               <li
                 key={tab}
@@ -345,10 +286,7 @@ export function Welcome({
           onClick={() => {
             if (step === "kitchen") saveThen(() => nameKitchen(name));
             else if (step === "cook") saveThen(() => howYouCook(slots, servings));
-            else if (step === "staples") {
-              if (picked.length === 0) forward();
-              else saveThen(() => addStaples(picked));
-            } else if (last) leave();
+            else if (last) leave();
             else forward();
           }}
           className="h-14 flex-1 rounded-[14px] bg-primary text-[15px] font-extrabold text-primary-foreground disabled:opacity-40"

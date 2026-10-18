@@ -3,9 +3,21 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 22 Sep 2026 — interaction audit built, plus the three found along the way
-**Doing right now:** nothing
-**Waiting on you:** nothing
+**Last updated:** 18 Oct 2026 — v2 milestone 3 (the gut) built on a worktree branch, waiting to be merged into `v2`
+**Doing right now:** v2, milestones 1-2 (schema, receipt core) - plan in `docs/ROADMAP-V2.md`. M3 done: `/pantry`, `/tonight`, `/stats` and stock code gone; list at `/list`; tabs are Cookbook, Plan, Discover
+**Waiting on you:** invite Sam (`exodddus`) to Pack Kitchen
+
+### 18 Oct, v2: recipes and receipts
+
+Stock tracking is gone and receipts are the record. Built on `v2`, not yet
+live. Plan and decisions in `docs/ROADMAP-V2.md`.
+
+- [x] 1 schema - rehearsed on a clone, migrated twice, foreign keys clean
+- [x] 2 receipt core - till meta, checklist, per-line split, learning, history
+- [x] 3 the gut - /pantry, /tonight, /stats and every stock library out
+- [x] 4 receipts - inbox, photo / paste / type, a receipt's page
+- [x] 5 spend, who owes whom, meals as pseudorecipes, probably-due on the list
+- [ ] 6 ship - needs your go-ahead
 
 ### 22 Sep, the interaction audit
 

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getLocations } from "@/lib/kitchens";
-import { getItems, getRecipes } from "@/lib/queries";
-import { getTagsByItem } from "@/lib/tags";
+import { getCookbookRecipes, getRecipes } from "@/lib/queries";
+import { getList } from "@/lib/shopping";
 import { apiContext } from "@/lib/session";
 import { recipeJsonSchema, RECIPE_SCHEMA_VERSION } from "@/lib/recipe-schema";
 import { UNITS_BY_DIMENSION } from "@/lib/units";
@@ -9,14 +8,18 @@ import { UNITS_BY_DIMENSION } from "@/lib/units";
 export const dynamic = "force-dynamic";
 
 /**
- * What's in the kitchen, in one JSON document, for a Claude session to reason
- * about.
+ * The kitchen, in one JSON document, for a Claude session to reason about.
  *
- * Self-describing on purpose. Alongside the stock it ships the legal units, the
- * kitchen's locations and the full schema for posting a recipe back, so a
- * caller is told what it may send rather than inferring it from examples and
- * inventing "cups". The proxy has already checked the bearer token by the time
- * this runs.
+ * Still at /api/pantry, because callers already have the address. It used to
+ * be the stock list; v2 stopped tracking stock (18 Oct 2026), so it is now the
+ * kitchen's cookbook, its open shopping list and your own recipes - and it
+ * says, in `stock_tracked: false`, that it does not know what is in the
+ * cupboard, so nothing reading it mistakes the list for the shelf.
+ *
+ * Self-describing on purpose. It ships the legal units and the full schema
+ * for posting a recipe back, so a caller is told what it may send rather than
+ * inferring it from examples and inventing "cups". The proxy has already
+ * checked the bearer token by the time this runs.
  */
 export async function GET(request: Request) {
   const context = await apiContext(request);
@@ -24,11 +27,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "No account for this request" }, { status: 401 });
   }
 
-  const [items, recipes, locations, tagsByItem] = await Promise.all([
-    getItems(context.kitchen?.id ?? null),
+  const [cookbook, list, recipes] = await Promise.all([
+    getCookbookRecipes(context.kitchen?.id ?? null, context.user.id),
+    getList(
+      context.kitchen ? { kitchen: context.kitchen.id } : { owner: context.user.id },
+    ),
     getRecipes(context.user.id),
-    context.kitchen ? getLocations(context.kitchen.id) : Promise.resolve([]),
-    getTagsByItem(context.kitchen?.id ?? null),
   ]);
 
   return NextResponse.json(
@@ -36,7 +40,7 @@ export async function GET(request: Request) {
       generated_at: new Date().toISOString(),
 
       // Null rather than absent, and said out loud: an account with no kitchen
-      // can still write recipes, it just has no stock to check them against.
+      // can still write recipes and keep a list, it just has no cookbook.
       kitchen: context.kitchen
         ? {
             id: context.kitchen.id,
@@ -45,24 +49,26 @@ export async function GET(request: Request) {
           }
         : null,
 
+      stock_tracked: false,
       note: context.kitchen
-        ? undefined
-        : "This account has no kitchen yet, so pantry.items is empty. Recipes can still be written; their ingredients simply won't resolve to stock.",
+        ? "This app does not record what is in the cupboard. shopping_list is what somebody means to buy, not what is there."
+        : "This account has no kitchen yet, so cookbook is empty and shopping_list is a personal one. Recipes can still be written.",
 
-      pantry: {
-        items: items.map((item) => ({
-          id: item.id,
-          name: item.name,
-          quantity: item.quantity,
-          // Always the canonical unit: stock is stored in one unit per
-          // dimension so nothing downstream has to guess what a number means.
-          unit: item.canonical_unit,
-          dimension: item.dimension,
-          tags: tagsByItem.get(item.id)?.map((tag) => tag.name) ?? [],
-          location: item.location,
-          expires: item.expiry_date,
+      cookbook: cookbook.map((recipe) => ({
+        id: recipe.id,
+        name: recipe.name,
+        times_cooked: recipe.times_cooked,
+        url: `/api/recipes/${recipe.id}`,
+      })),
+
+      shopping_list: list
+        .filter((line) => !line.bought_at)
+        .map((line) => ({
+          name: line.item_name,
+          quantity: line.quantity,
+          unit: line.unit,
+          for: line.source,
         })),
-      },
 
       recipes: recipes.map((recipe) => ({
         id: recipe.id,
@@ -78,7 +84,6 @@ export async function GET(request: Request) {
 
       vocabulary: {
         units: UNITS_BY_DIMENSION,
-        locations,
         note: "Conversion only happens within a dimension. Grams never become millilitres - there is no density data here.",
       },
 
@@ -89,7 +94,7 @@ export async function GET(request: Request) {
         schema_version: RECIPE_SCHEMA_VERSION,
         schema: recipeJsonSchema(),
         response:
-          "201 with { id, url, warnings } on success; 422 with { problems } if the document isn't a recipe. A warning of kind 'not-stocked' only means the kitchen has not bought that ingredient yet, which is normal and needs nothing done; 'unit-mismatch' and 'unknown-reference' are worth fixing.",
+          "201 with { id, url, warnings } on success; 422 with { problems } if the document isn't a recipe. Warnings (kind 'unknown-reference': a step naming an ingredient the recipe does not list) are worth fixing.",
       },
     },
     { headers: { "cache-control": "no-store" } },

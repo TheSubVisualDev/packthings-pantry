@@ -3,12 +3,10 @@ import { BackLink } from "@/components/back-link";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DeleteKitchen } from "@/components/delete-kitchen";
-import { EditLocations, Members, RenameKitchen } from "@/components/kitchen-admin";
+import { Members, RenameKitchen } from "@/components/kitchen-admin";
 import { NewKitchen } from "@/components/new-kitchen";
-import { KitchenTags } from "@/components/kitchen-tags";
 import { SiteHeader } from "@/components/site-header";
-import { getContents, getKitchensFor, getLocations, getMembers } from "@/lib/kitchens";
-import { getTags } from "@/lib/tags";
+import { getContents, getKitchensFor, getMembers } from "@/lib/kitchens";
 import { currentKitchen } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +30,7 @@ export default async function KitchensPage({
   const kitchens = await getKitchensFor(user.id);
 
   // An account with no kitchen is a normal state, not a broken one: you can
-  // follow people and write recipes without ever tracking a tin of beans.
+  // follow people, write recipes and keep a shopping list without one.
   if (!kitchen) {
     return (
       <>
@@ -45,16 +43,21 @@ export default async function KitchensPage({
           </h1>
 
           <p className="mt-3 text-[15px] leading-relaxed font-medium text-muted-foreground">
-            {need === "stock"
-              ? "That page is about what's on your shelves, which needs a kitchen to be on the shelves of."
-              : "A kitchen is a stock list with people attached — what you have in, what's running out, what to buy."}
+            {/* Which page sent you here, said in its own terms. "stock" was
+                the only reason until v2 took stock tracking out; old links
+                carrying it read as the general sentence. */}
+            {need === "plan"
+              ? "The week's plan belongs to a kitchen - it is what the household is eating - so it needs one."
+              : need === "cooked"
+                ? "The cooked log is a kitchen's history, so it needs a kitchen to be the history of."
+                : "A kitchen is a household with a cookbook — what you cook, what the week looks like, and one shopping list between you."}
           </p>
 
           <div className={`${CARD} mt-6`}>
             <h2 className={LABEL}>Make one</h2>
             <p className="mt-2 mb-4 text-sm font-medium text-muted-foreground">
-              Yours to fill. You can share it with people later, so they can see
-              what you have or help keep it up to date.
+              Yours to fill. You can share it with people later, so they can plan
+              the week and write the list with you.
             </p>
             <NewKitchen alwaysOpen />
           </div>
@@ -80,11 +83,9 @@ export default async function KitchensPage({
     );
   }
 
-  const [members, locations, contents, tags] = await Promise.all([
+  const [members, contents] = await Promise.all([
     getMembers(kitchen.id),
-    getLocations(kitchen.id),
     getContents(kitchen.id),
-    getTags(kitchen.id),
   ]);
 
   const youAreOwner = kitchen.role === "owner";
@@ -117,39 +118,8 @@ export default async function KitchensPage({
             </div>
           </section>
 
-          {/* Folded, because there are twenty-five of them and they were two
-              thirds of the page. A tag list is a thing you come to edit
-              deliberately, never something you read on the way past. */}
-          <section className={CARD}>
-            <details className="group">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                <span className={LABEL}>Tags</span>
-                <span className="text-sm font-bold text-muted-foreground">
-                  {tags.length} &middot;{" "}
-                  <span className="group-open:hidden">show</span>
-                  <span className="hidden group-open:inline">hide</span>
-                </span>
-              </summary>
-              <p className="mt-1.5 text-sm font-semibold text-muted-foreground">
-                Every word this kitchen files stock under, and how much carries it.
-              </p>
-              <div className="mt-3">
-                <KitchenTags tags={tags} canEdit={kitchen.role !== "viewer"} />
-              </div>
-            </details>
-          </section>
-
           {youAreOwner && (
             <>
-              <section className={CARD}>
-                {/* The form's own label says "Places, in the order you'd walk
-                    them", which is the heading and the instruction in one, so
-                    a bare "Places" above it was the same word twice. */}
-                <div>
-                  <EditLocations locations={locations} />
-                </div>
-              </section>
-
               <section className={CARD}>
                 <h2 className={LABEL}>Rename</h2>
                 <div className="mt-3">
@@ -193,7 +163,7 @@ export default async function KitchensPage({
         </div>
 
         <p className="mt-6 text-sm font-semibold text-muted-foreground">
-          <BackLink href="/tonight" label="Tonight" className="underline underline-offset-2" />
+          <BackLink href="/recipes" label="Cookbook" className="underline underline-offset-2" />
         </p>
       </main>
     </>

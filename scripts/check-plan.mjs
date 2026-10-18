@@ -24,6 +24,7 @@ import {
   fromIso,
   isoDate,
   MAX_SLOTS,
+  rankForPlanning,
   readSlots,
   weekDates,
   weekLabel,
@@ -148,6 +149,68 @@ check("and refuses to write nothing", cleanSlots(["", " "]), DEFAULT_SLOTS);
 // A name long enough to break the grid is cut rather than refused: somebody
 // pasting a sentence into a slot name meant the first few words of it.
 check("a very long name is cut", cleanSlots(["x".repeat(80)])[0].length, 24);
+
+/* --- what "Fill the gaps" picks first ---
+ *
+ * The orderings from check:tonight that survive v2 taking stock tracking out.
+ * Readiness and urgency both read the shelves, so their cases went with them;
+ * fatigue, affection and effort are about the kitchen's own cooking and are
+ * pinned here, where the ranker now lives. Each case differs in one signal,
+ * which is the only way to tell whether a weight does what it claims.
+ */
+
+let nextId = 1;
+function recipe(name, overrides = {}) {
+  return {
+    id: nextId++,
+    name,
+    minutes: 30,
+    rating: null,
+    timesCooked: 0,
+    daysSinceCooked: null,
+    ...overrides,
+  };
+}
+const first = (list) => rankForPlanning(list)[0].name;
+
+check(
+  "you had it last night",
+  first([
+    recipe("Had it yesterday", { daysSinceCooked: 1, rating: 5, timesCooked: 9 }),
+    recipe("Not for a while"),
+  ]),
+  "Not for a while",
+);
+check(
+  "long enough ago stops counting",
+  first([
+    recipe("Ages ago", { daysSinceCooked: 30, rating: 5, timesCooked: 9 }),
+    recipe("Never cooked"),
+  ]),
+  "Ages ago",
+);
+check(
+  "a recipe you rated highly wins a tie",
+  first([recipe("Unrated"), recipe("Loved", { rating: 5 })]),
+  "Loved",
+);
+check(
+  "the quicker of two equals wins",
+  first([recipe("Slow", { minutes: 90 }), recipe("Quick", { minutes: 10 })]),
+  "Quick",
+);
+// An untimed recipe makes no claim about being quick, so it must not beat one
+// that says ten minutes.
+check(
+  "no timing is not a claim of speed",
+  first([recipe("Untimed", { minutes: null }), recipe("Ten minutes", { minutes: 10 })]),
+  "Ten minutes",
+);
+check(
+  "an exact tie goes alphabetically, so a refill is repeatable",
+  rankForPlanning([recipe("Beta"), recipe("Alpha")]).map((r) => r.name),
+  ["Alpha", "Beta"],
+);
 
 if (failures > 0) {
   console.error(`\n${failures} failed`);

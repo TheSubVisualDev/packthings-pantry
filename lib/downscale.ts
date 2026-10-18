@@ -28,12 +28,12 @@ const QUALITY = 0.82;
  * over - it goes up as it is and the server refuses it with a message that
  * says so, which is a better outcome than the form dying in somebody's hand.
  */
-export async function downscale(file: File): Promise<File> {
+export async function downscale(file: File, maxEdge = MAX_EDGE): Promise<File> {
   if (!file.type.startsWith("image/")) return file;
 
   try {
     const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
 
     // Already small enough, and re-encoding it could only make it worse.
     if (scale === 1 && file.size < 900_000) {

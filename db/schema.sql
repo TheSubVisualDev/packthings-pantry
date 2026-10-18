@@ -757,3 +757,196 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- with a WHERE on it. One index covers both.
 CREATE INDEX IF NOT EXISTS idx_notifications_mine
   ON notifications(user_id, created_at DESC);
+
+-- ===========================================================================
+-- v2: receipts. See docs/ROADMAP-V2.md.
+--
+-- Stock tracking went on 18 Oct 2026. Sam's outline put it plainly - "we avoid
+-- fridge tracking, we treat that as a data void that we work around by just
+-- analysing what goes in and how often it goes in" - so a receipt is now the
+-- record of the kitchen, and everything below hangs off one.
+-- ===========================================================================
+
+-- What a thing on a receipt IS, for adding up: Proteins, Starches, Drinks.
+--
+-- Its own table rather than reusing `tags`, which were filled from Open Food
+-- Facts with names like "Flavored sparkling waters" - fine on a shelf, useless
+-- in a dropdown you pick from forty times a receipt. Seeded per kitchen from
+-- Sam's list and editable in settings, because his list ends "there are almost
+-- certainly other ones".
+CREATE TABLE IF NOT EXISTS receipt_categories (
+  id         INTEGER PRIMARY KEY,
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  position   INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_receipt_categories_name
+  ON receipt_categories(kitchen_id, LOWER(name));
+
+-- One shop, one day, one person's card.
+--
+-- `bought_on` is 'YYYY-MM-DD' text for the reason meal_plan.on_date is: a
+-- receipt is about which day the shopping happened, not an instant, and a
+-- timestamp puts a late Saturday shop on Sunday for somebody an hour east.
+-- Nullable, because OCR does not always find it and "we do not know yet" is
+-- what the checklist exists to ask about.
+--
+-- `status` is open until somebody says they can no longer annotate it and
+-- closes it - Sam's "send it to the archives". Two states, not three: whether
+-- a receipt is half-done is derived from its checklist (lib/receipts.ts), and
+-- a stored "partial" would be a second opinion about the same facts.
+CREATE TABLE IF NOT EXISTS receipts (
+  id           INTEGER PRIMARY KEY,
+  kitchen_id   INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  bought_on    TEXT,
+  shop_id      INTEGER REFERENCES shops(id) ON DELETE SET NULL,
+  -- Who paid, which is who gets paid back.
+  purchaser_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  -- As printed by the till, when it was. The key payment_cards learns from.
+  card_last4   TEXT,
+  -- What the till said the total was. Kept beside the lines rather than
+  -- derived from them, because the difference between the two is the
+  -- quickest way to spot a line the OCR missed.
+  total_pence  INTEGER,
+  raw_text     TEXT,
+  photo_url    TEXT,
+  note         TEXT,
+  status       TEXT NOT NULL DEFAULT 'open',   -- open | closed
+  closed_at    TIMESTAMP,
+  created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_receipts_kitchen ON receipts(kitchen_id, status, bought_on);
+
+-- A line on a receipt.
+--
+-- `raw` is the receipt's own wording and `name` what it turned out to be:
+-- "INDIAN SELECTN" and "Indian selection". Both kept, because the raw text is
+-- what the next receipt will say, and what receipt_aliases learns against.
+--
+-- Pence as integers - a price in a float is a rounding error waiting for
+-- somebody to total it. Nullable, because an unreadable price is a hard item
+-- on the checklist rather than a zero quietly added to the bill. It is the
+-- price of the whole line, count included, as the till printed it.
+--
+-- The flags are Sam's:
+--   long_term  - the massive bag of rice, bought rarely and used forever.
+--   snack      - one person's junk food. Its eaters are that person alone, or
+--                nobody when it was for somebody outside the household (the
+--                purchaser absorbs it). Kept on the record, left out of the
+--                household's spend.
+--   used_whole - the pack of mince that goes entirely into one spag bol, so it
+--                takes one meal tag and not two.
+CREATE TABLE IF NOT EXISTS receipt_lines (
+  id          INTEGER PRIMARY KEY,
+  receipt_id  INTEGER NOT NULL REFERENCES receipts(id) ON DELETE CASCADE,
+  position    INTEGER NOT NULL DEFAULT 0,
+  raw         TEXT,
+  name        TEXT NOT NULL,
+  pence       INTEGER,
+  count       INTEGER NOT NULL DEFAULT 1,
+  -- How much of it: 500 g, 200 ml, 4 pieces. Optional and never chased.
+  amount      REAL,
+  unit        TEXT,
+  category_id INTEGER REFERENCES receipt_categories(id) ON DELETE SET NULL,
+  long_term   INTEGER NOT NULL DEFAULT 0,
+  snack       INTEGER NOT NULL DEFAULT 0,
+  used_whole  INTEGER NOT NULL DEFAULT 0,
+  use_by      TEXT,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_receipt_lines_receipt ON receipt_lines(receipt_id, position);
+CREATE INDEX IF NOT EXISTS idx_receipt_lines_name ON receipt_lines(LOWER(name));
+
+-- Who shares the cost of a line.
+--
+-- No rows means the whole household, which is the answer for most lines and
+-- the reason this is opt-in: a split that needed somebody to log who ate every
+-- carrot would be the meal-entry data hole Sam's outline worries about, moved
+-- somewhere else. Rows mean exactly those people.
+CREATE TABLE IF NOT EXISTS receipt_line_eaters (
+  line_id INTEGER NOT NULL REFERENCES receipt_lines(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (line_id, user_id)
+);
+
+-- A meal the household makes, as a moodboard of what goes into it.
+--
+-- Sam's pseudorecipe: Darcy's ramen is not a recipe, it is a set of things
+-- that tend to get bought for ramen, and the more often something is, the more
+-- it belongs. So a meal holds no ingredients of its own - they are whatever
+-- lines have been tagged with it, ranked by how often - and the only things
+-- typed here are its name, what kind of cooking it is, and, once somebody has
+-- written one down, the real recipe it has become.
+CREATE TABLE IF NOT EXISTS meals (
+  id         INTEGER PRIMARY KEY,
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  kind       TEXT NOT NULL DEFAULT 'riff',   -- batch | riff | single | lunch
+  recipe_id  INTEGER REFERENCES recipes(id) ON DELETE SET NULL,
+  notes      TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_meals_name ON meals(kitchen_id, LOWER(name));
+
+CREATE TABLE IF NOT EXISTS receipt_line_meals (
+  line_id INTEGER NOT NULL REFERENCES receipt_lines(id) ON DELETE CASCADE,
+  meal_id INTEGER NOT NULL REFERENCES meals(id) ON DELETE CASCADE,
+  PRIMARY KEY (line_id, meal_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_receipt_line_meals_meal ON receipt_line_meals(meal_id);
+
+-- What a receipt's wording turned out to mean, last time somebody said.
+--
+-- "When it sees a piece of semi encoded text on a receipt, if I've told it
+-- what that was before then it should automatically fill that in." Keyed by
+-- the wording normalised (aliasKey in lib/receipts.ts), per kitchen, and
+-- overwritten by the latest answer - an answer corrected once should not be
+-- outvoted by the five wrong ones before it.
+CREATE TABLE IF NOT EXISTS receipt_aliases (
+  kitchen_id  INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  key         TEXT NOT NULL,
+  name        TEXT NOT NULL,
+  category_id INTEGER REFERENCES receipt_categories(id) ON DELETE SET NULL,
+  long_term   INTEGER NOT NULL DEFAULT 0,
+  amount      REAL,
+  unit        TEXT,
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (kitchen_id, key)
+);
+
+-- Whose card ends in these four digits. Learned the first time somebody says
+-- who paid for a receipt that printed them.
+CREATE TABLE IF NOT EXISTS payment_cards (
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  last4      TEXT NOT NULL,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (kitchen_id, last4)
+);
+
+-- Money paid back between people, so a balance can reach zero.
+--
+-- Without this the split is a number that only ever grows. A payment is a
+-- fact with a date, appended and never edited: "Sam paid Luna 20 quid on
+-- Friday". Deleting one is how a mistake is undone.
+CREATE TABLE IF NOT EXISTS settlements (
+  id         INTEGER PRIMARY KEY,
+  kitchen_id INTEGER NOT NULL REFERENCES kitchens(id) ON DELETE CASCADE,
+  from_user  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  to_user    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pence      INTEGER NOT NULL,
+  on_date    TEXT NOT NULL,
+  note       TEXT,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_settlements_kitchen ON settlements(kitchen_id, on_date);

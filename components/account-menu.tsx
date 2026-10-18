@@ -127,12 +127,15 @@ export function AccountMenu({
           >
             {kitchens.length > 1 ? "Manage kitchens" : "Your kitchen"}
           </Link>
+          {/* Where "What you cook" (/stats) was. Stats went with stock in v2
+              and spend comes back on its own page; the list had no door but
+              the plan's, and the menu is where people look for one. */}
           <Link
-            href="/stats"
+            href="/list"
             onClick={() => setOpen(false)}
             className="block px-4 py-2.5 text-sm font-semibold hover:bg-chip"
           >
-            What you cook
+            Shopping list
           </Link>
           <Link
             href="/settings"

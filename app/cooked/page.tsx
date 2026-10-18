@@ -5,7 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { UndoCook } from "@/components/undo-cook";
-import { getCookedLog, getNeglected } from "@/lib/queries";
+import { getCookedLog } from "@/lib/queries";
 import { shortDate } from "@/lib/dates";
 import { currentKitchen } from "@/lib/session";
 
@@ -18,21 +18,18 @@ export const metadata: Metadata = {
 const CARD = "rounded-[20px] bg-card p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]";
 
 /**
- * What this kitchen has cooked, and what it has been ignoring.
+ * What this kitchen has cooked.
  *
- * The two halves are the same question from opposite ends - what gets used, and
- * what does not - so they share a page rather than hiding from each other in
- * separate corners of the app.
+ * It used to share the page with "not touched in a while" - stock nobody had
+ * moved in a month, and what it was good for. That half read the shelves and
+ * went with them in v2 (18 Oct 2026).
  */
 export default async function CookedPage() {
   const context = await currentKitchen();
   if (!context.ok) redirect("/login?next=%2Fcooked");
-  if (!context.kitchen) redirect("/kitchens?need=stock");
+  if (!context.kitchen) redirect("/kitchens?need=cooked");
 
-  const [log, neglected] = await Promise.all([
-    getCookedLog(context.kitchen.id),
-    getNeglected(context.kitchen.id, context.user.id),
-  ]);
+  const log = await getCookedLog(context.kitchen.id);
 
   return (
     <>
@@ -51,60 +48,17 @@ export default async function CookedPage() {
           Everything {context.kitchen.name} has made.
         </p>
 
-        {neglected.length > 0 && (
-          <section className={`${CARD} mb-5`}>
-            <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-label">
-              Not touched in a while
-            </h2>
-            <ul className="mt-3 space-y-3">
-              {neglected.map((item) => (
-                <li
-                  key={item.id}
-                  className="border-t border-border pt-3 first:border-0 first:pt-0"
-                >
-                  <Link
-                    href={`/pantry/item/${item.id}`}
-                    className="flex items-baseline justify-between gap-3 text-sm font-bold hover:underline"
-                  >
-                    <span className="min-w-0 break-words">{item.name}</span>
-                    <span className="shrink-0 text-xs font-semibold text-muted-foreground tabular-nums">
-                      {item.idle_days}d
-                    </span>
-                  </Link>
-                  {item.recipes.length > 0 && (
-                    <ul className="mt-1.5 space-y-1">
-                      {item.recipes.map((recipe) => (
-                        <li key={recipe.id}>
-                          <Link
-                            href={`/recipes/${recipe.id}`}
-                            className="flex items-baseline justify-between gap-3 text-[13px] font-semibold text-muted-foreground hover:text-foreground"
-                          >
-                            <span className="min-w-0 break-words">→ {displayTitle(recipe.name)}</span>
-                            <span className="shrink-0 tabular-nums">
-                              {recipe.have}/{recipe.total}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
         {log.length === 0 ? (
           /* Board 1p: an empty state offers the thing that fixes it. This one
              stated a fact and stopped, on the one page where the fix is a
              single tap away and the app already knows what to suggest. */
           <div className={`${CARD} text-center`}>
             <p className="text-sm font-semibold text-muted-foreground">
-              Nothing cooked yet. Cooking a recipe writes what came off the
-              shelves here.
+              Nothing cooked yet. Press &ldquo;Done&rdquo; on a recipe you
+              made and it is written here.
             </p>
             <Link
-              href="/tonight"
+              href="/plan"
               className="mt-4 inline-block rounded-[14px] bg-primary px-5 py-3 text-sm font-extrabold text-primary-foreground"
             >
               Find something to cook

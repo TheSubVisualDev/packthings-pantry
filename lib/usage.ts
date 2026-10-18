@@ -45,16 +45,13 @@ import { getDb, plainRows } from "./db";
  * actually asked at.
  */
 export const ACTIONS = [
+  // stock.adjust, stock.pack, stock.swipe, stock.open, item.add and
+  // receipt.scan were here until v2 removed stock tracking (18 Oct 2026). Their
+  // buttons are gone, so the names are too: a name nothing can record is a
+  // zero in the report, and a zero is a number somebody acts on. The old rows
+  // stay in usage_events. Receipts came back with new names, because a
+  // receipt now means a record of a shop rather than a restock.
   "cook.start",           // a recipe was actually cooked
-  "stock.adjust",         // the stepper or the sheet moved a quantity
-  "stock.pack",           // a sealed pack was opened
-  "stock.swipe",          // the row gesture, either direction
-  // Tapping through to an item. Worth its own name because the shelf view and
-  // the list both lead here, and `page` says which - which is the whole
-  // question about whether drawing the kitchen beats tabulating it.
-  "stock.open",
-  "item.add",             // something new put on a shelf
-  "receipt.scan",         // a photo of a receipt was read
   "shopping.add",         // anything added to the list, from anywhere
   "shopping.tick",        // a line crossed off, in the shop
   "recipe.open",          // a recipe was looked at
@@ -66,6 +63,11 @@ export const ACTIONS = [
   "plan.shop",            // "shop for it" off the week planner
   "search.run",           // a search that returned something
   "report.file",          // somebody wrote in from /report
+  "receipt.add",          // a receipt saved, by photo, text or typing
+  "receipt.ai",           // a photo read by the vision model, which costs money
+  "receipt.line",         // anything said about a line: category, sharers, meals
+  "receipt.close",        // "I can no longer annotate this receipt"
+  "spend.settle",         // a payment back recorded
 ] as const;
 
 export type UsageAction = (typeof ACTIONS)[number];

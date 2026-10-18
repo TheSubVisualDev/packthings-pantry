@@ -399,7 +399,7 @@ Method
             </h2>
             <p className="mt-2 text-[15px] leading-relaxed font-medium text-muted-foreground">
               Copy this, paste it into a chat, and say what you fancy. It tells
-              Claude what&apos;s on your shelves and what shape to write in.
+              Claude which units this app takes and what shape to write in.
             </p>
             <button
               type="button"

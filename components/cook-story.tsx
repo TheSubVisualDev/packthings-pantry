@@ -6,15 +6,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { AlarmClock, ArrowLeft, Check, PartyPopper, X, Zap } from "lucide-react";
 import {
-  cookAndList,
-  undoCookAndList,
-  type CookAndListResult,
+  cookRecipe,
+  undoCook,
+  type CookResult,
   type UndoResult,
 } from "@/app/recipes/[id]/actions";
-import { NewPackDates } from "@/components/new-pack-dates";
 import { useCookTimers } from "@/components/cook-timers";
 import { clock, splitStep } from "@/lib/step-timers";
-import { formatQuantity } from "@/lib/units";
 
 export interface StoryStep {
   id: number;
@@ -56,7 +54,7 @@ export function CookStory({
 }) {
   const router = useRouter();
   const [at, setAt] = useState(0);
-  const [result, setResult] = useState<CookAndListResult | null>(null);
+  const [result, setResult] = useState<CookResult | null>(null);
   const [undone, setUndone] = useState<UndoResult | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [pending, startCook] = useTransition();
@@ -123,7 +121,7 @@ export function CookStory({
 
   function cook() {
     startCook(async () => {
-      const cooked = await cookAndList(recipeId, servings);
+      const cooked = await cookRecipe(recipeId, servings);
       setResult(cooked);
       if (cooked.eventId !== undefined) setSecondsLeft(UNDO_WINDOW_SECONDS);
     });
@@ -132,9 +130,8 @@ export function CookStory({
   function undo() {
     if (result?.eventId === undefined) return;
     const eventId = result.eventId;
-    const lineIds = result.listed.map((line) => line.id);
     startUndo(async () => {
-      const put = await undoCookAndList(eventId, lineIds);
+      const put = await undoCook(eventId);
       setUndone(put);
       if (put.ok) router.refresh();
     });
@@ -208,7 +205,8 @@ export function CookStory({
           const box = event.currentTarget.getBoundingClientRect();
           const across = (event.clientX - box.left) / box.width;
           if (across < 0.3) back();
-          // The last step ends in a decision - cooking spends stock - so the
+          // The last step ends in a decision - it writes a cook to the log and
+          // tells the author - so the
           // forward zone stops rather than firing it by accident.
           else if (across > 0.7 && !last) forward();
         }}
@@ -339,7 +337,7 @@ export function CookStory({
             className="h-12 flex-1 rounded-[14px] bg-primary text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
           >
             {pending
-              ? "Taking it off the shelves…"
+              ? "Saving…"
               : `Done — cooked for ${servings}`}
           </button>
         ) : (
@@ -373,7 +371,7 @@ function shorten(body: string): string {
   return trimmed.length > 44 ? `${trimmed.slice(0, 44)}…` : trimmed;
 }
 
-/** The end of the cook: what left the kitchen, and the way back out. */
+/** The end of the cook, and the way back out. */
 function Done({
   recipeId,
   name,
@@ -385,7 +383,7 @@ function Done({
 }: {
   recipeId: number;
   name: string;
-  result: CookAndListResult;
+  result: CookResult;
   secondsLeft: number;
   undoPending: boolean;
   undoFailed: string | null;
@@ -401,45 +399,12 @@ function Done({
         {name}
       </h1>
 
-      {result.applied.length > 0 && (
-        <>
-          <p className="mt-6 text-xs font-bold uppercase tracking-[0.08em] opacity-80">
-            Taken off your shelves
-          </p>
-          <ul className="mt-1.5 space-y-1 text-sm font-semibold">
-            {result.applied.map((line) => (
-              <li key={line.item_name} className="flex justify-between gap-3">
-                <span className="break-words">{line.item_name}</span>
-                <span className="font-mono text-[13px] whitespace-nowrap opacity-90">
-                  &minus;{formatQuantity(line.decremented ?? 0)}
-                  {line.unit === "count" ? "" : line.unit} &rarr;{" "}
-                  {formatQuantity(line.remaining_total ?? 0)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      {result.listed.length > 0 && (
-        <p className="mt-3 text-sm font-semibold opacity-90">
-          {result.listed.map((line) => line.name).join(", ")} ran out &mdash; added
-          to your list.
-        </p>
-      )}
-
-      {result.flagged.length > 0 && (
-        <p className="mt-3 text-sm font-semibold opacity-90">
-          {result.flagged.map((line) => line.item_name).join(", ")} could not be
-          worked out from the recipe.
-        </p>
-      )}
-
-      {result.opened.length > 0 && (
-        <div className="text-foreground">
-          <NewPackDates opened={result.opened} />
-        </div>
-      )}
+      {/* It used to list what came off the shelves, what ran out and went
+          on the list, and the packets just opened. v2 keeps no stock, so the
+          end of a cook is the meal and the way out. */}
+      <p className="mt-3 text-sm font-semibold opacity-90">
+        In the cooked log, for whoever wrote it to hear about.
+      </p>
 
       <div className="mt-8 flex items-center gap-3">
         <Link

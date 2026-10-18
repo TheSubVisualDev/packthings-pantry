@@ -7,10 +7,10 @@ import type { KitchenContents } from "@/lib/kitchens";
 /**
  * Deleting a kitchen, behind a confirmation that says what actually goes.
  *
- * Typing the name is deliberate friction. This takes the stock, the scanned
- * barcodes, the cooking history and everyone else's access with it, and none
- * of that comes back - which is more than a person can weigh from the word
- * "delete" alone.
+ * Typing the name is deliberate friction. This takes the cookbook, the
+ * cooking history, the plan, the list and everyone else's access with it, and
+ * none of that comes back - which is more than a person can weigh from the
+ * word "delete" alone.
  */
 export function DeleteKitchen({
   kitchenId,
@@ -27,9 +27,10 @@ export function DeleteKitchen({
   const [pending, startTransition] = useTransition();
 
   const goes = [
-    contents.items > 0 ? `${contents.items} ${contents.items === 1 ? "item" : "items"}` : null,
+    contents.cookbook > 0
+      ? `${contents.cookbook} ${contents.cookbook === 1 ? "recipe" : "recipes"} in its cookbook`
+      : null,
     contents.cooks > 0 ? `${contents.cooks} recorded ${contents.cooks === 1 ? "cook" : "cooks"}` : null,
-    contents.products > 0 ? `${contents.products} scanned ${contents.products === 1 ? "barcode" : "barcodes"}` : null,
     contents.shopping > 0 ? `${contents.shopping} on the shopping list` : null,
   ].filter(Boolean) as string[];
 
@@ -63,7 +64,7 @@ export function DeleteKitchen({
       </ul>
 
       <p className="mt-2 text-sm font-medium text-[oklch(0.44_0.09_38)]">
-        Your recipes are safe — they belong to you, not to a set of shelves.
+        Your recipes are safe — they belong to you, not to a kitchen.
       </p>
 
       <label className="mt-3 block text-xs font-bold uppercase tracking-[0.08em] text-label">

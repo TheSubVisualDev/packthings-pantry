@@ -277,7 +277,7 @@ function splitPrice(line: string): { name: string; price: number } | null {
  * reads like a name rather than an alarm - and matches how the pantry writes
  * things, which is what the matcher compares against.
  */
-function tidyName(value: string): string {
+export function tidyName(value: string): string {
   return value
     .toLowerCase()
     .replace(/\b[a-z]/g, (c) => c.toUpperCase())

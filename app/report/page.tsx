@@ -55,7 +55,7 @@ export default async function ReportPage({
       <SiteHeader active="none" />
       <main className="mx-auto w-full max-w-[720px] px-5 py-7 pb-32 sm:px-9">
         <Link
-          href={page ?? "/pantry"}
+          href={page ?? "/recipes"}
           className="text-sm font-semibold text-muted-foreground hover:text-foreground"
         >
           &larr; Back

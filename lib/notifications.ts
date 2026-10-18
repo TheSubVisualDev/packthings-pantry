@@ -14,8 +14,8 @@ import { nudge } from "./push";
  *
  * Everything here is written so that the notification can be wrong without the
  * cook being wrong. `record` never throws and is never awaited by the cook
- * action: a push service having a bad afternoon must not roll back somebody's
- * dinner coming off the shelf.
+ * action: a push service having a bad afternoon must not roll back the record
+ * of somebody's dinner.
  *
  * It goes through `after` rather than being left as a floating promise,
  * though, and the difference is the feature working at all. A promise nobody
@@ -92,8 +92,8 @@ async function audienceFor(
  *
  * Deliberately returns void rather than a promise the caller waits on. This
  * runs immediately after a cook has been committed, and a cook is a person
- * standing in a kitchen having just pressed a button - the row on their shelf
- * has already moved, and nothing about telling somebody else is worth a
+ * standing in a kitchen having just pressed a button - their cook is already
+ * written down, and nothing about telling somebody else is worth a
  * moment of that person's time or a chance of failing in front of them.
  */
 export function record(input: {

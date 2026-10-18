@@ -1,14 +1,8 @@
 import { getDb, plainRows } from "./db";
-import { indexStock } from "./pantry-match";
-import { countStockedLines, getLinks, resolveWithLinks } from "./cookbook";
-import { inStock } from "./containers";
-import { daysUntil } from "./dates";
 import { totalMinutes } from "./recipe-tags";
-import type { RecipeFacts } from "./tonight";
-import type { ItemProfile } from "./suggest";
+import type { PlanningFacts } from "./plan";
 import { VISIBLE_TO_VIEWER, viewerArgs } from "./social";
 import type {
-  Item,
   Recipe,
   RecipeWithAuthor,
   RecipeIngredient,
@@ -17,18 +11,6 @@ import type {
   RecipeWithIngredients,
 } from "./types";
 
-/** No kitchen means no stock, which is a real state rather than an error. */
-export async function getItems(kitchenId: number | null): Promise<Item[]> {
-  if (kitchenId === null) return [];
-
-  const result = await getDb().execute({
-    sql: "SELECT * FROM items WHERE kitchen_id = ? ORDER BY category NULLS LAST, name",
-    args: [kitchenId],
-  });
-  // Plain objects: these reach client components, and a libSQL Row does not
-  // survive that boundary quietly. See plainRows in lib/db.ts.
-  return plainRows<Item>(result);
-}
 
 /**
  * The columns every recipe listing wants: the row, who wrote it, and what
@@ -44,7 +26,7 @@ const RECIPE_WITH_AUTHOR = `
 `;
 
 /**
- * Your own collection - what the cook-from-stock panel ranks.
+ * Your own collection: everything you wrote.
  *
  * `term` searches within it, by name, blurb or ingredient. No visibility clause
  * here: these are yours, and you can always see your own.
@@ -167,6 +149,25 @@ export async function getRecipeAuthorHandle(
   return (result.rows[0] as unknown as { id: number; handle: string }) ?? null;
 }
 
+/**
+ * Every ingredient name used across the recipes you wrote, for the editor to
+ * suggest. It suggested the kitchen's stock names until v2 dropped stock (18
+ * Oct 2026); what you have called a thing before does the same job - one
+ * spelling of "spring onions" instead of three.
+ */
+export async function getIngredientNames(authorId: number): Promise<string[]> {
+  const result = await getDb().execute({
+    sql: `SELECT DISTINCT ri.item_name
+          FROM recipe_ingredients ri
+          JOIN recipes r ON r.id = ri.recipe_id
+          WHERE r.author_id = ?
+          ORDER BY ri.item_name COLLATE NOCASE
+          LIMIT 1000`,
+    args: [authorId],
+  });
+  return (result.rows as unknown as { item_name: string }[]).map((row) => row.item_name);
+}
+
 /** Kept for the API, which lists what the calling account wrote. */
 export async function getRecipes(authorId: number): Promise<Recipe[]> {
   return getMyRecipes(authorId);
@@ -230,14 +231,6 @@ export async function getRecipe(
   return { ...recipe, ingredients, steps };
 }
 
-export interface RecipeWithMatch extends RecipeWithAuthor {
-  /** Ingredient lines whose item is currently in stock. */
-  have: number;
-  total: number;
-  /** Whether this kitchen has adopted it, and can therefore cook it. */
-  in_cookbook: boolean;
-}
-
 /**
  * Recipes in this kitchen's cookbook, newest adoption first.
  *
@@ -248,92 +241,36 @@ export interface RecipeWithMatch extends RecipeWithAuthor {
 export async function getCookbookRecipes(
   kitchenId: number | null,
   viewerId: number,
+  /** Searches within it, by name, blurb or ingredient, as getMyRecipes does. */
+  term = "",
 ): Promise<RecipeWithAuthor[]> {
   if (kitchenId === null) return [];
+
+  const needle = `%${term.trim().toLowerCase()}%`;
+  const filtered = term.trim().length > 0;
 
   const result = await getDb().execute({
     sql: `${RECIPE_WITH_AUTHOR}
           JOIN cookbook cb ON cb.recipe_id = r.id AND cb.kitchen_id = ?
           WHERE ${VISIBLE_TO_VIEWER}
+          ${
+            filtered
+              ? `AND (
+                  LOWER(r.name) LIKE ?
+                  OR LOWER(COALESCE(r.description, '')) LIKE ?
+                  OR EXISTS (
+                    SELECT 1 FROM recipe_ingredients ri
+                    WHERE ri.recipe_id = r.id AND LOWER(ri.item_name) LIKE ?
+                  )
+                )`
+              : ""
+          }
           ORDER BY r.times_cooked DESC, r.name`,
-    args: [kitchenId, ...viewerArgs(viewerId)],
+    args: filtered
+      ? [kitchenId, ...viewerArgs(viewerId), needle, needle, needle]
+      : [kitchenId, ...viewerArgs(viewerId)],
   });
   return plainRows<RecipeWithAuthor>(result);
-}
-
-/**
- * Everything a readiness count needs, fetched once.
- *
- * Ingredient lines, the agreed links, and the stock they point at. Pulled out
- * because four callers want exactly this and each round trip is a hop to
- * Nuremberg.
- */
-export async function readinessContext(kitchenId: number | null) {
-  const [items, links, ingredientRows] = await Promise.all([
-    getItems(kitchenId),
-    getLinks(kitchenId),
-    getDb().execute(
-      "SELECT id, recipe_id, item_name, unit FROM recipe_ingredients ORDER BY position, id",
-    ),
-  ]);
-
-  const byRecipe = new Map<number, RecipeIngredient[]>();
-  for (const row of ingredientRows.rows as unknown as RecipeIngredient[]) {
-    const bucket = byRecipe.get(row.recipe_id);
-    if (bucket) bucket.push(row);
-    else byRecipe.set(row.recipe_id, [row]);
-  }
-
-  return {
-    stock: indexStock(items),
-    byId: new Map(items.map((item) => [item.id, item])),
-    links,
-    byRecipe,
-  };
-}
-
-/**
- * Recipes ranked for the "cook with what you have" panel, each with a count of
- * how many of its lines are stocked *in this kitchen*.
- *
- * Reads the cookbook rather than everything you have ever written. A recipe
- * you typed up once and never made is not a suggestion, and ranking it
- * alongside the things you actually cook is how a suggestion panel stops being
- * worth looking at. It also means the counts come from links a person agreed
- * to, rather than from a guess recomputed on every page load.
- */
-export async function getRecipesWithMatches(
-  kitchenId: number | null,
-  viewerId: number,
-  term = "",
-): Promise<RecipeWithMatch[]> {
-  const [recipes, context] = await Promise.all([
-    getCookbookRecipes(kitchenId, viewerId),
-    readinessContext(kitchenId),
-  ]);
-
-  const needle = term.trim().toLowerCase();
-  const matching = needle
-    ? recipes.filter(
-        (recipe) =>
-          recipe.name.toLowerCase().includes(needle) ||
-          (recipe.description ?? "").toLowerCase().includes(needle) ||
-          (context.byRecipe.get(recipe.id) ?? []).some((line) =>
-            line.item_name.toLowerCase().includes(needle),
-          ),
-      )
-    : recipes;
-
-  return matching.map((recipe) => ({
-    ...recipe,
-    in_cookbook: true,
-    ...countStockedLines(
-      context.byRecipe.get(recipe.id) ?? [],
-      context.links,
-      context.stock,
-      context.byId,
-    ),
-  }));
 }
 
 /**
@@ -473,162 +410,6 @@ export async function searchPeople(viewerId: number, term: string) {
   }[];
 }
 
-export interface ExpiringItem extends Item {
-  /** The earlier of the packet date and the opened-plus-shelf-life date. */
-  use_by: string;
-  days_left: number;
-  /** True when the deadline comes from having opened it, not the packet. */
-  because_opened: number;
-}
-
-/**
- * The deadline that actually applies to a jar.
- *
- * A sealed thing is good until the date on it. An open thing is good for
- * however long it keeps once open, counted from when it was opened - and if
- * both apply, whichever comes first wins. Written once here because three
- * places need to agree about it.
- */
-const USE_BY = `
-  MIN(
-    COALESCE(expiry_date, '9999-12-31'),
-    COALESCE(
-      CASE WHEN opened_at IS NOT NULL AND shelf_life_days IS NOT NULL
-        THEN date(opened_at, '+' || shelf_life_days || ' days')
-      END,
-      '9999-12-31'
-    )
-  )
-`;
-
-/**
- * What's about to go off, soonest first.
- *
- * Anything already past is included with a negative count, because "this went
- * off on Tuesday" is more useful than silence.
- */
-export async function getExpiring(
-  kitchenId: number | null,
-  withinDays = 7,
-): Promise<ExpiringItem[]> {
-  if (kitchenId === null) return [];
-
-  const result = await getDb().execute({
-    sql: `SELECT *, ${USE_BY} AS use_by,
-                 CAST(julianday(${USE_BY}) - julianday('now') AS INTEGER) AS days_left,
-                 (opened_at IS NOT NULL
-                   AND shelf_life_days IS NOT NULL
-                   AND date(opened_at, '+' || shelf_life_days || ' days') <=
-                       COALESCE(expiry_date, '9999-12-31')) AS because_opened
-          FROM items
-          WHERE kitchen_id = ?
-            -- An unopened pack goes off too, and quantity only counts the open
-            -- one, so three sealed tins would otherwise read as nothing there.
-            AND (quantity > 0 OR sealed_count > 0)
-            AND ${USE_BY} < '9999-12-31'
-            AND julianday(${USE_BY}) - julianday('now') <= ?
-          ORDER BY use_by`,
-    args: [kitchenId, withinDays],
-  });
-  return plainRows<ExpiringItem>(result);
-}
-
-export async function getItem(
-  kitchenId: number,
-  itemId: number,
-): Promise<Item | null> {
-  const result = await getDb().execute({
-    sql: "SELECT * FROM items WHERE id = ? AND kitchen_id = ?",
-    args: [itemId, kitchenId],
-  });
-  // Plain object: the item page hands this straight to a client component.
-  return plainRows<Item>(result)[0] ?? null;
-}
-
-export interface Rescue {
-  item: ExpiringItem;
-  /** Recipes that use it, the most makeable first. */
-  recipes: RecipeWithMatch[];
-}
-
-/**
- * What to cook before it goes off.
- *
- * The stock page has always listed what is expiring, which tells you there is a
- * problem without helping with it. This answers the next question: given that
- * the coriander dies on Thursday, what can actually be made with it tonight.
- *
- * Ranked by how much of the rest of the recipe is already here, because a
- * recipe needing five other things you do not have is not a rescue, it is a
- * shopping trip. Ties go to whatever has been cooked most, on the grounds that
- * a recipe you return to is a recipe that works.
- *
- * The deadline is whichever comes first of the date on the packet and
- * `opened_at + shelf_life_days`, which getExpiring already works out - so this
- * is a ranking problem rather than a second definition of "expiring", and
- * there is no way for the two to disagree.
- */
-export async function getRescues(
-  kitchenId: number | null,
-  authorId: number,
-  withinDays = 7,
-): Promise<Rescue[]> {
-  if (kitchenId === null) return [];
-
-  const [expiring, recipes, context] = await Promise.all([
-    getExpiring(kitchenId, withinDays),
-    getCookbookRecipes(kitchenId, authorId),
-    readinessContext(kitchenId),
-  ]);
-  if (expiring.length === 0) return [];
-
-  const scored = recipes.map((recipe) => {
-    const lines = context.byRecipe.get(recipe.id) ?? [];
-    /**
-     * Which stock rows this recipe actually calls for.
-     *
-     * Ids rather than lowercased names, because "does this recipe use the
-     * coriander that dies on Thursday" was previously asked as a string
-     * equality - so a recipe saying "fresh coriander" rescued nothing, which
-     * is the failure this whole panel exists to prevent.
-     */
-    const uses = new Set<number>();
-    for (const line of lines) {
-      const { item } = resolveWithLinks(line, context.links, context.stock, context.byId);
-      if (item) uses.add(item.id);
-    }
-    return {
-      recipe,
-      uses,
-      ...countStockedLines(lines, context.links, context.stock, context.byId),
-    };
-  });
-
-  return expiring
-    .map((item) => {
-      const uses = scored
-        .filter((entry) => entry.uses.has(item.id))
-        .sort((a, b) => {
-          // Proportion rather than count: a recipe with three of four is a
-          // better bet than one with four of twelve.
-          const readiness = b.have / Math.max(1, b.total) - a.have / Math.max(1, a.total);
-          return readiness !== 0 ? readiness : b.recipe.times_cooked - a.recipe.times_cooked;
-        })
-        .slice(0, 2)
-        .map((entry) => ({
-          ...entry.recipe,
-          have: entry.have,
-          total: entry.total,
-          in_cookbook: true,
-        }));
-
-      return { item, recipes: uses };
-    })
-    // Items nothing can be made from still belong on the list - they are the
-    // ones about to be thrown away - so they are kept, not filtered out.
-    .sort((a, b) => a.item.days_left - b.item.days_left);
-}
-
 export interface CookedEntry {
   id: number;
   recipe_id: number;
@@ -642,10 +423,12 @@ export interface CookedEntry {
   /**
    * Whether undo is still offered for this one, decided by the database.
    *
-   * A day. Undo puts the ingredients back on the shelf, and a shelf a
-   * fortnight on is not the shelf they came off - restoring 600g of flour to a
-   * bag that has since been finished and replaced writes a number that was
-   * never true. Same night, or the morning after, it is exactly right.
+   * A day. Undo is for the press that was a mistake - the wrong recipe, the
+   * same dinner logged twice - and that is noticed the same night or the
+   * morning after. It used to be a day because it put stock back, and a shelf
+   * a fortnight on is not the shelf things came off; with no stock (v2) the
+   * limit stays for the other reason, that a log anybody can quietly rewrite
+   * weeks later is not a record of what happened.
    *
    * Decided in SQL rather than from the browser's clock, because the two
    * disagree and a button that appears on one device and not another is worse
@@ -700,101 +483,25 @@ export async function getCookedLog(
   }));
 }
 
-export interface Neglected {
-  id: number;
-  name: string;
-  /** Days since anything touched it. */
-  idle_days: number;
-  recipes: RecipeWithMatch[];
-}
-
 /**
- * Things sitting untouched, and what they are good for.
+ * Everything the week planner's "Fill the gaps" ranks, in one pass over the
+ * cookbook.
  *
- * The opposite question to the restock one: not "what have I run out of" but
- * "what did I buy and then never use". `updated_at` moves on every adjustment,
- * cook and edit, so it is a fair proxy for when the jar was last thought about.
- *
- * Only things actually in stock, and only past a month, because a fortnight of
- * quiet is not neglect - it is a cupboard working normally.
+ * This was the Tonight ranker's input, and most of it was about the shelves -
+ * how much of a recipe was in, what in it was about to go off. v2 has no
+ * shelves, so what is left is what the kitchen has said about its own
+ * cooking: how it rated a recipe, how often it goes back to it, and how
+ * recently it had it. The scoring stays pure in lib/plan.ts, so check:plan
+ * can argue with a weight without a database.
  */
-export async function getNeglected(
-  kitchenId: number | null,
-  authorId: number,
-  idleDays = 30,
-): Promise<Neglected[]> {
-  if (kitchenId === null) return [];
-
-  const result = await getDb().execute({
-    sql: `SELECT id, name,
-                 CAST(julianday('now') - julianday(updated_at) AS INTEGER) AS idle_days
-          FROM items
-          WHERE kitchen_id = ?
-            AND (quantity > 0 OR sealed_count > 0)
-            AND updated_at IS NOT NULL
-            AND julianday('now') - julianday(updated_at) >= ?
-          ORDER BY idle_days DESC
-          LIMIT 8`,
-    args: [kitchenId, idleDays],
-  });
-
-  const idle = result.rows as unknown as Omit<Neglected, "recipes">[];
-  if (idle.length === 0) return [];
-
-  const [recipes, context] = await Promise.all([
-    getCookbookRecipes(kitchenId, authorId),
-    readinessContext(kitchenId),
-  ]);
-
-  // Scored once, not once per neglected item: resolving is the expensive part
-  // and the answer does not depend on which jar is being asked about.
-  const scored = recipes.map((recipe) => {
-    const lines = context.byRecipe.get(recipe.id) ?? [];
-    const uses = new Set<number>();
-    for (const line of lines) {
-      const { item } = resolveWithLinks(line, context.links, context.stock, context.byId);
-      if (item) uses.add(item.id);
-    }
-    return {
-      recipe,
-      uses,
-      ...countStockedLines(lines, context.links, context.stock, context.byId),
-    };
-  });
-
-  return idle.map((item) => {
-    const uses = scored
-      .filter((entry) => entry.uses.has(item.id))
-      .sort((a, b) => b.have / Math.max(1, b.total) - a.have / Math.max(1, a.total))
-      .slice(0, 2)
-      .map((entry) => ({
-        ...entry.recipe,
-        have: entry.have,
-        total: entry.total,
-        in_cookbook: true,
-      }));
-
-    return { ...item, recipes: uses };
-  });
-}
-
-/**
- * Everything the Tonight ranker needs, in one pass over the cookbook.
- *
- * Deliberately assembles facts rather than ranking anything: the scoring lives
- * in lib/tonight.ts and stays pure, so check:tonight can argue with a weight
- * without a database.
- */
-export async function getTonightFacts(
+export async function getPlanningFacts(
   kitchenId: number | null,
   viewerId: number,
-): Promise<RecipeFacts[]> {
+): Promise<PlanningFacts[]> {
   if (kitchenId === null) return [];
 
-  const [recipes, context, expiring, lastCooked] = await Promise.all([
+  const [recipes, lastCooked] = await Promise.all([
     getCookbookRecipes(kitchenId, viewerId),
-    readinessContext(kitchenId),
-    getExpiring(kitchenId),
     /**
      * When each recipe was last actually cooked here.
      *
@@ -812,108 +519,18 @@ export async function getTonightFacts(
     }),
   ]);
 
-  /**
-   * daysUntil, not the SQL days_left. That column truncates the gap from the
-   * current instant toward zero, so a thing that went off yesterday afternoon
-   * read as "today" - and this is the number the reason under a suggestion
-   * prints ("tomorrow", "already past"), which AGENTS.md says days_left must
-   * never be. It still sorts the query; it just is not said out loud.
-   */
-  const daysLeftByItem = new Map(
-    expiring.map((item) => [item.id, daysUntil(item.use_by)]),
-  );
-  const expiringNames = new Map(expiring.map((item) => [item.id, item.name]));
   const sinceByRecipe = new Map(
     (lastCooked.rows as unknown as { recipe_id: number; days_since: number }[]).map(
       (row) => [row.recipe_id, row.days_since],
     ),
   );
 
-  return recipes.map((recipe) => {
-    const lines = context.byRecipe.get(recipe.id) ?? [];
-    const rescues: { name: string; daysLeft: number }[] = [];
-    const missing: string[] = [];
-    let have = 0;
-
-    for (const line of lines) {
-      const { item } = resolveWithLinks(line, context.links, context.stock, context.byId);
-      if (item && inStock(item)) {
-        have += 1;
-        const daysLeft = daysLeftByItem.get(item.id);
-        if (daysLeft !== undefined) {
-          rescues.push({ name: expiringNames.get(item.id) ?? item.name, daysLeft });
-        }
-      } else {
-        // What the recipe calls it, not what the pantry calls it. The shopping
-        // list reads better in the recipe's own words.
-        missing.push(line.item_name);
-      }
-    }
-
-    return {
-      id: recipe.id,
-      name: recipe.name,
-      have,
-      total: lines.length,
-      rescues,
-      missing,
-      minutes: totalMinutes(recipe),
-      rating: recipe.avg_rating,
-      timesCooked: recipe.times_cooked,
-      daysSinceCooked: sinceByRecipe.get(recipe.id) ?? null,
-    };
-  });
-}
-
-/**
- * This kitchen's stock, trimmed to the fields an add form can copy.
- *
- * Narrower than getItems on purpose: it is handed to the browser so a new
- * item can inherit the unit, shelf and tags of the nearest thing you already
- * own, and a kitchen's full rows carry nutrition figures, expiry dates and
- * quantities that have no business being suggestions.
- */
-export async function getItemProfiles(
-  kitchenId: number | null,
-): Promise<ItemProfile[]> {
-  if (kitchenId === null) return [];
-
-  const result = await getDb().execute({
-    // One query with the tags and shops folded in as grouped strings, rather
-    // than three queries plus stitching. The names cannot contain the
-    // separator: both are cleaned to collapsed whitespace on the way in.
-    sql: `SELECT i.id, i.name, i.canonical_unit, i.dimension, i.location,
-                 i.pack_size, i.pack_unit, i.shelf_life_days,
-                 (SELECT GROUP_CONCAT(t.name, '\u001f')
-                    FROM item_tags it JOIN tags t ON t.id = it.tag_id
-                   WHERE it.item_id = i.id) AS tag_names,
-                 (SELECT GROUP_CONCAT(s.name, '\u001f')
-                    FROM item_shops ish JOIN shops s ON s.id = ish.shop_id
-                   WHERE ish.item_id = i.id) AS shop_names
-          FROM items i
-          WHERE i.kitchen_id = ?
-          ORDER BY i.name`,
-    args: [kitchenId],
-  });
-
-  const split = (value: string | null) =>
-    value ? value.split("\u001f").filter(Boolean) : [];
-
-  return (
-    result.rows as unknown as (Omit<ItemProfile, "tags" | "shops"> & {
-      tag_names: string | null;
-      shop_names: string | null;
-    })[]
-  ).map((row) => ({
-    id: row.id,
-    name: row.name,
-    canonical_unit: row.canonical_unit,
-    dimension: row.dimension,
-    location: row.location,
-    pack_size: row.pack_size,
-    pack_unit: row.pack_unit,
-    shelf_life_days: row.shelf_life_days,
-    tags: split(row.tag_names),
-    shops: split(row.shop_names),
+  return recipes.map((recipe) => ({
+    id: recipe.id,
+    name: recipe.name,
+    minutes: totalMinutes(recipe),
+    rating: recipe.avg_rating,
+    timesCooked: recipe.times_cooked,
+    daysSinceCooked: sinceByRecipe.get(recipe.id) ?? null,
   }));
 }

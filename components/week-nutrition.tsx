@@ -16,7 +16,7 @@ const ROWS = [
  *
  * Asked before the shopping rather than after the eating, which is the only
  * moment at which the answer can still change anything - and is the reason
- * this sits on the planner rather than on /stats.
+ * this sits on the planner rather than on a stats page.
  *
  * The per-portion average leads and the week total follows, because the
  * average is the comparable number. A week total depends on how many people

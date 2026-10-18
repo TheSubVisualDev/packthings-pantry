@@ -7,16 +7,17 @@ import {
   Check,
   CopyPlus,
   Settings2,
-  ShoppingBasket,
   Sparkles,
   UtensilsCrossed,
   X,
 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
+import { ShopChecklist } from "@/components/shop-checklist";
 import {
   copyWeekForward,
   emptySlot,
   fillTheGaps,
+  previewWeekShopping,
   putInSlot,
   renameSlots,
   shopForTheWeek,
@@ -29,9 +30,8 @@ import { recipeTint } from "@/lib/tint";
 export interface Pickable {
   id: number;
   name: string;
-  /** How much of it this kitchen has, so the week can be planned around it. */
-  have: number;
-  total: number;
+  /** How often this kitchen has cooked it, said beside the name. */
+  timesCooked: number;
 }
 
 /**
@@ -114,7 +114,7 @@ export function WeekPlan({
 
         Above the days because they are what the page is for: filling seven
         slots one tap at a time is a chore, and the point of a planner that
-        knows the shelves is that it can do most of it and then be corrected.
+        knows the cookbook is that it can do most of it and then be corrected.
       */}
       {canEdit && (
         <div className="flex gap-2 print:hidden">
@@ -127,15 +127,19 @@ export function WeekPlan({
             <Sparkles className="h-4 w-4 shrink-0" strokeWidth={2.8} />
             {pending ? "Thinking…" : "Fill the gaps"}
           </button>
-          <button
-            type="button"
-            onClick={() => run(() => shopForTheWeek(start))}
-            disabled={pending || planned === 0}
-            className="flex h-12 flex-1 items-center justify-center gap-2 rounded-[14px] bg-card text-sm font-extrabold shadow-[0_1px_3px_rgba(0,0,0,0.05)] disabled:opacity-40"
-          >
-            <ShoppingBasket className="h-4 w-4 shrink-0" strokeWidth={2.8} />
-            Shop for it
-          </button>
+          {/* A checklist rather than one press since v2 stopped tracking
+              stock: the app no longer knows what is in, so the person
+              unticks it. See ShopChecklist. */}
+          <div className="flex-1">
+            <ShopChecklist
+              load={() => previewWeekShopping(start)}
+              commit={(keys) => shopForTheWeek(start, keys)}
+              label="Shop for it"
+              title="Shopping for the week"
+              tone="button"
+              disabled={pending || planned === 0}
+            />
+          </div>
         </div>
       )}
 
@@ -330,9 +334,9 @@ export function WeekPlan({
 /**
  * Choosing what goes in a slot.
  *
- * Ordered by how much of it is already in, because the whole reason to plan a
- * week in this app rather than on paper is that it knows what is on the
- * shelves. "Something else" is right there at the top rather than buried:
+ * Ordered by how often this kitchen cooks it - it was how much of it was
+ * already in, until v2 stopped tracking that. "Something else" is right
+ * there at the top rather than buried:
  * "out on Saturday" is a real answer about the week and a planner that only
  * accepts recipes makes people leave a gap that reads as undecided.
  */
@@ -420,21 +424,14 @@ function Picker({
               <span className="min-w-0 flex-1 text-sm font-bold break-words">
                 {option.name}
               </span>
-              {/* What planning it would cost, said before you choose rather
-                  than after. The point of planning here rather than on paper. */}
-              <span
-                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap ${
-                  option.have === option.total
-                    ? "bg-primary/12 text-primary"
-                    : "bg-chip text-muted-foreground"
-                }`}
-              >
-                {option.total === 0
-                  ? "no ingredients"
-                  : option.have === option.total
-                    ? "all in"
-                    : `${option.total - option.have} to buy`}
-              </span>
+              {/* It used to say what planning it would cost against the
+                  shelves. With no stock (v2) the useful fact is how often
+                  this kitchen goes back to it, and nothing for never. */}
+              {option.timesCooked > 0 && (
+                <span className="shrink-0 rounded-full bg-chip px-2.5 py-1 text-xs font-bold whitespace-nowrap text-muted-foreground">
+                  cooked {option.timesCooked}&times;
+                </span>
+              )}
             </button>
           </li>
         ))}

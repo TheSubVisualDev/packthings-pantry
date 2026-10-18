@@ -5,7 +5,7 @@ import { RecipeEditor } from "@/components/recipe-editor";
 import type { RecipePhotos } from "@/components/recipe-editor";
 import { SiteHeader } from "@/components/site-header";
 import { DeleteRecipeButton } from "@/components/delete-recipe-button";
-import { getItems, getRecipe } from "@/lib/queries";
+import { getIngredientNames, getRecipe } from "@/lib/queries";
 import { currentKitchen } from "@/lib/session";
 import { draftFromRecipe } from "@/lib/recipe-draft";
 import { getSectionNames } from "@/lib/recipe-sections";
@@ -33,11 +33,10 @@ export default async function EditRecipePage({
 
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
-  const kitchen = context.kitchen;
 
-  const [recipe, items, sections] = await Promise.all([
+  const [recipe, names, sections] = await Promise.all([
     getRecipe(recipeId, context.user.id),
-    getItems(kitchen?.id ?? null),
+    getIngredientNames(context.user.id),
     getSectionNames(),
   ]);
   if (!recipe) notFound();
@@ -78,7 +77,7 @@ export default async function EditRecipePage({
           initial={draftFromRecipe(recipe)}
           recipeId={recipe.id}
           photos={photos}
-          pantryNames={items.map((item) => item.name)}
+          knownNames={names}
           sections={sections}
         />
 

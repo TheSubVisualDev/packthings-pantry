@@ -183,7 +183,7 @@ export function ReportForm({ from }: { from: string | null }) {
             Write another
           </button>
           <Link
-            href={from ?? "/pantry"}
+            href={from ?? "/recipes"}
             className="rounded-[12px] bg-primary px-4 py-2.5 text-sm font-extrabold text-primary-foreground"
           >
             Back to it

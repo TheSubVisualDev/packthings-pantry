@@ -106,7 +106,7 @@ function move<T>(list: T[], from: number, delta: number): T[] {
 export function RecipeEditor({
   initial,
   recipeId,
-  pantryNames,
+  knownNames,
   sections,
   photos,
 }: {
@@ -114,8 +114,12 @@ export function RecipeEditor({
   recipeId?: number;
   /** Absent for a recipe that hasn't been saved yet - there's nothing to attach to. */
   photos?: RecipePhotos;
-  /** Existing item names, offered as suggestions but never enforced. */
-  pantryNames: string[];
+  /**
+   * Names already used in your recipes, offered as suggestions but never
+   * enforced. These were the kitchen's stock names until v2 dropped stock;
+   * what you have called things before is the same help with a spelling.
+   */
+  knownNames: string[];
   /** Section names already used across the pantry's recipes. */
   sections: string[];
 }) {
@@ -172,15 +176,9 @@ export function RecipeEditor({
    */
   const [openExtras, setOpenExtras] = useState<Set<string>>(() => new Set());
 
-  /**
-   * The warnings split by whether they are anybody's fault.
-   *
-   * "Not in this kitchen yet" is a fact about the cupboard; a unit that
-   * cannot be decremented is a fact about the recipe. Only the second is
-   * worth interrupting somebody who has just pressed save.
-   */
-  const notStocked = (result?.warnings ?? []).filter((w) => w.kind === "not-stocked");
-  const realWarnings = (result?.warnings ?? []).filter((w) => w.kind !== "not-stocked");
+  // Only warnings about the recipe itself remain. The ones about the
+  // cupboard - "not in this kitchen yet" - went with stock tracking in v2.
+  const realWarnings = result?.warnings ?? [];
   const [pending, startTransition] = useTransition();
 
   // Which pane is showing, on a screen too narrow for both. Desktop ignores it
@@ -500,9 +498,8 @@ export function RecipeEditor({
                 </div>
               </div>
 
-              {/* Pantry names are offered, not required: a recipe can call for
-                  something you've never bought, and that line simply shows as
-                  not in stock rather than being refused. */}
+              {/* Names you have used before are offered, not required: a
+                  recipe can call for anything. */}
               {/* Name, amount and unit on one line - the three things every
                   ingredient has. Everything optional goes underneath. */}
               <div className="flex flex-wrap items-start gap-2">
@@ -510,7 +507,7 @@ export function RecipeEditor({
                   <SoftSelect
                     id={`ingredient-name-${line.key}`}
                     name={`ingredient-name-${line.key}`}
-                    options={pantryNames}
+                    options={knownNames}
                     defaultValue={line.item_name}
                     onValueChange={(value) => patchIngredient(index, { item_name: value })}
                     placeholder="Ingredient"
@@ -568,13 +565,13 @@ export function RecipeEditor({
                 <p className="mt-1 text-xs font-semibold text-muted-foreground">
                   Roughly this much — it will read as{" "}
                   <span className="text-quantity">~{line.quantity.trim().slice(1)}</span>,
-                  and still comes off your shelves.
+                  and still scales with the servings.
                 </p>
               )}
               {line.unit === UNMEASURED && (
                 <p className="mt-1 text-xs font-semibold text-muted-foreground">
-                  No amount. Nothing comes off your shelves for this one — say
-                  how much in the note below.
+                  No amount, so it never goes on the shopping list — say how
+                  much in the note below.
                 </p>
               )}
 
@@ -1130,11 +1127,6 @@ export function RecipeEditor({
         </div>
       )}
 
-      {/* Two different things used to be listed together here, and only one
-          of them is a problem. An ingredient this kitchen has never held is
-          the normal state of a recipe you have not shopped for yet - making
-          somebody read it as a warning, every time they save, taught them to
-          skim the list that also carries the real one. */}
       {result?.ok && realWarnings.length > 0 && (
         <div className="rounded-[20px] bg-chip p-5">
           <h3 className="text-sm font-extrabold">Saved, with things worth a look</h3>
@@ -1144,16 +1136,6 @@ export function RecipeEditor({
             ))}
           </ul>
         </div>
-      )}
-
-      {result?.ok && notStocked.length > 0 && (
-        <p className="text-sm font-semibold text-muted-foreground">
-          {notStocked.length === 1
-            ? "One ingredient isn't in your kitchen yet."
-            : `${notStocked.length} ingredients aren't in your kitchen yet.`}{" "}
-          That&rsquo;s fine &mdash; the recipe keeps them, and you can send
-          them straight to the shopping list.
-        </p>
       )}
 
       </div>
