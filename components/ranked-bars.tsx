@@ -22,6 +22,8 @@ export interface RankedRow {
   key: string;
   label: string;
   value: number;
+  /** What to print instead of the bare number - "£12.40" for a value in pence. */
+  display?: string;
   href?: string;
   /** A quiet second line - a date, usually. */
   meta?: string;
@@ -46,14 +48,14 @@ export function RankedBars({ rows, unit }: { rows: RankedRow[]; unit: string }) 
               // Link; the conditional above is the proof.
               {...({ href: row.href } as { href: string })}
               className={`block rounded-[10px] py-1 ${row.href ? "transition-colors hover:bg-chip" : ""}`}
-              title={`${row.label}: ${row.value} ${unit}`}
+              title={`${row.label}: ${row.display ?? `${row.value} ${unit}`}`}
             >
               <div className="flex items-baseline justify-between gap-3">
                 <span className="min-w-0 flex-1 truncate text-sm font-bold">
                   {row.label}
                 </span>
                 <span className="shrink-0 font-mono text-sm font-bold tabular-nums">
-                  {row.value}
+                  {row.display ?? row.value}
                 </span>
               </div>
 
