@@ -402,7 +402,7 @@ export function recipeJsonSchema() {
             item_name: {
               type: "string",
               description:
-                "Matched against pantry item names, case-insensitively. A name the pantry doesn't have is accepted with a warning, not rejected.",
+                "The ingredient as it would be written on a shopping list, which is where shopping for the recipe puts it.",
             },
             quantity: {
               type: "number",
@@ -419,7 +419,7 @@ export function recipeJsonSchema() {
               type: "number",
               exclusiveMinimum: 0,
               description:
-                "What one of `unit` amounts to, when the unit is a package: 1 tin is 400 g. Lets the line work against a pantry that weighs the contents as well as one that counts tins.",
+                "What one of `unit` amounts to, when the unit is a package: 1 tin is 400 g. Lets the line scale and count towards nutrition by weight as well as by the tin.",
             },
             pack_unit: {
               type: "string",

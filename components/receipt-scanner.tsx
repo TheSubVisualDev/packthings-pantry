@@ -179,7 +179,7 @@ export function ReceiptScanner() {
             href="/recipes"
             className="rounded-[14px] bg-chip px-5 py-2.5 text-sm font-bold"
           >
-            Back to the shelf
+            Back to the cookbook
           </Link>
         </div>
       </section>
