@@ -263,6 +263,7 @@ export function ReceiptEditor({
                 onToggle={() => setOpen(open === line.id ? null : line.id)}
                 categories={categories}
                 household={household}
+                meals={meals}
               />
               {open === line.id && (
                 <LineEditor
@@ -353,12 +354,14 @@ function LineRowView({
   onToggle,
   categories,
   household,
+  meals,
 }: {
   line: LineRow;
   open: boolean;
   onToggle: () => void;
   categories: Category[];
   household: Person[];
+  meals: MealOption[];
 }) {
   const category = categories.find((c) => c.id === line.category_id)?.name;
   const who = sharedBy(line, household);
@@ -367,6 +370,7 @@ function LineRowView({
     category ?? null,
     line.long_term ? "long-term" : null,
     who || null,
+    ...line.meals.map((id) => meals.find((meal) => meal.id === id)?.name ?? null),
   ].filter(Boolean);
   return (
     <button

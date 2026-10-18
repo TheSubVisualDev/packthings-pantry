@@ -5,7 +5,8 @@ import { requireKitchenRole } from "@/lib/session";
 import { record } from "@/lib/usage";
 import { addSettlement, deleteSettlement } from "@/lib/receipt-db";
 import { readPence } from "@/lib/receipts";
-import { addListLine, londonToday, readDay } from "@/lib/spend-db";
+import { addListLine, readDay } from "@/lib/spend-db";
+import { londonToday } from "@/lib/dates";
 
 export interface SpendResult {
   ok: boolean;

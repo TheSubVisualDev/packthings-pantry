@@ -460,7 +460,7 @@ function QueryBox() {
         onChange={(event) => setSql(event.target.value)}
         rows={3}
         spellCheck={false}
-        placeholder="SELECT name, quantity FROM items WHERE quantity = 0"
+        placeholder="SELECT name, pence FROM receipt_lines ORDER BY pence DESC"
         aria-label="A read-only query"
         className={`${MONO} w-full rounded-[14px] border border-border bg-page px-4 py-3 text-sm outline-none focus:border-primary`}
       />

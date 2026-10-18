@@ -5,6 +5,7 @@
 //   npm run check:receipts
 
 import { receiptMeta, amountFromName } from "../lib/receipt-meta.ts";
+import { londonToday } from "../lib/dates.ts";
 import {
   aliasKey,
   balances,
@@ -190,6 +191,9 @@ expect("every payment goes to Luna", plan.every((p) => p.to_user === 2), true);
 expect("and they total what she is owed", plan.reduce((a, p) => a + p.pence, 0), 600);
 
 console.log("\n--- the history ---");
+
+expect("half eleven at night in summer is tomorrow in London", londonToday(new Date("2026-07-14T23:30:00Z")), "2026-07-15");
+expect("half eleven at night in winter is still today", londonToday(new Date("2026-12-14T23:30:00Z")), "2026-12-14");
 
 expect("days across the clocks going back", daysBetween("2026-10-24", "2026-10-26"), 2);
 expect("days backwards", daysBetween("2026-10-26", "2026-10-24"), -2);

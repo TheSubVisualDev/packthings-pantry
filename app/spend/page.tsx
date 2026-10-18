@@ -26,7 +26,8 @@ import {
   type Period,
 } from "@/lib/receipts";
 import { currentKitchen } from "@/lib/session";
-import { londonToday, pendingListNames } from "@/lib/spend-db";
+import { pendingListNames } from "@/lib/spend-db";
+import { londonToday } from "@/lib/dates";
 import { removePayment } from "./actions";
 
 export const dynamic = "force-dynamic";

@@ -9,7 +9,7 @@ import { getList } from "@/lib/shopping";
 import { AddToListButton } from "@/components/spend-forms";
 import { getBoughtLines } from "@/lib/receipt-db";
 import { probablyDue, repeatBuys } from "@/lib/receipts";
-import { londonToday } from "@/lib/spend-db";
+import { londonToday } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 

@@ -83,23 +83,6 @@ export async function addListLine(
 }
 
 /**
- * Today in London as 'YYYY-MM-DD'.
- *
- * The server is in Frankfurt, whose date turns over an hour before the
- * kitchen's does - "probably due" and a payment dated today would both be a
- * day out for that hour. Spelled here rather than imported from lib/push.ts,
- * which would drag web-push into every page that wants a date.
- */
-export function londonToday(at: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(at);
-}
-
-/**
  * A 'YYYY-MM-DD' that is a real day, or null.
  *
  * Round-tripped, not just pattern-matched, because "2026-02-31" passes the

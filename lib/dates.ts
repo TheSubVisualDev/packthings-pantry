@@ -76,3 +76,21 @@ export function sayDay(date: string): string {
   if (Number.isNaN(day.getTime())) return date;
   return `${WEEKDAYS[day.getDay()]} ${day.getDate()} ${MONTHS[day.getMonth()]}`;
 }
+
+/**
+ * Today in London as 'YYYY-MM-DD'.
+ *
+ * The server is in Frankfurt, whose date turns over an hour before the
+ * kitchen's does - "probably due" and a payment dated today would both be a
+ * day out for that hour. The one place that answers this - there were three,
+ * and two copies of a date rule is the bug this file was made to end.
+ * lib/push.ts keeps londonNow because it needs the hour as well.
+ */
+export function londonToday(at: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(at);
+}

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { Camera, ClipboardPaste, ImageUp, Keyboard, Sparkles } from "lucide-react";
 import {
+  removeReceipt,
   saveReceiptPhoto,
   saveReceiptText,
   startTypedReceipt,
@@ -40,6 +41,8 @@ export function ReceiptCapture({ visionReady }: { visionReady: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [pasting, setPasting] = useState(false);
   const [text, setText] = useState("");
+  /** A receipt saved from a read that looked thin, waiting on keep-or-retry. */
+  const [thin, setThin] = useState<number | null>(null);
   const [busy, start] = useTransition();
 
   function open(id: number) {
@@ -83,7 +86,10 @@ export function ReceiptCapture({ visionReady }: { visionReady: boolean }) {
         setProgress("Saving it…");
         setFraction(null);
         const result = await saveReceiptText(recognised);
-        if (result.ok && result.id) return open(result.id);
+        if (result.ok && result.id) {
+          if (result.thin && visionReady) return setThin(result.id);
+          return open(result.id);
+        }
         setError(result.error ?? "Couldn't read that.");
       } catch (problem) {
         console.error("receipt read failed", problem);
@@ -98,16 +104,22 @@ export function ReceiptCapture({ visionReady }: { visionReady: boolean }) {
   function readWithModel() {
     if (!photo) return;
     setError(null);
+    const replacing = thin;
     start(async () => {
       setProgress("Sending it to be read…");
       try {
+        // The thin read is thrown away only once there is something to put
+        // in its place, so a failed retry still leaves what the phone found.
         // Taller than the default: a long receipt shrunk to 1600px on its long
         // edge has print too small for anything to read.
         const small = await downscale(photo, 2400);
         const form = new FormData();
         form.set("photo", small);
         const result = await saveReceiptPhoto(form);
-        if (result.ok && result.id) return open(result.id);
+        if (result.ok && result.id) {
+          if (replacing) await removeReceipt(replacing);
+          return open(result.id);
+        }
         setError(result.error ?? "Couldn't read that.");
       } finally {
         setProgress(null);
@@ -184,6 +196,22 @@ export function ReceiptCapture({ visionReady }: { visionReady: boolean }) {
                 className={`h-full rounded-full bg-primary transition-[width] ${fraction === null ? "w-1/3 animate-pulse" : ""}`}
                 style={fraction === null ? undefined : { width: `${Math.round(fraction * 100)}%` }}
               />
+            </div>
+          </div>
+        )}
+
+        {thin && !busy && (
+          <div className="mt-4 rounded-[14px] bg-chip p-4">
+            <p className="text-sm font-bold">
+              That came out thin - a few lines, or not adding up to the total. Saved anyway.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => open(thin)} className={SECONDARY}>
+                Keep what it read
+              </button>
+              <button type="button" onClick={readWithModel} className={PRIMARY}>
+                <Sparkles className="h-4 w-4" /> Read with AI
+              </button>
             </div>
           </div>
         )}

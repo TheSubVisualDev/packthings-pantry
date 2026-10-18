@@ -22,6 +22,7 @@ import {
 } from "@/lib/receipt-db";
 import { readReceiptImage, MAX_IMAGE_BYTES } from "@/lib/receipt-vision";
 import { MEAL_KINDS, readPence, type MealKind } from "@/lib/receipts";
+import { londonToday } from "@/lib/dates";
 import { requireKitchenRole } from "@/lib/session";
 import { record } from "@/lib/usage";
 
@@ -39,6 +40,13 @@ export interface SaveResult {
   ok: boolean;
   error?: string;
   id?: number;
+  /**
+   * Saved, but it read like a bad photo: under three lines, or no total, or
+   * lines that come nowhere near the total. The screen offers the vision
+   * reader on this, because a thin read that saves quietly is the failure
+   * nobody notices - it looks like it worked.
+   */
+  thin?: boolean;
 }
 
 function refresh(id?: number) {
@@ -72,14 +80,21 @@ export async function saveReceiptText(text: string): Promise<SaveResult> {
     };
   }
 
+  const meta = receiptMeta(clipped);
+  const read = lines.reduce((total, line) => total + (line.price ?? 0), 0);
+  const thin =
+    lines.length < 3 ||
+    meta.totalPence === null ||
+    read < meta.totalPence * 0.8;
+
   const id = await createReceipt(access.kitchen.id, access.user.id, {
-    meta: receiptMeta(clipped),
+    meta,
     lines: lines.map((line) => ({ raw: line.raw, name: line.name, pence: line.price, count: line.count })),
     rawText: clipped,
   });
   record("receipt.add", access.user.id, "/receipts/new");
   refresh(id);
-  return { ok: true, id };
+  return { ok: true, id, thin };
 }
 
 /**
@@ -132,9 +147,8 @@ export async function saveReceiptPhoto(form: FormData): Promise<SaveResult> {
 export async function startTypedReceipt(): Promise<SaveResult> {
   const access = await requireKitchenRole("editor");
   if (!access.ok) return { ok: false, error: access.error };
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" });
   const id = await createReceipt(access.kitchen.id, access.user.id, {
-    meta: { boughtOn: today, shop: null, cardLast4: null, totalPence: null },
+    meta: { boughtOn: londonToday(), shop: null, cardLast4: null, totalPence: null },
     lines: [],
     rawText: null,
   });
