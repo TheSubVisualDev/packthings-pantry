@@ -3,8 +3,8 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 18 Oct 2026 — v2 started on the `v2` branch
-**Doing right now:** v2, milestones 1-3 (schema, receipt core, the gut) - plan in `docs/ROADMAP-V2.md`
+**Last updated:** 18 Oct 2026 — v2 milestone 3 (the gut) built on a worktree branch, waiting to be merged into `v2`
+**Doing right now:** v2, milestones 1-2 (schema, receipt core) - plan in `docs/ROADMAP-V2.md`. M3 done: `/pantry`, `/tonight`, `/stats` and stock code gone; list at `/list`; tabs are Cookbook, Plan, Discover
 **Waiting on you:** invite Sam (`exodddus`) to Pack Kitchen
 
 ### 22 Sep, the interaction audit
