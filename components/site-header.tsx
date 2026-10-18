@@ -18,6 +18,7 @@ import { Bell } from "lucide-react";
  * and Discover for everybody else's.
  */
 const tabs = [
+  { href: "/receipts", key: "receipts", label: "Receipts" },
   { href: "/recipes", key: "recipes", label: "Cookbook" },
   { href: "/plan", key: "plan", label: "Plan" },
   { href: "/discover", key: "discover", label: "Discover" },
@@ -41,7 +42,7 @@ export async function SiteHeader({
   meta,
 }: {
   /** "none" for the pages that are not one of the three sections. */
-  active: "recipes" | "plan" | "discover" | "none";
+  active: "receipts" | "recipes" | "plan" | "discover" | "none";
   meta?: string;
 }) {
   // Reached through the Basic-auth back door there is no account and so no

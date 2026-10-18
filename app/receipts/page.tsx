@@ -68,7 +68,7 @@ export default async function ReceiptsPage({
 
   return (
     <>
-      <SiteHeader active="none" />
+      <SiteHeader active="receipts" />
       <Page width="read">
         <PageTitle
           title="Receipts"

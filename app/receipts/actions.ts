@@ -23,6 +23,7 @@ import {
 import { readReceiptImage, MAX_IMAGE_BYTES } from "@/lib/receipt-vision";
 import { MEAL_KINDS, readPence, type MealKind } from "@/lib/receipts";
 import { requireKitchenRole } from "@/lib/session";
+import { record } from "@/lib/usage";
 
 /**
  * Every export here is a live endpoint, reachable by anybody past the auth
@@ -76,6 +77,7 @@ export async function saveReceiptText(text: string): Promise<SaveResult> {
     lines: lines.map((line) => ({ raw: line.raw, name: line.name, pence: line.price, count: line.count })),
     rawText: clipped,
   });
+  record("receipt.add", access.user.id, "/receipts/new");
   refresh(id);
   return { ok: true, id };
 }
@@ -113,6 +115,8 @@ export async function saveReceiptPhoto(form: FormData): Promise<SaveResult> {
     })),
     rawText: read.lines.map((line) => line.raw).join("\n"),
   });
+  record("receipt.add", access.user.id, "/receipts/new");
+  record("receipt.ai", access.user.id, "/receipts/new");
   refresh(id);
   return { ok: true, id };
 }
@@ -135,6 +139,7 @@ export async function startTypedReceipt(): Promise<SaveResult> {
     rawText: null,
   });
   await updateReceipt(access.kitchen.id, id, { purchaser_id: access.user.id });
+  record("receipt.add", access.user.id, "/receipts/new");
   refresh(id);
   return { ok: true, id };
 }
@@ -263,6 +268,7 @@ export async function editLine(receiptId: number, lineId: number, input: LineInp
   }
 
   await updateLine(access.kitchen.id, lineId, patch);
+  record("receipt.line", access.user.id, "/receipts");
   refresh(receiptId);
   return { ok: true };
 }
@@ -303,6 +309,7 @@ export async function setLineEaters(receiptId: number, lineId: number, people: n
     return { ok: false, error: "Those aren't people." };
   }
   await setEaters(access.kitchen.id, lineId, people.slice(0, 20));
+  record("receipt.line", access.user.id, "/receipts");
   refresh(receiptId);
   return { ok: true };
 }
@@ -329,6 +336,7 @@ export async function setLineMealTags(
     if (made !== null) ids.push(made);
   }
   await setLineMeals(access.kitchen.id, lineId, ids);
+  record("receipt.line", access.user.id, "/receipts");
   refresh(receiptId);
   revalidatePath("/meals");
   return { ok: true };
@@ -339,6 +347,7 @@ export async function closeReceipt(id: number): Promise<SaveResult> {
   const access = await requireKitchenRole("editor");
   if (!access.ok) return { ok: false, error: access.error };
   await setReceiptStatus(access.kitchen.id, id, "closed");
+  record("receipt.close", access.user.id, "/receipts");
   refresh(id);
   return { ok: true };
 }

@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import Link from "next/link";
-import { BookOpen, CalendarDays, Compass, Plus } from "lucide-react";
+import { BookOpen, CalendarDays, Compass, Plus, ReceiptText } from "lucide-react";
 
 /**
  * Primary navigation, on a phone, where a thumb is.
@@ -34,6 +34,7 @@ import { BookOpen, CalendarDays, Compass, Plus } from "lucide-react";
  * and where the shopping list is reached from.
  */
 const SECTIONS = [
+  { key: "receipts", label: "Receipts", href: "/receipts", Icon: ReceiptText },
   { key: "recipes", label: "Cookbook", href: "/recipes", Icon: BookOpen },
   { key: "plan", label: "Plan", href: "/plan", Icon: CalendarDays },
   { key: "discover", label: "Discover", href: "/discover", Icon: Compass },
@@ -62,7 +63,11 @@ export function BottomNav({
    */
   if (/^\/recipes\/\d+\/cook$/.test(pathname)) return null;
 
-  const active = (href: string) => pathname.startsWith(href);
+  // Spend and meals are read off receipts, so they light the receipts tab.
+  const active = (href: string) =>
+    href === "/receipts"
+      ? /^\/(receipts|spend|meals)(\/|$)/.test(pathname)
+      : pathname.startsWith(href);
 
   return (
     <nav
@@ -74,15 +79,16 @@ export function BottomNav({
       className="fixed inset-x-0 bottom-0 z-40 overflow-visible border-t border-border bg-surface-raised/95 pb-[env(safe-area-inset-bottom)] backdrop-blur select-none sm:hidden print:hidden"
     >
       {/*
-        Four things in four equal columns, the button included.
+        Five things in five equal columns, the button included - receipts
+        joined the three sections in v2.
 
         It used to be split two-and-two around a centred button, which only
         works with an even number of sections. With three the button had no
         middle to sit in: putting it at the end balanced the two ends and left
         the gaps uneven. A grid makes every gap identical by construction, at
-        any width, and the button simply takes the fourth column.
+        any width, and the button simply takes the last column.
       */}
-      <div className="grid grid-cols-4 items-center">
+      <div className="grid grid-cols-5 items-center">
         {SECTIONS.map(({ key, ...section }) => (
           <Tab key={key} {...section} current={active(section.href)} />
         ))}

@@ -41,7 +41,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
 
   return (
     <>
-      <SiteHeader active="none" />
+      <SiteHeader active="receipts" />
       <Page width="read">
         <BackLink
           href="/receipts"

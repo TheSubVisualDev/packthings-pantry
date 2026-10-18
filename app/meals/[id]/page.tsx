@@ -101,7 +101,7 @@ export default async function MealPage({ params }: { params: Promise<{ id: strin
 
   return (
     <>
-      <SiteHeader active="none" />
+      <SiteHeader active="receipts" />
       <Page width="read">
         <BackLink
           href="/meals"

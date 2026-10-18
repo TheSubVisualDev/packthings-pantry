@@ -128,7 +128,7 @@ export default async function SpendPage({
 
   return (
     <>
-      <SiteHeader active="none" />
+      <SiteHeader active="receipts" />
       <Page width="read">
         <PageTitle title="Spend" subtitle={kitchen.name} />
 

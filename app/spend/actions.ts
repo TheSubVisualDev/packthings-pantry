@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireKitchenRole } from "@/lib/session";
+import { record } from "@/lib/usage";
 import { addSettlement, deleteSettlement } from "@/lib/receipt-db";
 import { readPence } from "@/lib/receipts";
 import { addListLine, londonToday, readDay } from "@/lib/spend-db";
@@ -24,6 +25,7 @@ async function savePayment(payment: { from_user: number; to_user: number; pence:
   if (!(payment.pence > 0)) return { ok: false, error: "How much was it?" };
   const saved = await addSettlement(context.kitchen.id, context.user.id, payment);
   if (!saved) return { ok: false, error: "Both people need to be in this kitchen." };
+  record("spend.settle", context.user.id, "/spend");
   revalidatePath("/spend");
   return { ok: true };
 }
@@ -75,6 +77,7 @@ export async function addDueToList(name: string, every: number): Promise<SpendRe
   const days = Math.round(Number(every));
   const source = Number.isFinite(days) && days > 0 ? `Usually bought every ${days} days` : "Usually bought";
   const added = await addListLine(context.kitchen.id, context.user.id, String(name), source);
+  if (added) record("shopping.add", context.user.id, "/list");
   revalidatePath("/spend");
   revalidatePath("/list");
   return added ? { ok: true } : { ok: true, message: "Already on the list." };

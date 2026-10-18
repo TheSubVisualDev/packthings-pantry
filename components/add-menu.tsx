@@ -9,8 +9,7 @@ import {
   ListChecks,
   NotebookPen,
   Plus,
-  ShoppingBasket,
-} from "lucide-react";
+  ShoppingBasket, ReceiptText } from "lucide-react";
 import { BottomNav } from "@/components/bottom-nav";
 import { Sheet } from "@/components/ui/sheet";
 
@@ -32,12 +31,13 @@ import { Sheet } from "@/components/ui/sheet";
  */
 
 /**
- * Adding an item, quick adjust, scanning a barcode and scanning a receipt
- * were the first four until v2 removed stock tracking (18 Oct 2026); all four
- * put things on a shelf nothing records any more. Receipts come back, as the
- * record of a shop rather than a restock, and will get a square here then.
+ * Adding a receipt is first. In v1 the first four were stock - adding an
+ * item, quick adjust, a barcode, a receipt as a restock - and v2 removed stock
+ * tracking (18 Oct 2026). A receipt came back as the record of a shop rather
+ * than a refill of the shelves, and it is the thing somebody adds every week.
  */
 const actions = [
+  { key: "receipt", label: "Add a receipt", Icon: ReceiptText, href: "/receipts/new" },
   { key: "recipe", label: "New recipe", Icon: NotebookPen, href: "/recipes/new" },
   // Pasting one written out is how a recipe usually arrives - off a website,
   // out of a message - and it was three taps deep behind the Claude page.

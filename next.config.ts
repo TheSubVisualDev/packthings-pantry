@@ -171,10 +171,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/pantry/list", destination: "/list", permanent: false },
+      { source: "/pantry/receipt", destination: "/receipts/new", permanent: false },
       { source: "/pantry", destination: "/recipes", permanent: false },
       { source: "/pantry/:path*", destination: "/recipes", permanent: false },
       { source: "/tonight", destination: "/recipes", permanent: false },
-      { source: "/stats", destination: "/recipes", permanent: false },
+      { source: "/stats", destination: "/spend", permanent: false },
     ];
   },
 

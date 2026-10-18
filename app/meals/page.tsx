@@ -40,7 +40,7 @@ export default async function MealsPage() {
 
   return (
     <>
-      <SiteHeader active="none" meta={meals.length > 0 ? `${meals.length} meals` : undefined} />
+      <SiteHeader active="receipts" meta={meals.length > 0 ? `${meals.length} meals` : undefined} />
       <Page width="read">
         <PageTitle
           title="Meals"

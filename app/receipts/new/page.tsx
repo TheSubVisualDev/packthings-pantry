@@ -21,7 +21,7 @@ export default async function NewReceiptPage() {
 
   return (
     <>
-      <SiteHeader active="none" />
+      <SiteHeader active="receipts" />
       <Page width="form">
         <BackLink
           href="/receipts"

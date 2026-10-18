@@ -49,8 +49,8 @@ export const ACTIONS = [
   // receipt.scan were here until v2 removed stock tracking (18 Oct 2026). Their
   // buttons are gone, so the names are too: a name nothing can record is a
   // zero in the report, and a zero is a number somebody acts on. The old rows
-  // stay in usage_events. Receipts will want a name again when they return -
-  // as a new one, because a receipt now means something different.
+  // stay in usage_events. Receipts came back with new names, because a
+  // receipt now means a record of a shop rather than a restock.
   "cook.start",           // a recipe was actually cooked
   "shopping.add",         // anything added to the list, from anywhere
   "shopping.tick",        // a line crossed off, in the shop
@@ -63,6 +63,11 @@ export const ACTIONS = [
   "plan.shop",            // "shop for it" off the week planner
   "search.run",           // a search that returned something
   "report.file",          // somebody wrote in from /report
+  "receipt.add",          // a receipt saved, by photo, text or typing
+  "receipt.ai",           // a photo read by the vision model, which costs money
+  "receipt.line",         // anything said about a line: category, sharers, meals
+  "receipt.close",        // "I can no longer annotate this receipt"
+  "spend.settle",         // a payment back recorded
 ] as const;
 
 export type UsageAction = (typeof ACTIONS)[number];
