@@ -3,9 +3,9 @@
 Live progress on the tester-feedback round. Updated as I go — check the
 timestamp to see how fresh it is.
 
-**Last updated:** 22 Sep 2026 — interaction audit built, plus the three found along the way
-**Doing right now:** nothing
-**Waiting on you:** nothing
+**Last updated:** 18 Oct 2026 — v2 started on the `v2` branch
+**Doing right now:** v2, milestones 1-3 (schema, receipt core, the gut) - plan in `docs/ROADMAP-V2.md`
+**Waiting on you:** invite Sam (`exodddus`) to Pack Kitchen
 
 ### 22 Sep, the interaction audit
 
