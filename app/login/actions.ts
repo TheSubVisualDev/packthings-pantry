@@ -97,7 +97,7 @@ export async function acceptInvite(
     return { error: "Account created, but signing in failed. Try the login page." };
   }
 
-  redirect("/tonight");
+  redirect("/recipes");
 }
 
 export interface SetupState {
@@ -147,7 +147,7 @@ export async function createFirstUser(
     return { error: "Account created, but signing in failed. Try the login page." };
   }
 
-  redirect("/tonight");
+  redirect("/recipes");
 }
 
 export async function logout() {

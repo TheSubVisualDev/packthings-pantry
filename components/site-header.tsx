@@ -9,15 +9,17 @@ import { unreadCount } from "@/lib/notifications";
 import { Bell } from "lucide-react";
 
 /**
- * Three, matching the tab bar: the shelf moved under Tonight, so Stock is no
- * longer somewhere you go. /pantry still holds the list and the groupings and
- * is reached from the shelf.
+ * Three, matching the tab bar.
+ *
+ * Tonight led here until v2 removed stock tracking (18 Oct 2026): it answered
+ * "what can I cook from what is in", and with nothing recording what is in
+ * there was no answer to give. The cookbook is the front door now, the week's
+ * plan beside it - which is also where the shopping list is reached from -
+ * and Discover for everybody else's.
  */
 const tabs = [
-  // First because it is the question the app is for. Discover is browsing;
-  // this is the answer.
-  { href: "/tonight", key: "tonight", label: "Tonight" },
   { href: "/recipes", key: "recipes", label: "Cookbook" },
+  { href: "/plan", key: "plan", label: "Plan" },
   { href: "/discover", key: "discover", label: "Discover" },
 ] as const;
 
@@ -38,8 +40,8 @@ export async function SiteHeader({
   active,
   meta,
 }: {
-  /** "none" for the pages that are not one of the four sections. */
-  active: "stock" | "tonight" | "recipes" | "discover" | "none";
+  /** "none" for the pages that are not one of the three sections. */
+  active: "recipes" | "plan" | "discover" | "none";
   meta?: string;
 }) {
   // Reached through the Basic-auth back door there is no account and so no
@@ -81,11 +83,10 @@ export async function SiteHeader({
     >
       <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-9 sm:py-5">
         <div className="flex min-w-0 items-center gap-2.5 sm:gap-7">
-          {/* The logo is Home, and Home is /tonight now - what to cook is
-              the question this app answers first; the shelves are a place
-              you go to on purpose, from the tab bar. */}
+          {/* The logo is Home, and Home is the cookbook - the recipes this
+              kitchen cooks are what everything else here is about. */}
           <Link
-            href="/tonight"
+            href="/recipes"
             className="flex shrink-0 items-center gap-2 text-[22px] font-extrabold tracking-[-0.02em]"
           >
             <PantryMark className="h-[26px] w-[23px] text-primary" />
@@ -109,8 +110,8 @@ export async function SiteHeader({
 
           {/* The phone gets the count instead, which the tabs were crowding
               out - it was desktop-only before, which is backwards: knowing
-              there are 29 items matters most on the screen that can only show
-              eight of them. */}
+              there are 29 recipes matters most on the screen that can only
+              show eight of them. */}
           {meta && (
             <span className="truncate text-sm font-semibold text-muted-foreground sm:hidden">
               {meta}

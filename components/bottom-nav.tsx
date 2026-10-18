@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import Link from "next/link";
-import { Boxes, BookOpen, Compass, Plus, UtensilsCrossed } from "lucide-react";
+import { BookOpen, CalendarDays, Compass, Plus } from "lucide-react";
 
 /**
  * Primary navigation, on a phone, where a thumb is.
@@ -26,16 +26,16 @@ import { Boxes, BookOpen, Compass, Plus, UtensilsCrossed } from "lucide-react";
  */
 
 /**
- * Three, since the shelf moved.
+ * Three: the cookbook, the week, and everybody else's.
  *
- * Stock stopped being a place to go when the shelf moved under Tonight - what
- * is in the kitchen is part of deciding what to cook, not a separate errand.
- * /pantry is still a route and still holds the list, the groupings and the
- * bulk actions; it is reached from the shelf rather than from here.
+ * Tonight and the shelf were here until v2 removed stock tracking on 18 Oct
+ * 2026 - both answered from what was in the kitchen, and nothing records that
+ * any more. The plan took the middle, because it is where the week is decided
+ * and where the shopping list is reached from.
  */
 const SECTIONS = [
-  { key: "tonight", label: "Tonight", href: "/tonight", Icon: UtensilsCrossed },
   { key: "recipes", label: "Cookbook", href: "/recipes", Icon: BookOpen },
+  { key: "plan", label: "Plan", href: "/plan", Icon: CalendarDays },
   { key: "discover", label: "Discover", href: "/discover", Icon: Compass },
 ] as const;
 
@@ -62,9 +62,7 @@ export function BottomNav({
    */
   if (/^\/recipes\/\d+\/cook$/.test(pathname)) return null;
 
-  const active = (href: string) =>
-    href === "/pantry" ? pathname.startsWith("/pantry") : pathname.startsWith(href);
-
+  const active = (href: string) => pathname.startsWith(href);
 
   return (
     <nav
@@ -127,7 +125,7 @@ function Tab({
 }: {
   label: string;
   href: string;
-  Icon: typeof Boxes;
+  Icon: typeof BookOpen;
   current: boolean;
 }) {
   return (

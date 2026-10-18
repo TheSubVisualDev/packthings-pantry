@@ -15,9 +15,9 @@ export const metadata: Metadata = {
  * The first five minutes.
  *
  * The cliff a new account falls off is not signing up, it is the screen after
- * it: empty shelves, no recipes, and four tabs that all say nothing yet. This
- * leaves somebody with a named kitchen, a shelf with something on it, and some
- * idea where things are.
+ * it: no recipes and tabs that all say nothing yet. This leaves somebody with
+ * a named kitchen, a planner set up the way they eat, and some idea where
+ * things are.
  *
  * No site header and no bottom nav. Both are navigation into an app that does
  * not have anything in it yet, and the one thing this screen is for is the
@@ -35,7 +35,7 @@ export default async function WelcomePage() {
    * simply stops being compulsory.
    */
   if ((await hasBeenWelcomed(context.user.id)) && context.kitchen) {
-    redirect("/pantry");
+    redirect("/recipes");
   }
 
   return (

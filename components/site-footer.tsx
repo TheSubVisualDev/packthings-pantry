@@ -3,7 +3,7 @@ import Link from "next/link";
 /**
  * Quiet footer. The Claude link is deliberately understated - it's a thing you
  * set up once and then never look at again, so it shouldn't compete with the
- * stock list for attention.
+ * cookbook for attention.
  *
  * Understated, not unreadable. It was muted-foreground at 60% opacity, which
  * on the page's own beige came out as grey words floating in empty space with

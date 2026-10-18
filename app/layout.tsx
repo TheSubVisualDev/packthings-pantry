@@ -30,7 +30,7 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "Pantry",
-  description: "Pantry stock and recipe browser",
+  description: "Recipes, the week's plan and the shopping list",
   manifest: "/manifest.webmanifest",
   /**
    * The iOS half of being installed.

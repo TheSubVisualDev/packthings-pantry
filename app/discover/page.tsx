@@ -7,13 +7,7 @@ import { PersonChip } from "@/components/person-chip";
 import { RecipeBrowseCard } from "@/components/recipe-browse-card";
 import { SiteHeader } from "@/components/site-header";
 import { SearchBox } from "@/components/search-box";
-import { FilterChips } from "@/components/ui/filter-chips";
-import {
-  getFeed,
-  readinessContext,
-  searchPeople,
-  searchRecipes,
-} from "@/lib/queries";
+import { getFeed, searchPeople, searchRecipes } from "@/lib/queries";
 import Image from "next/image";
 import { Avatar } from "@/components/avatar";
 import { FollowButton } from "@/components/follow-button";
@@ -23,7 +17,6 @@ import {
   getSimilarCooks,
   getTrusted,
 } from "@/lib/social";
-import { countStockedLines } from "@/lib/cookbook";
 import { shortDate } from "@/lib/dates";
 import { recipeTint } from "@/lib/tint";
 import { currentKitchen } from "@/lib/session";
@@ -37,30 +30,17 @@ export const metadata: Metadata = {
 const HEADING = "mb-3 text-xs font-bold uppercase tracking-[0.1em] text-label";
 
 /**
- * Every grid on this page, with the cupboard answer switched on.
+ * Every grid on this page.
  *
- * The card has drawn "you have everything" / "4 of 6 in stock" since it was
- * written, and Discover passed it nothing - so the one thing this app knows
- * that a recipe site does not was silent on the screen where people are
- * actively hunting for something to cook. `stocked` is the readiness count
- * from the page, threaded through; where there is no kitchen there is no
- * answer, and the card shows no badge rather than a wrong one.
+ * Each card used to carry the cupboard answer - "you have everything", "4 of
+ * 6 in stock". v2 keeps no stock (18 Oct 2026), so a card here is the recipe
+ * and what other people made of it.
  */
-function Grid({
-  recipes,
-  stocked,
-}: {
-  recipes: Awaited<ReturnType<typeof searchRecipes>>;
-  stocked?: (recipeId: number) => { have: number; total: number };
-}) {
+function Grid({ recipes }: { recipes: Awaited<ReturnType<typeof searchRecipes>> }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {recipes.map((recipe) => (
-        <RecipeBrowseCard
-          key={recipe.id}
-          recipe={recipe}
-          match={stocked?.(recipe.id)}
-        />
+        <RecipeBrowseCard key={recipe.id} recipe={recipe} />
       ))}
     </div>
   );
@@ -69,49 +49,21 @@ function Grid({
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; ready?: string; more?: string }>;
+  searchParams: Promise<{ q?: string; more?: string }>;
 }) {
   const session = await currentKitchen();
   if (!session.ok) redirect("/login?next=%2Fdiscover");
   const kitchen = session.kitchen;
 
-  const { q, ready, more } = await searchParams;
+  const { q, more } = await searchParams;
   const term = q?.trim() ?? "";
   const viewerId = session.user.id;
 
-  /**
-   * "Show me only what I can make right now."
-   *
-   * The one question this app can answer and a recipe site cannot, and until
-   * now it was only ever a badge on a card - readiness was the heaviest weight
-   * in the ranking and there was no way to ask for it. A query string rather
-   * than component state, like every other filter here, so a page of things
-   * you can cook tonight is a link.
-   *
-   * Meaningless without shelves to check against, so it is not offered to
-   * somebody with no kitchen rather than offered and always empty.
-   */
-  const readyOnly = kitchen !== null && ready === "1";
-
   if (term) {
-    const [recipes, people, searchContext] = await Promise.all([
+    const [recipes, people] = await Promise.all([
       searchRecipes(viewerId, term),
       searchPeople(viewerId, term),
-      // Searching is the moment somebody is deciding what to cook, so it is
-      // the last place the cupboard should go quiet. One pass over the stock,
-      // same as the browse branch below.
-      readinessContext(kitchen?.id ?? null),
     ]);
-
-    const searchStocked = kitchen
-      ? (recipeId: number) =>
-          countStockedLines(
-            searchContext.byRecipe.get(recipeId) ?? [],
-            searchContext.links,
-            searchContext.stock,
-            searchContext.byId,
-          )
-      : undefined;
 
     return (
       <>
@@ -148,7 +100,7 @@ export default async function DiscoverPage({
           {recipes.length > 0 && (
             <section>
               <h2 className={HEADING}>Recipes</h2>
-              <Grid recipes={recipes} stocked={searchStocked} />
+              <Grid recipes={recipes} />
             </section>
           )}
         </div>
@@ -156,29 +108,12 @@ export default async function DiscoverPage({
     );
   }
 
-  /**
-   * Readiness is counted here and handed to the ranker.
-   *
-   * The context is one pass over the stock, the agreed links and every
-   * ingredient line; doing it per recipe inside the ranking would be the same
-   * work repeated twenty times, and doing it inside lib/social.ts would drag
-   * the whole pantry into a file about people.
-   */
-  const context = await readinessContext(kitchen?.id ?? null);
-  const countStocked = (recipeId: number) =>
-    countStockedLines(
-      context.byRecipe.get(recipeId) ?? [],
-      context.links,
-      context.stock,
-      context.byId,
-    );
-
   const [feed, cooked, trusted, suggestedCooks, ranked] = await Promise.all([
     getFeed(viewerId),
     getCookedByOthers(viewerId),
     getTrusted(viewerId),
     getSimilarCooks(viewerId),
-    getDiscoveries(viewerId, kitchen?.id ?? null, countStocked),
+    getDiscoveries(viewerId, kitchen?.id ?? null),
   ]);
 
   /**
@@ -202,24 +137,6 @@ export default async function DiscoverPage({
   );
 
   /**
-   * One definition of "you can make this", applied to every section.
-   *
-   * Everything, not just the ranked list: a filter that quietly leaves three
-   * sections unfiltered is worse than no filter, because the page still looks
-   * full and none of it answers the question that was asked. A recipe with no
-   * ingredient lines at all is not cookable-now, it is unknown, and it is left
-   * out - claiming you can make something the app knows nothing about is the
-   * failure that would put people off the chip for good.
-   */
-  const cookableNow = (recipeId: number) => {
-    const counted = countStocked(recipeId);
-    return counted.total > 0 && counted.have === counted.total;
-  };
-
-  const shown = <T extends { id: number }>(recipes: T[]) =>
-    readyOnly ? recipes.filter((recipe) => cookableNow(recipe.id)) : recipes;
-
-  /**
    * How many of the ranked list to draw.
    *
    * Every section on this page is a hard stop with no way past it, which is
@@ -241,24 +158,14 @@ export default async function DiscoverPage({
    * the six cards under "From people you follow" were the four just above.
    */
   const trustedIds = new Set(trusted.map((recipe) => recipe.id));
-  const eligible = shown(
-    ranked.filter(
-      (recipe) =>
-        !inFeed.has(recipe.id) && !trustedIds.has(recipe.id) && !recipe.yours,
-    ),
+  const eligible = ranked.filter(
+    (recipe) => !inFeed.has(recipe.id) && !trustedIds.has(recipe.id) && !recipe.yours,
   );
   const rest = eligible.slice(0, showingMore ? PAGE * 4 : PAGE);
-  const moreHref = `/discover?${new URLSearchParams({
-    ...(readyOnly ? { ready: "1" } : {}),
-    more: "1",
-  })}`;
-  const shownFeed = shown(feed.filter((recipe) => !trustedIds.has(recipe.id)));
-  const shownTrusted = shown(trusted);
-  // Keyed on the recipe, not on the row: this list is one entry per person
-  // per recipe, so it needs the recipe id rather than its own.
-  const shownCooked = readyOnly
-    ? cooked.filter((entry) => cookableNow(entry.recipe_id))
-    : cooked;
+  const moreHref = "/discover?more=1";
+  const shownFeed = feed.filter((recipe) => !trustedIds.has(recipe.id));
+  const shownTrusted = trusted;
+  const shownCooked = cooked;
 
   return (
     <>
@@ -274,51 +181,6 @@ export default async function DiscoverPage({
           <SearchBox basePath="/discover" placeholder="Search recipes, ingredients, people" />
         </Suspense>
 
-        {kitchen && (
-          <FilterChips
-            label="Filter what is shown"
-            className="mb-5"
-            chips={[
-              {
-                key: "ready",
-                label: "I can make this now",
-                href: readyOnly ? "/discover" : "/discover?ready=1",
-                active: readyOnly,
-              },
-            ]}
-          />
-        )}
-
-        {/*
-          An empty state here, and deliberately not one on the unfiltered page.
-
-          The rule the rest of this page follows is that an empty state is
-          offered when the thing it describes is the reason you came - nobody
-          opens Discover to be told their cookbook is private. But somebody who
-          has just tapped "I can make this now" asked exactly one question, and
-          a page that answers it by rendering nothing at all reads as broken
-          rather than as "no".
-        */}
-        {readyOnly &&
-          shownCooked.length === 0 &&
-          shownTrusted.length === 0 &&
-          shownFeed.length === 0 &&
-          rest.length === 0 && (
-            <div className="rise rounded-[20px] bg-card p-6 text-center shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              <p className="text-[15px] font-extrabold">
-                Nothing here is a full shelf right now.
-              </p>
-              <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                Every recipe on Discover is short of at least one thing.
-              </p>
-              <Link
-                href="/discover"
-                className="mt-4 inline-flex min-h-11 items-center rounded-[14px] bg-primary px-4 text-sm font-extrabold text-primary-foreground"
-              >
-                Show everything
-              </Link>
-            </div>
-          )}
 
         {/*
           Board 1n: social, not a social network.
@@ -408,14 +270,12 @@ export default async function DiscoverPage({
           <section className="mb-9">
             <h2 className={HEADING}>Cooks trust these</h2>
             {/* The same card as everywhere else. This section used to draw
-                its own, which is why it was the one place on the page that
-                never said whether you could actually make any of it. */}
+                its own. */}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {shownTrusted.map((recipe) => (
                 <RecipeBrowseCard
                   key={recipe.id}
                   recipe={recipe}
-                  match={kitchen ? countStocked(recipe.id) : undefined}
                   /* The numbers themselves, not a score made out of them. */
                   note={
                     [
@@ -440,7 +300,7 @@ export default async function DiscoverPage({
         {shownFeed.length > 0 && (
           <section className="mb-9">
             <h2 className={HEADING}>From people you follow</h2>
-            <Grid recipes={shownFeed} stocked={kitchen ? countStocked : undefined} />
+            <Grid recipes={shownFeed} />
           </section>
         )}
 
@@ -472,9 +332,6 @@ export default async function DiscoverPage({
                 <li key={recipe.id}>
                   <RecipeBrowseCard
                     recipe={recipe}
-                    /* Already counted by the ranker, so it is handed over
-                       rather than worked out a second time. */
-                    match={recipe.total > 0 ? { have: recipe.have, total: recipe.total } : undefined}
                     note={recipe.reason}
                     /* No "yours" pill: this list is filtered to exclude your
                        own recipes, so it would never fire. */
