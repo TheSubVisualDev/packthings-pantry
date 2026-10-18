@@ -107,8 +107,14 @@ linked to a real recipe once one is written.
    settings for categories and cards. *An afternoon.*
 5. **Spend, split and pseudorecipes** - `/spend`, balances, meal pages, the
    "probably due" suggestions on the list. *An afternoon.*
-6. **Ship** - delete the old stock rows on production after a backup, migrate,
-   merge `v2` to `main`. *Needs Luna's go-ahead at the time.*
+6. **Ship**, in this order, with Luna's go-ahead at the time:
+   1. `npm run migrate` on production. Additive; v1 keeps running.
+   2. Merge `v2` into `main`; Vercel deploys. The new code ignores stock rows.
+   3. Live for a day or two. Rolling back to v1 still works, because the
+      stock rows are still there.
+   4. A fresh `clone-db` backup, then `scripts/retire-stock.mjs --yes`.
+
+   Deleting first breaks the running v1; merging before migrating breaks v2.
 
 ## Not in v1 of v2
 
