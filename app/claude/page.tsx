@@ -64,7 +64,7 @@ export default async function ClaudePage() {
         </h1>
         <p className="mt-3 text-[16px] leading-relaxed font-medium text-muted-foreground">
           Add one link to Claude and it gets tools for your kitchen: it can see
-          what&apos;s on your shelves, suggest something to cook from it, and
+          your cookbook and shopping list, suggest something to cook, and
           write the recipe back in. Takes a couple of minutes, once.
         </p>
 
@@ -98,10 +98,10 @@ export default async function ClaudePage() {
             <p>Claude will ask to use the pantry tools the first time.</p>
             <ul className="space-y-1.5">
               {[
-                "What can I make tonight with what's in the pantry?",
-                "I've got tofu expiring on Thursday. Ideas?",
+                "What's on my shopping list?",
+                "Which recipes in my cookbook would use up some tofu?",
                 "Write me a recipe for doenjang-jjigae and add it to my pantry.",
-                "What have I got in the fridge?",
+                "Plan me three quick dinners from my cookbook.",
               ].map((prompt) => (
                 <li
                   key={prompt}
@@ -119,8 +119,8 @@ export default async function ClaudePage() {
           <ul className="mt-3 space-y-2 text-[15px] font-medium text-muted-foreground">
             <li>
               <strong className="font-bold text-foreground">See</strong> your
-              stock — quantities, tags, where things live, what&apos;s
-              expiring soon.
+              kitchen&apos;s cookbook and what is on the shopping list. Not
+              what is in the cupboard &mdash; the app does not keep that.
             </li>
             <li>
               <strong className="font-bold text-foreground">Read</strong> your
@@ -132,7 +132,7 @@ export default async function ClaudePage() {
             </li>
             <li>
               It <strong className="font-bold text-foreground">cannot</strong>{" "}
-              change your stock levels, cook anything, delete a recipe, or read
+              change your shopping list, cook anything, delete a recipe, or read
               your password.
             </li>
           </ul>
