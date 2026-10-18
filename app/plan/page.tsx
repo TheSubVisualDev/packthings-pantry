@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import { BackLink } from "@/components/back-link";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ShoppingBasket } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { PrintButton } from "@/components/print-button";
 import { WeekPlan, type Pickable } from "@/components/week-plan";
-import { getItems, getRecipe, getRecipesWithMatches } from "@/lib/queries";
+import { getCookbookRecipes, getRecipe } from "@/lib/queries";
 import { perPortion, weekMacros } from "@/lib/recipe-nutrition";
 import { WeekNutrition } from "@/components/week-nutrition";
 import {
@@ -29,10 +28,10 @@ export const metadata: Metadata = {
  * The week ahead.
  *
  * The pin this grew out of held one recipe - what you are shopping for right
- * now - and a tester asked for the whole week. It is a separate page rather
- * than a mode on /tonight because they answer different questions: tonight is
- * "what do I cook in the next hour, given what is in", and this is "what are
- * we eating, and what do I need to buy for it".
+ * now - and a tester asked for the whole week. It sat beside /tonight, which
+ * answered "what do I cook in the next hour, given what is in". v2 stopped
+ * tracking what is in (18 Oct 2026), Tonight went with it, and this became
+ * one of the three tabs: "what are we eating, and what do I need to buy".
  *
  * Which week is in the URL, so a week is a link you can send to whoever else
  * is in the kitchen and the back button goes back a week.
@@ -45,7 +44,7 @@ export default async function PlanPage({
   const context = await currentKitchen();
   if (!context.ok) redirect("/login?next=%2Fplan");
   // A plan is about a kitchen's week, so there is nothing to plan without one.
-  if (!context.kitchen) redirect("/kitchens?need=stock");
+  if (!context.kitchen) redirect("/kitchens?need=plan");
   const { kitchen } = context;
 
   const { week } = await searchParams;
@@ -70,30 +69,21 @@ export default async function PlanPage({
   const slots = await getSlots(kitchen.id);
   const [days, recipes] = await Promise.all([
     getWeek(kitchen.id, start, slots.length),
-    getRecipesWithMatches(kitchen.id, context.user.id),
+    getCookbookRecipes(kitchen.id, context.user.id),
   ]);
 
   /**
-   * What could go in a slot, readiest first.
+   * What could go in a slot, most cooked first.
    *
-   * The whole reason to plan a week in this app rather than on paper is that
-   * it knows what is on the shelves, so the thing you can cook tonight without
-   * shopping is the thing at the top of the list.
+   * It used to be readiest first - what the shelves could already supply - and
+   * v2 does not know the shelves. What it does know is what this kitchen goes
+   * back to, which is the order getCookbookRecipes already returns.
    */
-  const options: Pickable[] = recipes
-    .map((recipe) => ({
-      id: recipe.id,
-      name: recipe.name,
-      have: recipe.have,
-      total: recipe.total,
-    }))
-    .sort(
-      (a, b) =>
-        b.total - b.have === 0 && a.total - a.have === 0
-          ? a.name.localeCompare(b.name)
-          : a.total - a.have - (b.total - b.have) ||
-            a.name.localeCompare(b.name),
-    );
+  const options: Pickable[] = recipes.map((recipe) => ({
+    id: recipe.id,
+    name: recipe.name,
+    timesCooked: recipe.times_cooked,
+  }));
 
   const planned = days.flatMap((day) => day.meals).filter(Boolean).length;
   const thisWeek = weekStart(today);
@@ -113,12 +103,9 @@ export default async function PlanPage({
         meal !== null && meal.recipe_id !== null,
     );
 
-  const [items, full] = await Promise.all([
-    getItems(kitchen.id),
-    Promise.all(
-      onThePlan.map((meal) => getRecipe(meal.recipe_id!, context.user.id)),
-    ),
-  ]);
+  const full = await Promise.all(
+    onThePlan.map((meal) => getRecipe(meal.recipe_id!, context.user.id)),
+  );
 
   const nutrition = weekMacros(
     full.flatMap((recipe, index) =>
@@ -133,28 +120,33 @@ export default async function PlanPage({
           ]
         : [],
     ),
-    new Map(items.map((item) => [item.name.toLowerCase(), item])),
   );
 
   return (
     <>
       <SiteHeader
-        active="tonight"
+        active="plan"
         meta={planned > 0 ? `${planned} planned` : undefined}
       />
 
       <main className="mx-auto w-full max-w-[720px] px-5 py-7 pb-32 sm:px-9 xl:max-w-[1280px]">
-        <BackLink
-          href="/tonight"
-          label="Tonight"
-          className="text-sm font-semibold text-muted-foreground hover:text-foreground print:hidden"
-        />
-
-        <div className="mt-2 mb-1 flex items-center justify-between gap-3">
+        <div className="mb-1 flex items-center justify-between gap-3">
           <h1 className="text-[26px] font-extrabold tracking-[-0.02em]">
             The week
           </h1>
-          <PrintButton label="On paper" />
+          <div className="flex items-center gap-2">
+            {/* The shopping list's front door. It lived under the shelf, and
+                the shelf is gone; planning the week is what fills the list,
+                so the way to it is here. */}
+            <Link
+              href="/list"
+              className="flex min-h-9 items-center gap-1.5 rounded-full bg-chip px-3.5 text-xs font-bold print:hidden"
+            >
+              <ShoppingBasket className="h-3.5 w-3.5" strokeWidth={2.8} />
+              Shopping list
+            </Link>
+            <PrintButton label="On paper" />
+          </div>
         </div>
 
         {/* Which week, and the way to the ones either side. A week is a link,
@@ -208,8 +200,8 @@ export default async function PlanPage({
               </>
             ) : (
               <>
-                Nothing planned yet. Tap a meal to fill it — what you can
-                already make is at the top of the list.
+                Nothing planned yet. Tap a meal to fill it — what you cook
+                most is at the top of the list.
               </>
             )}
           </p>
