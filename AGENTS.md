@@ -23,12 +23,47 @@ they already have, because the app no longer knows.
 
 ## What this is
 
-Recipes, a week's plan, a shopping list and the people you cook with -
-receipts next. Next.js on Vercel, `sqld` (libSQL) self-hosted on a Hetzner
+Recipes, a week's plan, a shopping list, the people you cook with, and the
+household's receipts - who paid, who shared it, where the money goes. Next.js on Vercel, `sqld` (libSQL) self-hosted on a Hetzner
 box in Nuremberg at `db.packthings.fyi`. Raw SQL, no ORM, no abstraction layer -
 that is deliberate and predates everything here.
 
 ## Things that will bite you
+
+**The split is integer pennies and they must add back up.** `shareOut()` in
+`lib/receipts.ts` gives spare pennies to the lowest user ids, so a receipt
+splits the same way every time it is looked at. A line with no eaters is the
+household; a snack with no eaters is somebody outside it, and the purchaser
+absorbs it. A line with no price and a receipt with no purchaser are left out
+of the balances rather than guessed - they are on the checklist instead. All
+of that is pure and checked: `npm run check:receipts`. Do the arithmetic there
+and never in a page.
+
+**A receipt line is scoped through its receipt.** `receipt_lines` has no
+kitchen column, so every statement that touches one carries `receipt_id IN
+(SELECT id FROM receipts WHERE kitchen_id = ?)` - `LINE_SCOPE` in
+`lib/receipt-db.ts`. A write without it is a way to edit another kitchen's
+receipt by id.
+
+**Learning is keyed on the till's wording, never on the cleaned name.**
+`receipt_aliases` remembers what `INDIAN SELECTN` turned out to be against
+`aliasKey(raw)`, because the raw text is what the next receipt prints. A line
+typed by hand has no raw text and teaches nothing. Only what a thing IS is
+learned (name, category, long-term, amount) - not price, sharers or meals,
+which are about one shop. Cards are learned the same way: name who paid a
+receipt that printed four digits and those digits are theirs.
+
+**The vision reader is a fallback that costs money.** `lib/receipt-vision.ts`
+goes through OpenRouter only when `OPENROUTER_API_KEY` is set
+(`OPENROUTER_MODEL` overrides the default Gemini Flash), is offered only after
+the phone's own OCR fails, and is asked for what the till printed rather than
+what it thinks the things are - an "expanded" name would never match the
+aliases. Everything it returns is validated into the OCR path's shapes.
+
+**Testing receipts locally without production.** The web client cannot open a
+`file:` database. A small Hrana-over-HTTP shim over `node:sqlite` serving a
+clone, with `LIBSQL_URL=http://127.0.0.1:8089 LIBSQL_PROTOCOL=http`, is how
+v2 was walked end to end; it needs `store_sql` support for transactions.
 
 **sqld allows no pragma control.** `foreign_keys=OFF` is accepted and ignored,
 `defer_foreign_keys` likewise, `legacy_alter_table` will not parse. Every
@@ -245,7 +280,8 @@ still there as the way back.
     npm run check:bundle      what a deployment costs Vercel to store
     npm run check:plan        week arithmetic, DST, meal slots, Fill the gaps
     npm run check:push        when the weekly nudge decides it is due
-    npm run check:receipt     receipt parsing and matching
+    npm run check:receipt     receipt lines off OCR text
+    npm run check:receipts    till meta, the checklist, the split, the history
     npm run check:estimates   the generic-food matcher
     npm run check:usage       every counted name is one the server accepts
     npm run check:video       a video link becoming text worth reading

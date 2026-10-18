@@ -7,6 +7,18 @@ timestamp to see how fresh it is.
 **Doing right now:** v2, milestones 1-2 (schema, receipt core) - plan in `docs/ROADMAP-V2.md`. M3 done: `/pantry`, `/tonight`, `/stats` and stock code gone; list at `/list`; tabs are Cookbook, Plan, Discover
 **Waiting on you:** invite Sam (`exodddus`) to Pack Kitchen
 
+### 18 Oct, v2: recipes and receipts
+
+Stock tracking is gone and receipts are the record. Built on `v2`, not yet
+live. Plan and decisions in `docs/ROADMAP-V2.md`.
+
+- [x] 1 schema - rehearsed on a clone, migrated twice, foreign keys clean
+- [x] 2 receipt core - till meta, checklist, per-line split, learning, history
+- [x] 3 the gut - /pantry, /tonight, /stats and every stock library out
+- [x] 4 receipts - inbox, photo / paste / type, a receipt's page
+- [x] 5 spend, who owes whom, meals as pseudorecipes, probably-due on the list
+- [ ] 6 ship - needs your go-ahead
+
 ### 22 Sep, the interaction audit
 
 Fifteen findings in `docs/AUDIT-2026-09-22.md`, each put to you. Approved:
