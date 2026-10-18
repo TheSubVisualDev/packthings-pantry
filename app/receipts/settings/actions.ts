@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireKitchenRole } from "@/lib/session";
-import { addCategory, renameCategory, removeCategory } from "@/lib/receipt-db";
+import { addCategory, getCategories, renameCategory, removeCategory } from "@/lib/receipt-db";
 import { deleteCard } from "@/lib/spend-db";
 
 export interface SettingsResult {
@@ -19,8 +19,15 @@ export interface SettingsResult {
 export async function newCategory(name: string): Promise<SettingsResult> {
   const context = await requireKitchenRole("editor");
   if (!context.ok) return { ok: false, error: context.error };
-  if (!name.trim()) return { ok: false, error: "Give it a name." };
-  await addCategory(context.kitchen.id, name);
+  const clean = name.replace(/\s+/g, " ").trim();
+  if (!clean) return { ok: false, error: "Give it a name." };
+  // addCategory ignores a duplicate silently, which would clear the field and
+  // look exactly like it had worked.
+  const existing = await getCategories(context.kitchen.id);
+  if (existing.some((category) => category.name.toLowerCase() === clean.toLowerCase())) {
+    return { ok: false, error: `There is already a category called ${clean}.` };
+  }
+  await addCategory(context.kitchen.id, clean);
   revalidatePath("/receipts/settings");
   return { ok: true };
 }

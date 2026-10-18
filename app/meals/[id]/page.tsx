@@ -168,7 +168,7 @@ export default async function MealPage({ params }: { params: Promise<{ id: strin
               </section>
 
               <section className={CARD}>
-                <MealDetailsForm key={`${meal.name}\n${meal.notes ?? ""}`} id={meal.id} name={meal.name} notes={meal.notes} />
+                <MealDetailsForm id={meal.id} name={meal.name} notes={meal.notes} />
               </section>
 
               <div className="px-1 pt-2">
