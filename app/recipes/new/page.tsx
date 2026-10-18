@@ -3,7 +3,7 @@ import { BackLink } from "@/components/back-link";
 import { redirect } from "next/navigation";
 import { RecipeEditor } from "@/components/recipe-editor";
 import { SiteHeader } from "@/components/site-header";
-import { getItems } from "@/lib/queries";
+import { getIngredientNames } from "@/lib/queries";
 import { currentKitchen } from "@/lib/session";
 import { emptyDraft } from "@/lib/recipe-draft";
 import { getSectionNames } from "@/lib/recipe-sections";
@@ -19,8 +19,8 @@ export default async function NewRecipePage() {
   if (!context.ok) redirect("/login");
   const kitchen = context.kitchen;
 
-  const [items, sections] = await Promise.all([
-    getItems(kitchen?.id ?? null),
+  const [names, sections] = await Promise.all([
+    getIngredientNames(context.user.id),
     getSectionNames(),
   ]);
 
@@ -38,7 +38,7 @@ export default async function NewRecipePage() {
         </h1>
         <RecipeEditor
           initial={emptyDraft(kitchen?.default_servings)}
-          pantryNames={items.map((item) => item.name)}
+          knownNames={names}
           sections={sections}
         />
       </main>

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PasteRecipe } from "@/components/paste-recipe";
 import { SiteHeader } from "@/components/site-header";
-import { getItems } from "@/lib/queries";
 import { legalUnits } from "@/lib/recipe-schema";
 import { currentKitchen } from "@/lib/session";
 
@@ -17,15 +16,12 @@ export const metadata: Metadata = {
 /**
  * The briefing handed to a Claude that has no connector.
  *
- * It carries the two things that can't be guessed - the units this pantry
- * accepts and what the items are actually called - because those are what a
- * pasted recipe gets rejected for. Everything else is shape.
+ * It carries the one thing that can't be guessed - the units this pantry
+ * accepts - because that is what a pasted recipe gets rejected for.
+ * Everything else is shape. It used to list the kitchen's stock as well, so
+ * names would match the shelf; v2 keeps no stock (18 Oct 2026).
  */
-function briefingFor(items: { name: string; quantity: number; canonical_unit: string }[]) {
-  const stock = items.length
-    ? items.map((item) => `- ${item.name} (${item.quantity}${item.canonical_unit})`).join("\n")
-    : "- (nothing tracked yet)";
-
+function briefingFor() {
   return `I want a recipe written as JSON so I can paste it into my pantry app.
 
 Reply with ONLY the JSON object, no explanation and no code fences.
@@ -52,18 +48,12 @@ Rules:
 - Units only convert within a dimension. Grams never become millilitres.
 - "uses" lists item_name values from the ingredients above, so the app can show
   them beside the step.
-- Copy item names below verbatim where you mean the thing I already have.
-
-What's in my kitchen:
-${stock}
 `;
 }
 
 export default async function PasteRecipePage() {
   const context = await currentKitchen();
   if (!context.ok) redirect("/login?next=%2Frecipes%2Fpaste");
-
-  const items = await getItems(context.kitchen?.id ?? null);
 
   return (
     <>
@@ -89,7 +79,7 @@ export default async function PasteRecipePage() {
           .
         </p>
 
-        <PasteRecipe briefing={briefingFor(items)} />
+        <PasteRecipe briefing={briefingFor()} />
       </main>
     </>
   );

@@ -6,7 +6,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { RecipeBrowseCard } from "@/components/recipe-browse-card";
 import { Segmented } from "@/components/ui/segmented";
-import { getMyRecipes, getRecipesWithMatches, getSavedRecipes } from "@/lib/queries";
+import { getCookbookRecipes, getMyRecipes, getSavedRecipes } from "@/lib/queries";
 import { getCookbookIds } from "@/lib/cookbook";
 import { RecipeFilters } from "@/components/recipe-filters";
 import {
@@ -41,7 +41,7 @@ export default async function RecipesPage({
   const context = await currentKitchen();
   if (!context.ok) redirect("/login");
   // No kitchen is fine here: your recipes are yours, not a kitchen's. The
-  // "what can I cook" counts simply come back empty.
+  // Cooking tab simply comes back empty.
   const kitchen = context.kitchen;
 
   const { q, tag, within, view } = await searchParams;
@@ -55,7 +55,7 @@ export default async function RecipesPage({
   const activeView: View = VIEWS.includes(view as View) ? (view as View) : "cooking";
 
   const [everything, saved, mine, adopted, myTags] = await Promise.all([
-    getRecipesWithMatches(kitchen?.id ?? null, context.user.id, term),
+    getCookbookRecipes(kitchen?.id ?? null, context.user.id, term),
     getSavedRecipes(context.user.id, term),
     getMyRecipes(context.user.id, term),
     getCookbookIds(kitchen?.id ?? null),
@@ -165,18 +165,15 @@ export default async function RecipesPage({
               writing a recipe already has the FAB, and Cooked is a history you
               visit occasionally. One quiet link, and the rest live where they
               belong. */}
+          {/* Stats sat beside it until v2: what it counted was mostly stock
+              and spend, and spend comes back as its own page built on
+              receipts. */}
           <div className="flex shrink-0 items-center gap-4">
             <Link
               href="/cooked"
               className="flex min-h-11 items-center text-sm font-bold text-muted-foreground hover:text-foreground"
             >
               Cooked →
-            </Link>
-            <Link
-              href="/stats"
-              className="flex min-h-11 items-center text-sm font-bold text-muted-foreground hover:text-foreground"
-            >
-              Stats →
             </Link>
           </div>
         </div>
@@ -237,7 +234,7 @@ export default async function RecipesPage({
               {searched || filtered
                 ? `${shown.length} ${shown.length === 1 ? "match" : "matches"}`
                 : activeView === "cooking"
-                  ? "Cook with what you have"
+                  ? "What this kitchen cooks"
                   : activeView === "saved"
                     ? "Saved off other people"
                     : "Written by you"}
@@ -250,19 +247,11 @@ export default async function RecipesPage({
                   // Your own name on your own recipes is noise; on something
                   // you saved, whose it is is half of why you saved it.
                   showAuthor={activeView === "saved"}
-                  match={
-                    "have" in recipe && "total" in recipe
-                      ? {
-                          have: (recipe as { have: number }).have,
-                          total: (recipe as { total: number }).total,
-                        }
-                      : undefined
-                  }
                   tags={[
                     // A recipe you wrote and never adopted is not in your
-                    // cookbook and cannot be cooked from your shelves, which
-                    // is worth saying on the card rather than in a footnote
-                    // under a second list.
+                    // cookbook, so the planner will not pick it - worth
+                    // saying on the card rather than in a footnote under a
+                    // second list.
                     ...(activeView !== "cooking" && !adopted.has(recipe.id)
                       ? ["not in your cookbook"]
                       : []),

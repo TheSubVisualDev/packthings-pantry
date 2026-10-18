@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getItems } from "@/lib/queries";
 import { currentKitchen, requireUser } from "@/lib/session";
 import {
   parseRecipeDocument,
@@ -39,10 +38,7 @@ export async function saveRecipeDocument(
     return { ok: false, problems: [{ path: "", message: "Sign in first." }], warnings: [] };
   }
 
-  const parsed = parseRecipeDocument(
-    document,
-    await getItems(context.kitchen?.id ?? null),
-  );
+  const parsed = parseRecipeDocument(document);
 
   if (!parsed.ok || !parsed.recipe) {
     return { ok: false, problems: parsed.problems, warnings: parsed.warnings };
@@ -76,7 +72,6 @@ export async function saveRecipeDocument(
 
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${id}`);
-  revalidatePath("/pantry");
 
   return { ok: true, id, problems: [], warnings: parsed.warnings };
 }
@@ -99,10 +94,7 @@ export async function parsePastedRecipe(text: string): Promise<SaveRecipeResult>
     return { ok: false, problems: [{ path: "", message: "Sign in first." }], warnings: [] };
   }
 
-  const parsed = parseRecipeDocument(
-    document,
-    await getItems(context.kitchen?.id ?? null),
-  );
+  const parsed = parseRecipeDocument(document);
   return {
     ok: parsed.ok,
     problems: parsed.problems,
@@ -248,10 +240,7 @@ export async function readPastedText(
   const read = readRecipeText(text);
   if (source && !read.document.source) read.document.source = source;
 
-  const parsed = parseRecipeDocument(
-    read.document,
-    await getItems(context.kitchen?.id ?? null),
-  );
+  const parsed = parseRecipeDocument(read.document);
 
   if (!parsed.ok || !parsed.recipe) {
     return {

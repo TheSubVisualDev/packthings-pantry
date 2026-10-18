@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * and that a half-finished one survives the screen locking.
  *
  * The serving count arrives in the URL so the step chips say what to actually
- * put in the pan. It is chosen on the recipe page, where the stock counts are.
+ * put in the pan. It is chosen on the recipe page, where the stepper is.
  */
 export default async function CookPage({
   params,

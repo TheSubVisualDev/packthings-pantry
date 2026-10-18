@@ -40,15 +40,12 @@ export type BrowsableRecipe = Pick<
 export function RecipeBrowseCard({
   recipe,
   showAuthor = true,
-  match,
   tags = [],
   note,
   states = [],
 }: {
   recipe: BrowsableRecipe;
   showAuthor?: boolean;
-  /** How much of it your kitchen already has, on your own collection. */
-  match?: { have: number; total: number };
   /**
    * What to file it under, at a glance.
    *
@@ -124,19 +121,6 @@ export function RecipeBrowseCard({
         </p>
 
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          {match && match.total > 0 && (
-            <span
-              className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                match.have === match.total
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-chip text-muted-foreground"
-              }`}
-            >
-              {match.have === match.total
-                ? "you have everything"
-                : `${match.have}/${match.total} in stock`}
-            </span>
-          )}
           {tags.slice(0, 2).map((tag) => (
             <span
               key={tag}

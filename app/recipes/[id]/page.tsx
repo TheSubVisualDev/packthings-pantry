@@ -12,7 +12,7 @@ import { RemixButton } from "@/components/remix-button";
 import { CookbookButton } from "@/components/cookbook-button";
 import { PlanItButton } from "@/components/plan-it-button";
 import { addDays, getSlots, isoDate, shortDay } from "@/lib/plan";
-import { getLinks, isInCookbook, resolveWithLinks } from "@/lib/cookbook";
+import { isInCookbook } from "@/lib/cookbook";
 import { RecipeTags } from "@/components/recipe-tags";
 import { derivedTags, getTagsByRecipe, suggestTags } from "@/lib/recipe-tags";
 import { Lineage } from "@/components/lineage";
@@ -23,16 +23,12 @@ import { CookPanel, type CookLine } from "@/components/cook-panel";
 import type { CookStep } from "@/components/recipe-method";
 import {
   getComments,
-  getItems,
   getRecipe,
   getRecipeAuthorHandle,
   getRecipeSocial,
   getCookedLog,
 } from "@/lib/queries";
 import { getLineage, getRemixes } from "@/lib/social";
-import { indexStock } from "@/lib/pantry-match";
-import { rankSubstitutes } from "@/lib/substitutes";
-import { getTags, getTagsByItem } from "@/lib/tags";
 import { recipeMacros } from "@/lib/recipe-nutrition";
 import { recipeTint } from "@/lib/tint";
 import { currentKitchen } from "@/lib/session";
@@ -56,9 +52,8 @@ export default async function RecipePage({
   // Readable without a kitchen - the cook panel is what needs one.
   const kitchen = context.kitchen;
 
-  const [recipe, items, inCookbook] = await Promise.all([
+  const [recipe, inCookbook] = await Promise.all([
     getRecipe(recipeId, context.user.id),
-    getItems(kitchen?.id ?? null),
     isInCookbook(kitchen?.id ?? null, recipeId),
   ]);
   if (!recipe) notFound();
@@ -77,10 +72,7 @@ export default async function RecipePage({
     ancestors,
     remixes,
     history,
-    tagsByItem,
-    kitchenTags,
     recipeTagsByRecipe,
-    links,
     slots,
   ] =
     await Promise.all([
@@ -94,10 +86,7 @@ export default async function RecipePage({
     getLineage(recipe.id),
     getRemixes(recipe.id, context.user.id),
     getCookedLog(kitchen?.id ?? null, 20, recipe.id),
-    getTagsByItem(kitchen?.id ?? null),
-    getTags(kitchen?.id ?? null),
     getTagsByRecipe([recipeId]),
-    getLinks(kitchen?.id ?? null, recipeId),
     // The kitchen's own meal names, for planning this onto a day from here.
     kitchen ? getSlots(kitchen.id) : Promise.resolve([]),
   ]);
@@ -119,12 +108,6 @@ export default async function RecipePage({
   const forkedAuthor =
     forkedFrom && forkedFrom.id !== recipe.author_id ? forkedFrom : null;
 
-  const tagCounts = new Map(kitchenTags.map((tag) => [tag.id, tag.item_count]));
-
-  const itemsByName = new Map(
-    items.map((item) => [item.name.toLowerCase(), item]),
-  );
-
   /**
    * What one portion comes to.
    *
@@ -134,91 +117,29 @@ export default async function RecipePage({
    */
   const nutrition = recipeMacros(
     recipe.ingredients,
-    itemsByName,
     recipe.base_servings,
     recipe.base_servings,
   );
 
-  // Pass raw stock alongside each line so the panel can re-resolve status as
-  // the serving count changes, using the same pure helpers as the server.
   /**
-   * The same answer the cook button will give, from the same function.
+   * The lines as the recipe writes them.
    *
-   * This page used to decide it alone: trust `recipe_ingredients.item_id` if
-   * set, otherwise an exact lowercase name match. The cook action reads
-   * `cookbook_links` and falls through to the real resolver, which refuses a
-   * low-confidence guess - so the two disagreed, and the page won the argument
-   * it had no business being in. A stale item_id let it print "Low" beside
-   * Sweet Peppers and Brown Onions, and then cooking said they "could not be
-   * worked out from the recipe" and deducted nothing, in small print under the
-   * celebration screen.
-   *
-   * pantry-match.ts says in its own header that four places once decided this
-   * independently and "agreed only by being equally wrong". This was the fifth,
-   * and the only caller that never adopted the fix - queries, shopping and trip
-   * were all already here.
+   * Each used to carry the stock row it resolved to, and what else on the
+   * shelf could stand in, so the panel could say In stock, Low or To buy.
+   * v2 keeps no stock (18 Oct 2026), so a recipe page is the recipe.
    */
-  const stockIndex = indexStock(items);
-  const itemsById = new Map(items.map((item) => [item.id, item]));
-
-  const lines: CookLine[] = recipe.ingredients.map((line) => {
-    const item = resolveWithLinks(line, links, stockIndex, itemsById).item ?? undefined;
-
-    return {
-      id: line.id,
-      item_name: line.item_name,
-      quantity: line.quantity,
-      unit: line.unit,
-      pack_size: line.pack_size,
-      pack_unit: line.pack_unit,
-      note: line.note,
-      optional: line.optional === 1,
-      approx: line.approx === 1,
-      section: line.section,
-      /**
-       * What else on the shelf could stand in.
-       *
-       * Worked out here rather than in the browser because it needs the whole
-       * kitchen's tags, and shipping those to rank four chips would be sending
-       * the shelf to decide what is on it.
-       */
-      substitutes: rankSubstitutes(
-        line.item_name,
-        item ?? null,
-        items,
-        tagsByItem,
-        tagCounts,
-      ).map((option) => ({
-        id: option.item.id,
-        name: option.item.name,
-        shared: option.shared,
-        level: {
-          quantity: option.item.quantity,
-          canonical_unit: option.item.canonical_unit,
-          sealed_count: option.item.sealed_count,
-          pack_size: option.item.pack_size,
-          pack_unit: option.item.pack_unit,
-          unspecified: option.item.unspecified,
-          count_noun: option.item.count_noun,
-          dimension: option.item.dimension,
-        },
-      })),
-      item: item
-        ? {
-            quantity: item.quantity,
-            dimension: item.dimension,
-            canonical_unit: item.canonical_unit,
-            // The containers too: judging a line against the open one alone
-            // called recipes short with sealed packs sitting behind it.
-            sealed_count: item.sealed_count,
-            pack_size: item.pack_size,
-            pack_unit: item.pack_unit,
-            unspecified: item.unspecified,
-            count_noun: item.count_noun,
-          }
-        : null,
-    };
-  });
+  const lines: CookLine[] = recipe.ingredients.map((line) => ({
+    id: line.id,
+    item_name: line.item_name,
+    quantity: line.quantity,
+    unit: line.unit,
+    pack_size: line.pack_size,
+    pack_unit: line.pack_unit,
+    note: line.note,
+    optional: line.optional === 1,
+    approx: line.approx === 1,
+    section: line.section,
+  }));
 
   const steps: CookStep[] = recipe.steps.map((step) => ({
     id: step.id,
@@ -293,8 +214,8 @@ export default async function RecipePage({
           )}
 
           <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4 print:hidden">
-            {/* Back to wherever the recipe was opened from - Tonight, more
-                often than not - rather than always to the cookbook. */}
+            {/* Back to wherever the recipe was opened from - the plan or
+                Discover as often as not - rather than always the cookbook. */}
             <BackLink
               href="/recipes"
               label="Cookbook"
@@ -447,10 +368,9 @@ export default async function RecipePage({
           lastServings={history[0]?.servings ?? null}
         />
 
-        {/* Adopting comes before cooking, because adopting is where the app is
-            allowed to ask which jar an ingredient means. Above the visibility
-            and remix controls: it is the thing to do with a recipe you have
-            just found, and those are things to do with one you already keep. */}
+        {/* Above the visibility and remix controls: adopting is the thing to
+            do with a recipe you have just found, and those are things to do
+            with one you already keep. */}
         {kitchen && kitchen.role !== "viewer" && (
           <div className="mt-5 space-y-2 print:hidden">
             <CookbookButton recipeId={recipe.id} inCookbook={inCookbook} />

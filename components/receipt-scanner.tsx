@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { Camera, Check, CheckCircle2, ImageUp, X } from "lucide-react";
+// Its server actions went with /pantry in v2 (18 Oct 2026); receipts are being
+// rebuilt elsewhere. The stubs keep this file compiling, and refuse politely
+// if it is ever mounted before then. See receipt-scanner-stubs.ts.
 import {
+  addItem,
   applyReceipt,
   matchReceipt,
   type ApplyResult,
   type ReceiptMatch,
-} from "@/app/pantry/receipt/actions";
-import { addItem } from "@/app/pantry/actions";
+} from "@/components/receipt-scanner-stubs";
 import { prepareReceipt } from "@/lib/scan-image";
 import { UNITS_BY_DIMENSION } from "@/lib/units";
 
@@ -173,7 +176,7 @@ export function ReceiptScanner() {
             Another receipt
           </button>
           <Link
-            href="/tonight"
+            href="/recipes"
             className="rounded-[14px] bg-chip px-5 py-2.5 text-sm font-bold"
           >
             Back to the shelf
