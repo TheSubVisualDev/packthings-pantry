@@ -747,3 +747,23 @@ export async function deleteSettlement(kitchenId: number, id: number): Promise<v
     args: [id, kitchenId],
   });
 }
+
+/**
+ * Receipts with a line matching a name or a category - how a number on the
+ * spend page leads back to the receipts it was counted from.
+ */
+export async function receiptIdsMatching(
+  kitchenId: number,
+  query: string,
+  categoryId: number | null,
+): Promise<Set<number>> {
+  const result = await getDb().execute({
+    sql: `SELECT DISTINCT l.receipt_id FROM receipt_lines l
+          JOIN receipts r ON r.id = l.receipt_id
+          WHERE r.kitchen_id = ?
+            AND (? = '' OR LOWER(l.name) LIKE '%' || ? || '%')
+            AND (? IS NULL OR l.category_id = ?)`,
+    args: [kitchenId, query, query, categoryId, categoryId],
+  });
+  return new Set(result.rows.map((row) => Number(row.receipt_id)));
+}
