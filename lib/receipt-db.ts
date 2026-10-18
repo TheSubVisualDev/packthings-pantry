@@ -603,7 +603,12 @@ export async function getMeals(kitchenId: number): Promise<Meal[]> {
   const result = await getDb().execute({
     sql: `SELECT m.id, m.name, m.kind, m.recipe_id, r.name AS recipe_name, m.notes,
             (SELECT COUNT(*) FROM receipt_line_meals lm WHERE lm.meal_id = m.id) AS lines
-          FROM meals m LEFT JOIN recipes r ON r.id = m.recipe_id
+          FROM meals m
+          -- Only a recipe still in this kitchen's cookbook lends its name. One
+          -- linked and later made private by its author would otherwise go on
+          -- showing its title to a kitchen that can no longer open it.
+          LEFT JOIN recipes r ON r.id = m.recipe_id
+            AND r.id IN (SELECT recipe_id FROM cookbook WHERE kitchen_id = m.kitchen_id)
           WHERE m.kitchen_id = ?
           ORDER BY lines DESC, m.name COLLATE NOCASE`,
     args: [kitchenId],
